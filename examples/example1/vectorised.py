@@ -169,7 +169,7 @@ def main():
         profile.enable()
 
     model = SimpleSquare()
-    sim(model, steps=10)
+    sim(model, steps=100)
 
     if args.profile:
         profile.disable()

@@ -32,9 +32,9 @@ class Model:
         self.c = 18.0 * self.kscalar / (np.pi * (self.horizon**4))
 
         # Material Parameters for new formulation of damage update_model
-        self.dam_k = 1.0 # Critical damage
-        self.dam_n = 1.0 # exponent for damage growth at high damage levels
-        self.dam_m = 1.0 # exponent for damage growth at low damage levels
+        self.dam_k = 1.0  # Critical damage
+        self.dam_n = 1.0  # Exponent for damage growth at high damage levels
+        self.dam_m = 1.0  # Exponent for damage growth at low damage levels
 
     def read_mesh(self, mesh_file):
         mesh = meshio.read(mesh_file)
@@ -306,18 +306,15 @@ class Model:
 
         return damage
 
-    def UpdateDamage(self, damage_current):
-
+    def UpdateDamage(self, dt, damage_old):
         """ Updates the bond damage - using the following differential equation
-
-        d(damage_ij)/dt = exp(k_dam * strain_ij) * (1 - damage_ij)^dam_n * damage_ij^dam_m
-
         """
+        damage_new = damage_old + dt * (
+                np.exp(self.dam_k * self.strain[self.conn.nonzero()])
+                * (1 - damage_old[self.conn.nonzero()]).power(self.dam_n)
+                * damage_old[self.conn.nonzero()].power(self.dam_m))
 
-        return damage_old + dt * (np.exp(self.dam_k * self.strain[self.conn.nonzero()])
-                                            * (1 - damage_old[self.conn.nonzero()]).power(self.dam_n)
-                                            * damage_old[self.conn.nonzero()].power(self.dam_m))
-
+        return damage_new
 
     def bond_force(self):
         self.c = 18.0 * self.kscalar / (np.pi * (self.horizon**4))
