@@ -308,9 +308,7 @@ class Model:
 
     def UpdateDamage(self, damage_current):
 
-        """ Updates the bond damage - this is now a continous parameter.
-
-        using the following differential equation
+        """ Updates the bond damage - using the following differential equation
 
         d(damage_ij)/dt = exp(k_dam * strain_ij) * (1 - damage_ij)^dam_n * damage_ij^dam_m
 
