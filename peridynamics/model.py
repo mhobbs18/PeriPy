@@ -326,8 +326,8 @@ class Model:
                 self.damage[self.conn.nonzero()]
                 + dt * (
                     np.exp(self.dam_k * self.strain[self.conn.nonzero()])
-                    * (1 - damage_old[self.conn.nonzero()]).power(self.dam_n)
-                    * damage_old[self.conn.nonzero()].power(self.dam_m)
+                    * (1 - self.damage[self.conn.nonzero()]).power(self.dam_n)
+                    * self.damage[self.conn.nonzero()].power(self.dam_m)
                     )
                 )
 
