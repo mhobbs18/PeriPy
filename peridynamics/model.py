@@ -36,6 +36,10 @@ class Model:
         self.dam_n = 1.0  # Exponent for damage growth at high damage levels
         self.dam_m = 1.0  # Exponent for damage growth at low damage levels
 
+        self.damage_continous = False
+
+        self.damage_setup = False
+
     def read_mesh(self, mesh_file):
         mesh = meshio.read(mesh_file)
 
@@ -306,18 +310,28 @@ class Model:
 
         return damage
 
-    def UpdateDamage(self, dt, damage_old):
+    def UpdateDamage(self, dt):
         """ Updates the bond damage - using the following differential equation
         """
-        damage_new = damage_old + dt * (
-                np.exp(self.dam_k * self.strain[self.conn.nonzero()])
+        if(self.damage_setup == False):
+            # If damage has not been setup before initialise with small damage
+            # value
+            self.damage = sparse.lil_matrix(self.conn.shape)
+            self.damage[self.conn.nonzero()] = 1e-6
+            self.damage_setup = True  # Change flag -> True
+
+        damage_new = sparse.lil_matrix(self.conn.shape)
+
+        damage_new[self.conn.nonzero()] = self.damage[self.conn.nonzero()]
+                + dt * (np.exp(self.dam_k * self.strain[self.conn.nonzero()])
                 * (1 - damage_old[self.conn.nonzero()]).power(self.dam_n)
                 * damage_old[self.conn.nonzero()].power(self.dam_m))
 
-        return damage_new
+        self.damage = damage_new
 
     def bond_force(self):
         self.c = 18.0 * self.kscalar / (np.pi * (self.horizon**4))
+
         # Container for the forces on each particle in each dimension
         F = np.zeros((self.nnodes, 3))
 
@@ -330,6 +344,12 @@ class Model:
                 self.strain[self.conn.nonzero()]/self.L[self.conn.nonzero()]
                 )
 
+        # If continous damage approach then multiple by damage parameter
+        if(self.damage_continous):
+            force_normd[self.conn.nonzero()] = np.multiply(
+                    force_normd[self.conn.nonzero()],
+                    self.damage[self.conn.nonzero()])
+
         # Make lower triangular into full matrix
         force_normd.tocsr()
         force_normd = force_normd + force_normd.transpose()
@@ -340,7 +360,7 @@ class Model:
         bond_force_y = force_normd.multiply(self.H_y)
         bond_force_z = force_normd.multiply(self.H_z)
 
-        # now sum along the rows to calculate resultant force on nodes
+        # Now sum along the rows to calculate resultant force on nodes
         F_x = np.array(bond_force_x.sum(axis=0))
         F_y = np.array(bond_force_y.sum(axis=0))
         F_z = np.array(bond_force_z.sum(axis=0))
