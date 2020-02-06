@@ -280,11 +280,10 @@ class Model:
                     )
                 )
 
-    def damage(self, dt = None):
+    def damage(self, dt):
         """ Calculates bond damage
         """
         # Make sure only calculating for bonds that exist
-
 
         if self.damage_continous is False:
             # Step 1. initiate as sparse matrix
