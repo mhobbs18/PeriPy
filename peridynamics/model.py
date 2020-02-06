@@ -313,7 +313,7 @@ class Model:
     def UpdateDamage(self, dt):
         """ Updates the bond damage - using the following differential equation
         """
-        if(self.damage_setup == False):
+        if self.damage_setup is False:
             # If damage has not been setup before initialise with small damage
             # value
             self.damage = sparse.lil_matrix(self.conn.shape)
@@ -322,10 +322,12 @@ class Model:
 
         damage_new = sparse.lil_matrix(self.conn.shape)
 
-        damage_new[self.conn.nonzero()] = self.damage[self.conn.nonzero()]
-                + dt * (np.exp(self.dam_k * self.strain[self.conn.nonzero()])
+        damage_new[self.conn.nonzero()] = (
+                self.damage[self.conn.nonzero()]
+                + dt * ( np.exp(self.dam_k * self.strain[self.conn.nonzero()])
                 * (1 - damage_old[self.conn.nonzero()]).power(self.dam_n)
                 * damage_old[self.conn.nonzero()].power(self.dam_m))
+                )
 
         self.damage = damage_new
 
