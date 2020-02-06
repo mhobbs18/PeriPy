@@ -280,58 +280,59 @@ class Model:
                     )
                 )
 
-    def damage(self):
+    def damage(self, dt = None):
         """ Calculates bond damage
         """
         # Make sure only calculating for bonds that exist
 
-        # Step 1. initiate as sparse matrix
-        bond_healths = sparse.lil_matrix(self.conn.shape)
 
-        # Step 2. Find broken bonds, squared as strains can be negative
-        bond_healths[self.conn.nonzero()] = (
-                self.fail_strains.power(2)[self.conn.nonzero()]
-                - self.strain.power(2)[self.conn.nonzero()]
-                )
+        if self.damage_continous is False:
+            # Step 1. initiate as sparse matrix
+            bond_healths = sparse.lil_matrix(self.conn.shape)
 
-        # Update failed bonds
-        bond_healths = bond_healths > 0
-
-        self.conn = sparse.csr_matrix(bond_healths)
-
-        # Bond damages
-        # Using lower triangular connectivity matrix, so just mirror it for
-        # bond damage calc
-        temp = self.conn + self.conn.transpose()
-
-        count = temp.sum(axis=0)
-        damage = np.divide((self.family - count), self.family)
-        damage.resize(self.nnodes)
-
-        return damage
-
-    def UpdateDamage(self, dt):
-        """ Updates the bond damage - using the following differential equation
-        """
-        if self.damage_setup is False:
-            # If damage has not been setup before initialise with small damage
-            # value
-            self.damage = sparse.lil_matrix(self.conn.shape)
-            self.damage[self.conn.nonzero()] = 1e-6
-            self.damage_setup = True  # Change flag -> True
-
-        damage_new = sparse.lil_matrix(self.conn.shape)
-
-        damage_new[self.conn.nonzero()] = (
-                self.damage[self.conn.nonzero()]
-                + dt * (
-                    np.exp(self.dam_k * self.strain[self.conn.nonzero()])
-                    * (1 - self.damage[self.conn.nonzero()]).power(self.dam_n)
-                    * self.damage[self.conn.nonzero()].power(self.dam_m)
+            # Step 2. Find broken bonds, squared as strains can be negative
+            bond_healths[self.conn.nonzero()] = (
+                    self.fail_strains.power(2)[self.conn.nonzero()]
+                    - self.strain.power(2)[self.conn.nonzero()]
                     )
-                )
 
-        self.damage = damage_new
+            # Update failed bonds
+            bond_healths = bond_healths > 0
+
+            self.conn = sparse.csr_matrix(bond_healths)
+
+            # Bond damages
+            # Using lower triangular connectivity matrix, so just mirror it for
+            # bond damage calc
+            temp = self.conn + self.conn.transpose()
+
+            count = temp.sum(axis=0)
+            damage = np.divide((self.family - count), self.family)
+            damage.resize(self.nnodes)
+
+            return damage
+        else:
+            if self.damage_setup is False:
+                # If damage has not been setup before initialise with small damage
+                # value
+                self.damage = sparse.lil_matrix(self.conn.shape)
+                self.damage[self.conn.nonzero()] = 1e-6
+                self.damage_setup = True  # Change flag -> True
+
+            damage = sparse.lil_matrix(self.conn.shape)
+
+            damage[self.conn.nonzero()] = (
+                    self.damage[self.conn.nonzero()]
+                    + dt * (
+                        np.exp(self.dam_k * self.strain[self.conn.nonzero()])
+                        * (1 - self.damage[self.conn.nonzero()]).power(self.dam_n)
+                        * self.damage[self.conn.nonzero()].power(self.dam_m)
+                        )
+                    )
+
+            self.damage = damage
+
+            return damage
 
     def bond_force(self):
         self.c = 18.0 * self.kscalar / (np.pi * (self.horizon**4))
