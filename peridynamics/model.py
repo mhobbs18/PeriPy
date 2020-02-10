@@ -320,10 +320,14 @@ class Model:
 
             damage = sparse.lil_matrix(self.conn.shape)
 
+            expStrain =  (self.dam_k * self.strain).tocsr()
+
+            expStrain = expStrain.tolil()
+
             damage[self.conn.nonzero()] = (
                     self.damage[self.conn.nonzero()]
                     + dt * (
-                        np.exp(self.dam_k * self.strain[self.conn.nonzero()])
+                        expStrain[self.conn.nonzero()]
                         * (1 - self.damage[self.conn.nonzero()]).power(self.dam_n)
                         * self.damage[self.conn.nonzero()].power(self.dam_m)
                         )
