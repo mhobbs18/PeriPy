@@ -32,9 +32,9 @@ class Model:
         self.c = 18.0 * self.kscalar / (np.pi * (self.horizon**4))
 
         # Material Parameters for new formulation of damage update_model
-        self.dam_k = 1.0  # Critical damage
-        self.dam_n = 1.0  # Exponent for damage growth at high damage levels
-        self.dam_m = 1.0  # Exponent for damage growth at low damage levels
+        self.k = 1.0  # Critical damage
+        self.n = 1.0  # Exponent for damage growth at high damage levels
+        self.m = 1.0  # Exponent for damage growth at low damage levels
 
         self.damage_continous = False
 
@@ -320,7 +320,7 @@ class Model:
 
             damage = sparse.lil_matrix(self.conn.shape)
 
-            expStrain =  (self.dam_k * self.strain).tocsr()
+            expStrain = (self.k * self.strain).tocsr()
 
             expStrain = expStrain.tolil()
 
@@ -328,8 +328,8 @@ class Model:
                     self.damage[self.conn.nonzero()]
                     + dt * (
                         expStrain[self.conn.nonzero()]
-                        * (1 - self.damage[self.conn.nonzero()]).power(self.dam_n)
-                        * self.damage[self.conn.nonzero()].power(self.dam_m)
+                        * (1. - self.damage[self.conn.nonzero()]).power(self.n)
+                        * self.damage[self.conn.nonzero()].power(self.m)
                         )
                     )
 
