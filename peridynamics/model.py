@@ -312,7 +312,7 @@ class Model:
             return damage
         else:
             if self.damage_setup is False:
-                # If damage has not been setup before initialise with small damage
+                # If damage not setup before initialise with small damage
                 # value
                 self.damage = sparse.lil_matrix(self.conn.shape)
                 self.damage[self.conn.nonzero()] = 1e-6

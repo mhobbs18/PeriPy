@@ -105,7 +105,7 @@ def regression(simple_square):
         damage.append(np.zeros(nnodes))
 
         model.bond_stretch(u[t-1])
-        damage[t] = model.damage()
+        damage[t] = model.damage(dt)
         f = model.bond_force()
 
         # Simple Euler update of the Solution

@@ -17,6 +17,7 @@ from pstats import SortKey, Stats
 
 """
 
+
 class SimpleSquare(Model):
     # A user defined class for a particular problem which defines all necessary
     # parameters
@@ -150,7 +151,7 @@ def sim(model, steps=400, load_rate=0.00001, dt=1e-3, print_every=10):
         model.bond_stretch(u[t-1])
 
         damage[t] = model.damage(dt)
-        
+
         f = model.bond_force()
 
         # Simple Euler update of the solution + add the stochastic random noise
