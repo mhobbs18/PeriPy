@@ -4,12 +4,25 @@ Created on Sun Nov 10 16:25:58 2019
 @author: Ben Boys
 """
 
-import sys
 from OpenCLPeriVectorized import SeqModel as MODEL
+#import vtk as vtk
+#import time
+#import pyopencl as cl
+# TODO: add argument on command line that gives option to plot results or not,
+# as some systems won't have matplotlib installed.
+#import matplotlib.pyplot as plt
+
+
+import argparse
+import cProfile
+from io import StringIO
 import numpy as np
-import vtk as vtk
-import time
-import pyopencl as cl
+import pathlib
+from peridynamics import OpenCLPeriVectorized
+from peridynamics.model import initial_crack_helper
+from peridynamics.integrators import Euler
+from pstats import SortKey, Stats
+
 
 
 class simpleSquare(MODEL):
