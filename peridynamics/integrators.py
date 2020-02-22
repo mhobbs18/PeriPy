@@ -3,9 +3,11 @@ from abc import ABC, abstractmethod
 # bb515 added these:
 import pyopencl as cl
 import numpy as np
-import vtk as vtk
+# added this
 import sys
-
+sys.path.insert(1, './peridynamics/post_processing')
+sys.path.insert(1, './peridynamics/kernels')
+import vtk as vtk
 
 class Integrator(ABC):
     """
@@ -94,13 +96,13 @@ class EulerCromerOpenCL(Integrator):
             sys.stdout.write(str(device_id.max_compute_units))
             sys.stdout.write(" compute units\n")
             sys.stdout.flush()
-            
-        # Print out device info
-        output_device_info(self.context.devices[0])
-                    
+        
         # Initializing OpenCL
         self.context = cl.create_some_context()
-        self.queue = cl.CommandQueue(self.context)         
+        self.queue = cl.CommandQueue(self.context)   
+        
+        # Print out device info
+        output_device_info(self.context.devices[0])
                     
         # Build the OpenCL program from file
         kernelsource = open("opencl_euler_cromer.cl").read()
@@ -141,7 +143,7 @@ class EulerCromerOpenCL(Integrator):
         # Nodal volumes
         self.h_vols = model.V
         # Bond stiffnesses
-        self.h_bond_stiffness =  np.ascontiguousarray(model.bond_stiffness, dtype=np.float64)
+        self.h_bond_stiffness = np.ascontiguousarray(model.bond_stiffness, dtype=np.float64)
         self.h_bond_critical_stretch = np.ascontiguousarray(model.bond_critical_stretch, dtype=np.float64)
     
         # Displacement
@@ -171,6 +173,8 @@ class EulerCromerOpenCL(Integrator):
             print("un", self.h_un.dtype)
             print("udn", self.h_udn.dtype)
             print("damage", self.h_damage.dtype)
+            print("stiffness", self.h_bond_stiffness.dtype)
+            print("stretch", self.h_bond_critical_stretch.dtype)
     
         # Build OpenCL data structures
         # Read only
@@ -220,6 +224,21 @@ class EulerCromerOpenCL(Integrator):
         self.cl_kernel_check_bonds.set_scalar_arg_dtypes([None, None, None, None])
         self.cl_kernel_calculate_damage.set_scalar_arg_dtypes([None, None, None])
         return None
+    
+    def __call__(self):
+        """
+        Conduct one iteration of the integrator.
+
+        :arg u: A (`nnodes`, 3) array containing the displacements of all
+            nodes.
+        :type u: :class:`numpy.ndarray`
+        :arg f: A (`nnodes`, 3) array containing the components of the force
+            acting on each node.
+        :type f: :class:`numpy.ndarray`
+
+        :returns: The new displacements after integration.
+        :rtype: :class:`numpy.ndarray`
+        """
     
     def runtime(self, model):
         """ Run time integration for Euler Cromer scheme
@@ -307,13 +326,14 @@ class EulerOpenCL:
             sys.stdout.write(str(device_id.max_compute_units))
             sys.stdout.write(" compute units\n")
             sys.stdout.flush()
-            
+        
+        # Initializing OpenCL
+        self.context = cl.create_some_context()
+        self.queue = cl.CommandQueue(self.context)   
+        
         # Print out device info
         output_device_info(self.context.devices[0])
                     
-        # Initializing OpenCL
-        self.context = cl.create_some_context()
-        self.queue = cl.CommandQueue(self.context)         
         # Build the OpenCL program from file
         kernelsource = open("opencl_gradient_flow.cl").read()
         SEP = " "
