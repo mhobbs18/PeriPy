@@ -18,7 +18,7 @@ from peridynamics import Model
 from peridynamics.model import initial_crack_helper
 from peridynamics.integrators import EulerCromerOpenCL
 from pstats import SortKey, Stats
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import time
 import sys
 sys.path.insert(1, './peridynamics/kernels')
@@ -290,13 +290,15 @@ def main():
     
     damage_data, tip_displacement_data = model.simulate(model, steps=10000, integrator=integrator, write=100, toolbar=0)
     
-    plt.figure(1)
-    plt.title('damage over time')
-    plt.plot(damage_data)
-    plt.figure(2)
-    plt.title('tip displacement over time')
-    plt.plot(tip_displacement_data)
-    plt.show()
+# =============================================================================
+#     plt.figure(1)
+#     plt.title('damage over time')
+#     plt.plot(damage_data)
+#     plt.figure(2)
+#     plt.title('tip displacement over time')
+#     plt.plot(tip_displacement_data)
+#     plt.show()
+# =============================================================================
     
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
     print(damage_data)
