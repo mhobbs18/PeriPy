@@ -4,14 +4,10 @@ from collections import namedtuple
 from itertools import combinations
 import meshio
 import numpy as np
-from scipy import sparse
-from scipy.spatial.distance import cdist
-import warnings
 
 
 # bb515 I have added these imports here
 import vtk as vtk
-import pyopencl as cl
 import sys
 import periFunctions as func
 
@@ -22,7 +18,7 @@ _mesh_elements_2d = _MeshElements(connectivity="triangle",
 _mesh_elements_3d = _MeshElements(connectivity="tetrahedron",
                                   boundary="triangle")
 
-# BB NOTE: I think _MeshElements(connectivity="tetra") works whereas "tetrahedron doesn't, from what i remember
+# bb515 NOTE: I think _MeshElements(connectivity="tetra") works whereas "tetrahedron doesn't, from what i remember
 
 
 class Model:
@@ -105,7 +101,7 @@ class Model:
         >>> u, damage = model.simulate(steps=1000, integrator=euler,
         >>>                            boundary_function=boundary_function)
     """
-    def __init__(self, dimensions=3, initial_crack = []):
+    def __init__(self, dimensions=3, initial_crack = [], tip = [], rebar, bond_type):
         """
         Construct a :class:`Model` object.
 
@@ -134,7 +130,8 @@ class Model:
         :raises DimensionalityError: when an invalid `dimensions` argument is
             provided.
         """
-        ## bb515 define all input arguments here ##
+        ## bb515 I have wrongly defined all the PD parameters here, but unsure how to restructure this as there are too many arguments for the command line. We
+        ## should probably make an input parameters file.
         
         # verbose
         self.v = True
@@ -143,8 +140,6 @@ class Model:
         self.verification_problems = ['1000beam2D.msh', '1000beam3D.msh', '1000beam3DT.msh']
         self.benchmark_problems = ['3300beam.msh']
         
-        # TODO: mesh_file to be parsed as command line argument. There are way too many PD parameters to be parsed through command line,
-        # we should probably make an input file.
         self.mesh_file = '1000beam3DT.msh'
         self.network_file = 'Network.vtk'
 
@@ -299,7 +294,7 @@ class Model:
         try:
             self._read_network(self.network_file)
         except:
-            self._set_network(self.PD_HORIZON)
+            self._set_network(self.PD_HORIZON, bond_type)
         
         # bb515 Initating crack is done when we _read_network or _set_network
         self._set_connectivity(initial_crack)
@@ -321,42 +316,6 @@ class Model:
         self.bcvalues = np.zeros((self.nnodes, self.DPN), dtype=np.float64)
         self.tiptypes = np.zeros(self.nnodes, dtype=np.intc)
         
-        # Find the boundary nodes and apply the displacement values
-        for i in range(0, self.nnodes):
-            tip = self.isTip(self.coords[i][:])
-            self.tiptypes[i] = np.intc((tip))
-            bnd = self.findDisplacementBoundary(self.coords[i][:])
-            self.bctypes[i, 0] = np.intc((bnd))
-            self.bctypes[i, 1] = np.intc((bnd))
-            self.bctypes[i, 2] = np.intc((bnd))
-            self.bcvalues[i, 0] = np.float64(bnd * 0.5 * self.loadRate)
-        
-        self.force_bctypes = np.zeros((self.nnodes, self.DPN), dtype=np.intc)
-        self.force_bcvalues = np.zeros((self.nnodes, self.DPN), dtype=np.float64)
-        
-        # Find the force boundary nodes and find amount of boundary nodes
-        num_force_bc_nodes = 0
-        for i in range(0, self.nnodes):
-            bnd = self.findForceBoundary(self.coords[i][:])
-            if bnd == -1:
-                num_force_bc_nodes += 1
-            elif bnd == 1:
-                num_force_bc_nodes += 1
-            self.force_bctypes[i, 0] = np.intc((bnd))
-            self.force_bctypes[i, 1] = np.intc((bnd))
-            self.force_bctypes[i, 2] = np.intc((bnd))
-            
-        self.num_force_bc_nodes = num_force_bc_nodes
-        
-        # Calculate initial forces
-        self.force_bcvalues = np.zeros((self.nnodes, self.DPN), dtype=np.float64)
-        load_scale = 0.0
-        for i in range(0, self.nnodes):
-            bnd = self.findForceBoundary(self.coords[i][:])
-            if bnd == 1:
-                pass
-            elif bnd == -1:
-                self.force_bcvalues[i, 2] = np.float64(1.* bnd * self.max_reaction * load_scale / (self.num_force_bc_nodes))
         if self.v == True:
             print("number of boundary nodes", num_force_bc_nodes)
             print("total volume", self.total_volume)
@@ -645,7 +604,7 @@ class Model:
         assert self.sum_total_volume - volume_total < volume_total/1e5, "Sum total of elemental volumes was {}, but geometry had total volume {}".format(self.sum_total_volume, volume_total)
         self.V = self.V.astype(np.float64)
 
-    def _set_network(self, horizon):
+    def _set_network(self, horizon, bond_type):
         """
         Sets the family matrix, and converts this to a horizons matrix (a fixed size data structure compatible with OpenCL).
         Calculates horizons_lengths
@@ -658,7 +617,6 @@ class Model:
         :returns: None
         :rtype: NoneType
         """
-        family = []
         
         # Container for nodal family
         family = []
@@ -683,7 +641,7 @@ class Model:
                     if np.sqrt(l2_sqr) < horizon:
                         tmp.append(j)
                         # Determine the material properties for that bond
-                        material_flag = self.bond_type(self.coords[i, :], self.coords[j, :])
+                        material_flag = bond_type(self.coords[i, :], self.coords[j, :])
                         if material_flag == 'steel':
                             tmp2.append(self.PD_C_STEEL)
                             tmp3.append(self.PD_S0_STEEL)
@@ -752,29 +710,27 @@ class Model:
             len(max(self.family, key=lambda x: len(x)))
             )
 
-        horizons = -1 * np.ones([self.nnodes, self.MAX_HORIZON_LENGTH])
+        self.horizons = -1 * np.ones([self.nnodes, self.MAX_HORIZON_LENGTH])
         for i, j in enumerate(self.family):
-            horizons[i][0:len(j)] = j
+            self.horizons[i][0:len(j)] = j
             
-        bond_stiffness = -1. * np.ones([self.nnodes, self.MAX_HORIZON_LENGTH])
+        self.bond_stiffness = -1. * np.ones([self.nnodes, self.MAX_HORIZON_LENGTH])
         for i, j in enumerate(self.bond_stiffness_family):
-            bond_stiffness[i][0:len(j)] = j
+            self.bond_stiffness[i][0:len(j)] = j
             
-        bond_critical_stretch = -1. * np.ones([self.nnodes, self.MAX_HORIZON_LENGTH])
+        self.bond_critical_stretch = -1. * np.ones([self.nnodes, self.MAX_HORIZON_LENGTH])
         for i, j in enumerate(self.bond_critical_stretch_family):
-            bond_critical_stretch[i][0:len(j)] = j
+            self.bond_critical_stretch[i][0:len(j)] = j
 
         # Make sure it is in a datatype that C can handle
-        self.horizons = horizons.astype(np.intc)
-        self.bond_stiffness = bond_stiffness
-        self.bond_critical_stretch = bond_critical_stretch
+        self.horizons = self.horizons.astype(np.intc)
         
         vtk.writeNetwork("Network"+".vtk", "Network",
                       self.MAX_HORIZON_LENGTH, self.horizons_lengths, self.family, self.bond_stiffness_family, self.bond_critical_stretch_family)
                     
     def _set_connectivity(self, initial_crack):
         """
-        Sets the sparse connectivity matrix, should only ever be called once.
+        Sets the intial crack.
 
         :arg initial_crack: The initial crack of the system. The argument may
             be a list of tuples where each tuple is a pair of integers
@@ -788,9 +744,10 @@ class Model:
         :rtype: NoneType
         
         
-        bb515 This is replaced by self.horizons and self.horizons_lengths for OpenCL
+        bb515 connectivity matrix is replaced by self.horizons and self.horizons_lengths for OpenCL
         
-        also see self.family, which is a verlet list, but this cannot be 
+        also see self.family, which is a verlet list:
+            self.horizons and self.horizons_lengths are neccessary OpenCL cannot deal with non fixed length arrays
         """
         if callable(initial_crack):
             initial_crack = initial_crack(self.coords)
@@ -812,7 +769,7 @@ class Model:
             for l, m in enumerate(self.horizons[i]):
                 if m == j:
                     self.horizons[i][l] = -1
-
+    
     def _set_H(self):
         """
         Constructs the failure strains matrix and H matrix, which is a sparse
@@ -823,9 +780,8 @@ class Model:
         
         bb515 failure strains matrix is replaced by self.bond_critical_stretch
         for OpenCL
-        
-        
         """
+        # TODO add this back in?
 
     def bond_stretch(self, u):
         """
@@ -868,8 +824,7 @@ class Model:
         bb515 replaced by opencl kernel "__kernel void TimeMarching2" or similar name for different integrators, e.g. "__kernel void TimeMarching<n>" where n is an integer
         """
 
-    def simulate(self, steps, integrator, boundary_function=None, u=None,
-                 write=None, toolbar=0):
+    def simulate(self, model, steps, integrator, write=None, toolbar=0):
         """
         Simulate the peridynamics model.
 
@@ -897,15 +852,6 @@ class Model:
         if not isinstance(integrator, Integrator):
             raise InvalidIntegrator(integrator)
 
-        # Create initial displacements is none is provided
-        if u is None:
-            u = np.zeros((self.nnodes, 3))
-
-        # Create dummy boundary conditions function is none is provied
-        if boundary_function is None:
-            def boundary_function(model):
-                return model.u
-
         # Container for plotting data
         damage_data = []
         tip_displacement_data = []
@@ -922,7 +868,7 @@ class Model:
             integrator.runtime(model) 
             if write:
                 if step % write == 0:
-                    integrator.write(model)
+                    integrator.write(model, step)
                     damage_sum, tip_displacement = integrator.write(model, step)
                     damage_data.append(damage_sum)
                     tip_displacement_data.append(tip_displacement)
@@ -931,7 +877,7 @@ class Model:
                         print('Failure criterion reached, Peridynamic Simulation -- Stopping')
                     break
                     if toolbar == 0:
-                        print('Print number {}/{} complete in {} s '.format(int(t/print_every), int(numSteps/print_every), time.time() - st))
+                        print('Print number {}/{} complete in {} s '.format(int(step/write), int(steps/write), time.time() - st))
                     st = time.time()
 
             # Increase load in linear increments
@@ -940,7 +886,7 @@ class Model:
                 integrator.incrementLoad(model, load_scale)
                     
             # Loading bar update
-            if step%(numSteps/toolbar_width)<1 & toolbar:
+            if step%(steps/toolbar_width)<1 & toolbar:
                 sys.stdout.write("\u2588")
                 sys.stdout.flush()
         
@@ -978,65 +924,6 @@ def initial_crack_helper(crack_function):
                 crack.append((i, j))
         return crack
     return initial_crack
-
-def tip_helper(tip_function):
-    """
-    A decorator to help with the construction of a tip (c.f. 'tip deflection')
-    to measure the deflection of a certain node or average of nodes.
-    
-    tip_function has the form tip_function(icoord, jcoord) where icoord and jcoord
-    are :class:`numpy.ndarray` s representing two node coordinates.
-    tip_function returns a truthy value if the node is on the tip (or point 
-    that the user specifies as they want to measure), and is a falsy value
-    otherwise.
-
-    This decorator returns a function which takes all node coordinates and
-    returns a list of the of nodes which define the tip. This function can
-    therefore be used as the `tip` argument of the :class:`Model`
-
-    :arg function tip_function: The function which determine if the node is on
-    the tip of the problem (the point being measured).
-
-    :returns: A function which determines all nodes on the tip.
-    :rtype: function
-    """
-    def initial_tip(coords):
-        tip = []
-        # Iterate over all unique pairs of coordinates with their indicies
-        for coord in coords:
-            if tip_function(coord):
-                tip.append(coord)
-        return tip
-    return initial_tip
-
-def rebar_helper(rebar_function):
-    """
-    A decorator to help with the construction of rebar for a reinforced
-    concrete beam.
-    
-    rebar_function has the form rebar_function(coord) where coord
-    is a len 3 :class:`numpy.ndarray` s representing the 3D node coordinate.
-    rebar_function returns a truthy value if the node is in rebar, and is 
-    a falsy value otherwise.
-
-    This decorator returns a function which takes all node coordinates and
-    returns a list of the of nodes which define the rebar. This function can
-    therefore be used as the `rebar` argument of the :class:`Model`
-
-    :arg function rebar_function: The function which determine if the node is
-    in the rebar.
-
-    :returns: A function which determines all nodes within the rebar.
-    :rtype: function
-    """
-    def initial_rebar(coords):
-        rebar = []
-        # Iterate over all unique pairs of coordinates with their indicies
-        for coord in coords:
-            if rebar_function(coord):
-                rebar.append(coord)
-        return rebar
-    return initial_rebar
 
 class DimensionalityError(Exception):
     """
