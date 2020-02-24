@@ -16,7 +16,7 @@ import numpy as np
 import pathlib
 from peridynamics import Model
 from peridynamics.model import initial_crack_helper
-from peridynamics.integrators import EulerCromerOpenCL
+from peridynamics.integrators import EulerCromerOpenCLOptimised
 from pstats import SortKey, Stats
 #import matplotlib.pyplot as plt
 import time
@@ -177,9 +177,9 @@ def is_boundary(horizon, x):
     elif mesh_file_name == '3300beam.msh':
         bnd = 2
         if x[0] < 1.5 * horizon:
-            bnd = 0 
+            bnd = -1
         if x[0] > 3.3 - 1.5 * horizon:
-            bnd = 2
+            bnd = 1
     return bnd
 
 def is_forces_boundary(horizon, x):
@@ -206,7 +206,7 @@ def is_forces_boundary(horizon, x):
     elif mesh_file_name == '3300beam.msh':
         bnd = 2
         if x[2] > 0.6 - 1. * horizon:
-            bnd = -1
+            bnd = 2
     return bnd
 
 def boundary_function(model):
@@ -282,7 +282,7 @@ def main():
     boundary_function(model)
     boundary_forces_function(model)
     
-    integrator = EulerCromerOpenCL(model)
+    integrator = EulerCromerOpenCLOptimised(model)
     
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)

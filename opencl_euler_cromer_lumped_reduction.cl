@@ -101,6 +101,7 @@ __kernel void
 			}
 		}
 	}
+	barrier(CLK_LOCAL_MEM_FENCE);
 	
 }
 
@@ -132,16 +133,17 @@ __kernel void reduce(
    
    float sum;                            
    int i;
-
+   barrier(CLK_LOCAL_MEM_FENCE);
    if (global_id < PD_DPN_NODE_NO) {
 	   sum = 0.0f;
        for (i=0; i<MAX_HORIZON_LENGTH; i++) {
 		   sum += Forces[global_id* MAX_HORIZON_LENGTH + i];         
       }
+	  barrier(CLK_LOCAL_MEM_FENCE);
 	  // Update accelerations
-	  Uddn[global_id] = FCTypes[global_id] == 2 ? sum + PD_ETA * Udn[global_id] / PD_RHO : sum + FCValues[global_id] + PD_ETA * Udn[global_id] / PD_RHO;
+	  Uddn[global_id] = FCTypes[global_id] == 2 ? sum + PD_ETA * Udn[global_id] / PD_RHO : sum + PD_ETA * Udn[global_id] / PD_RHO;
 	  // Update velocities
-	  Udn[i] += Uddn[i] * PD_DT;
+	  Udn[global_id] += Uddn[global_id] * PD_DT;
    }
 }
 
