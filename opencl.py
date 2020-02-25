@@ -289,7 +289,7 @@ def main():
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
     
-    damage_data, tip_displacement_data = model.simulate(model, steps=1000000, integrator=integrator, write=5000, toolbar=0)
+    damage_data, tip_displacement_data = model.simulate(model, steps=10, integrator=integrator, write=1, toolbar=0)
     
 # =============================================================================
 #     plt.figure(1)
