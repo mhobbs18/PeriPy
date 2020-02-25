@@ -16,7 +16,7 @@ import numpy as np
 import pathlib
 from peridynamics import Model
 from peridynamics.model import initial_crack_helper
-from peridynamics.integrators import EulerCromerOpenCLOptimised
+from peridynamics.integrators import EulerOpenCL
 from pstats import SortKey, Stats
 #import matplotlib.pyplot as plt
 import time
@@ -177,9 +177,10 @@ def is_boundary(horizon, x):
     elif mesh_file_name == '3300beam.msh':
         bnd = 2
         if x[0] < 1.5 * horizon:
-            bnd = -1
-        if x[0] > 3.3 - 1.5 * horizon:
-            bnd = 1
+            bnd = 0
+        if x[0] > 3.3 - 0.3* horizon:
+            if x[2] > 0.6 - 0.3*horizon:
+                bnd = 1
     return bnd
 
 def is_forces_boundary(horizon, x):
@@ -212,7 +213,7 @@ def is_forces_boundary(horizon, x):
 def boundary_function(model):
     """ """
     
-    load_rate = 1e-5
+    load_rate = 5e-8
     
     # initiate
     model.bctypes = np.zeros((model.nnodes, model.DPN), dtype=np.intc)
@@ -226,7 +227,7 @@ def boundary_function(model):
         model.bctypes[i, 0] = np.intc((bnd))
         model.bctypes[i, 1] = np.intc((bnd))
         model.bctypes[i, 2] = np.intc((bnd))
-        model.bcvalues[i, 0] = np.float64(bnd * 0.5 * load_rate)
+        model.bcvalues[i, 2] = np.float64(bnd * 0.5 * load_rate)
         
         # also define tip here
         tip = is_tip(model.PD_HORIZON, model.coords[i][:])
@@ -282,13 +283,13 @@ def main():
     boundary_function(model)
     boundary_forces_function(model)
     
-    integrator = EulerCromerOpenCLOptimised(model)
+    integrator = EulerOpenCL(model)
     
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
     
-    damage_data, tip_displacement_data = model.simulate(model, steps=10000, integrator=integrator, write=100, toolbar=0)
+    damage_data, tip_displacement_data = model.simulate(model, steps=1000000, integrator=integrator, write=5000, toolbar=0)
     
 # =============================================================================
 #     plt.figure(1)

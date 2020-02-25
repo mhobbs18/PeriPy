@@ -286,14 +286,15 @@ class EulerCromerOpenCL(Integrator):
         
         return damage_sum, tip_displacement
     def incrementLoad(self, model, load_scale):
-        tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
-        # update the host force_bcvalues
-        self.h_force_bcvalues = tmp * np.ones((model.nnodes, model.DPN), dtype=np.float64)
-        #print(h_force_bcvalues)
-        # update the GPU force_bcvalues
-        self.d_force_bcvalues = cl.Buffer(self.context,
-                           cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                           hostbuf=self.h_force_bcvalues)
+        if model.num_force_bc_nodes != 0:
+            tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
+            # update the host force_bcvalues
+            self.h_force_bcvalues = tmp * np.ones((model.nnodes, model.DPN), dtype=np.float64)
+            #print(h_force_bcvalues)
+            # update the GPU force_bcvalues
+            self.d_force_bcvalues = cl.Buffer(self.context,
+                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                               hostbuf=self.h_force_bcvalues)
 class EulerOpenCL(Integrator):
     r"""
     Static Euler integrator for quasi-static loading, using OpenCL kernels.
@@ -368,6 +369,8 @@ class EulerOpenCL(Integrator):
         # Displacement boundary conditions types and delta values
         self.h_bctypes = model.bctypes
         self.h_bcvalues = model.bcvalues
+        
+        self.h_tiptypes = model.tiptypes
         
         # Force boundary conditions types and values
         self.h_force_bctypes = model.force_bctypes
@@ -504,14 +507,15 @@ class EulerOpenCL(Integrator):
         return damage_sum, tip_displacement
     
     def incrementLoad(self, model, load_scale):
-        tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
-        # update the host force_bcvalues
-        self.h_force_bcvalues = tmp * np.ones((model.nnodes, model.DPN), dtype=np.float64)
-        #print(h_force_bcvalues)
-        # update the GPU force_bcvalues
-        self.d_force_bcvalues = cl.Buffer(self.context,
-                           cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                           hostbuf=self.h_force_bcvalues)
+        if model.num_force_bc_nodes != 0:
+            tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
+            # update the host force_bcvalues
+            self.h_force_bcvalues = tmp * np.ones((model.nnodes, model.DPN), dtype=np.float64)
+            #print(h_force_bcvalues)
+            # update the GPU force_bcvalues
+            self.d_force_bcvalues = cl.Buffer(self.context,
+                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                               hostbuf=self.h_force_bcvalues)
         
 class EulerCromerOpenCLOptimised(Integrator):
     r"""

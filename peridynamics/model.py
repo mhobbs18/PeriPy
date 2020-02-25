@@ -198,7 +198,7 @@ class Model:
             self.dx = np.power(1.*self.volume_total/4625,1./3)
             self.PD_HORIZON = self.dx * np.pi 
             self.PD_FAMILY_VOLUME =(4./3)*np.pi*np.power(self.PD_HORIZON, 3)
-            self.PD_DAMPING = 2.5e6                         # damping term
+            self.PD_DAMPING = 2.0e6                         # damping term
             # Peridynamic bond stiffness, c
             self.PD_C_CONCRETE = np.double(
                     (18.00 * self.PD_K_CONCRETE) / (np.pi * np.power(self.PD_HORIZON, 4)))
@@ -208,10 +208,11 @@ class Model:
             self.PD_S0_CONCRETE = np.double(0.000533) # check this value
             self.PD_S0_STEEL = np.double(0.01)
             # User input parameters
-            self.loadRate = np.double(1e-4)
+            #self.loadRate = np.double(1e-5)
             self.crackLength = np.double(0.3)
             self.saf_fac = 0.2 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
-            self.dt = (0.8 * np.power( 2.0 * self.DENSITY_CONCRETE * self.dx / (np.pi * np.power(self.PD_HORIZON, 2.0) * self.dx * self.PD_C_CONCRETE), 0.5)) * self.saf_fac
+            #self.dt = (0.8 * np.power( 2.0 * self.DENSITY_CONCRETE * self.dx / (np.pi * np.power(self.PD_HORIZON, 2.0) * self.dx * self.PD_C_CONCRETE), 0.5)) * self.saf_fac
+            self.dt = 1e-13
             self.self_weight = 1.*self.DENSITY_CONCRETE * self.volume_total * 9.81
             self.max_reaction = 1.* self.self_weight # in newtons, about 85 times self weight
             self.load_scale_rate = 1/1000
