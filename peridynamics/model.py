@@ -493,10 +493,10 @@ class Model:
             self.nnodes = self.coords.shape[0]
 
             # Get connectivity, mesh triangle cells
-            self.connectivity = mesh.cells[self.mesh_elements.connectivity]
+            self.connectivity = mesh.cells['tetra']
 
             # Get boundary connectivity, mesh lines
-            self.connectivity_bnd = mesh.cells[self.mesh_elements.boundary]
+            self.connectivity_bnd = mesh.cells['triangle']
             
             # bb515 this has been removed?
             self.nelem_bnd = self.connectivity_bnd.shape[0]
