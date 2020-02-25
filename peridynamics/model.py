@@ -144,7 +144,7 @@ class Model:
         self.verification_problems = ['1000beam2D.msh', '1000beam3D.msh', '1000beam3DT.msh']
         self.benchmark_problems = ['3300beam.msh']
         
-        self.mesh_file = '3300beam.msh'
+        self.mesh_file = '1000beam3DT.msh'
         self.network_file = 'Network.vtk'
         
         if dimensions == 2:
@@ -233,11 +233,11 @@ class Model:
             self.PD_S0_CONCRETE = np.double(self.TENSILE_STRENGTH_CONCRETE / self.YOUNGSM_CONCRETE)
             self.PD_S0_STEEL = np.double(0.01)
             # User input parameters
-            self.loadRate = np.double(1e-4)
+            self.loadRate = np.double(1e-5)
             self.crackLength = np.double(0)
             self.saf_fac = 0.70 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
             #self.dt = (0.8 * np.power( 2.0 * self.DENSITY_CONCRETE * self.dx / (np.pi * np.power(self.PD_HORIZON, 2.0) * self.dx * self.PD_C_CONCRETE), 0.5)) * self.saf_fac
-            self.dt = 1e-8
+            self.dt = 1e-15
             #self.max_reaction = 10000.0 # in newtons
             self.self_weight = 1.*self.DENSITY_CONCRETE * self.volume_total * 9.81
             self.max_reaction = 1.* self.self_weight # in newtons, about 85 times self weight
@@ -307,7 +307,7 @@ class Model:
             self._set_network(self.PD_HORIZON, bond_type)
         
         # bb515 Initating crack is done when we _read_network or _set_network
-        self._set_connectivity(initial_crack)
+        #self._set_connectivity(initial_crack)
         
         print(
             "Building horizons took {} seconds. Horizon length: {}".format(
@@ -493,10 +493,10 @@ class Model:
             self.nnodes = self.coords.shape[0]
 
             # Get connectivity, mesh triangle cells
-            self.connectivity = mesh.cells[('tetra')]
+            self.connectivity = mesh.cells[self.mesh_elements.connectivity]
 
             # Get boundary connectivity, mesh lines
-            self.connectivity_bnd = mesh.cells[('triangle')]
+            self.connectivity_bnd = mesh.cells[self.mesh_elements.boundary]
             
             # bb515 this has been removed?
             self.nelem_bnd = self.connectivity_bnd.shape[0]
@@ -866,7 +866,7 @@ class Model:
         st = time.time()
         for step in range(1, steps+1):
             # Conduct one integration step
-            integrator.runtime(model) 
+            integrator.runtime(model)
             if write:
                 if step % write == 0:
                     damage_sum, tip_displacement = integrator.write(model, step)

@@ -16,7 +16,7 @@ import numpy as np
 import pathlib
 from peridynamics import Model
 from peridynamics.model import initial_crack_helper
-from peridynamics.integrators import EulerOpenCL
+from peridynamics.integrators import RungeKuttaOpenCL
 from pstats import SortKey, Stats
 #import matplotlib.pyplot as plt
 import time
@@ -26,7 +26,7 @@ import shutil
 import os
 
 
-mesh_file_name = '3300beam.msh'
+mesh_file_name = '1000beam3DT.msh'
 mesh_file = pathlib.Path(__file__).parent.absolute() / mesh_file_name
 
 
@@ -173,7 +173,8 @@ def is_boundary(horizon, x):
         if x[0] < 1.5* horizon:
             bnd = 0
         if x[0] > 1.0 - 1.* horizon:
-            bnd = 2
+            if x[2] > 0.2 - 1.* horizon:
+                bnd = 1
     elif mesh_file_name == '3300beam.msh':
         bnd = 2
         if x[0] < 1.5 * horizon:
@@ -212,9 +213,8 @@ def is_forces_boundary(horizon, x):
 
 def boundary_function(model):
     """ """
-    
-    load_rate = 5e-8
-    
+    load_rate = 2e-9
+    theta = 18.75
     # initiate
     model.bctypes = np.zeros((model.nnodes, model.DPN), dtype=np.intc)
     model.bcvalues = np.zeros((model.nnodes, model.DPN), dtype=np.float64)
@@ -228,6 +228,7 @@ def boundary_function(model):
         model.bctypes[i, 1] = np.intc((bnd))
         model.bctypes[i, 2] = np.intc((bnd))
         model.bcvalues[i, 2] = np.float64(bnd * 0.5 * load_rate)
+        model.bcvalues[i, 0] = np.float64(bnd * -0.5/theta * load_rate)
         
         # also define tip here
         tip = is_tip(model.PD_HORIZON, model.coords[i][:])
@@ -283,14 +284,13 @@ def main():
     boundary_function(model)
     boundary_forces_function(model)
     
-    integrator = EulerOpenCL(model)
+    integrator = RungeKuttaOpenCL(model)
     
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
     
     damage_data, tip_displacement_data = model.simulate(model, steps=10, integrator=integrator, write=1, toolbar=0)
-    
 # =============================================================================
 #     plt.figure(1)
 #     plt.title('damage over time')
@@ -300,7 +300,6 @@ def main():
 #     plt.plot(tip_displacement_data)
 #     plt.show()
 # =============================================================================
-    
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
     print(damage_data)
     print(tip_displacement_data)
