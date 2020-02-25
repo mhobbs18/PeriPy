@@ -1,8 +1,6 @@
-from numba import jit
 import numpy as np
 
 
-@jit
 def isNeighbour(x, y, horizon):
     l2 = 0
     for i in range(len(x)):
@@ -14,7 +12,6 @@ def isNeighbour(x, y, horizon):
     return out
 
 
-@jit
 def l2(y1, y2):
     l2 = 0
     for i in range(len(y1)):
@@ -23,7 +20,6 @@ def l2(y1, y2):
     return l2
 
 
-@jit
 def l2_sqr(y1, y2):
     l2 = 0
     for i in range(len(y1)):
@@ -31,7 +27,6 @@ def l2_sqr(y1, y2):
     return l2
 
 
-@jit
 def l2norm(x):
     l2 = 0
     for i in range(len(x)):
