@@ -10,7 +10,7 @@ import numpy as np
 import pathlib
 from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
-from peridynamics.integrators import RK4
+from peridynamics.integrators import EulerOpenCL
 from pstats import SortKey, Stats
 # TODO: add argument on command line that gives option to plot results or not,
 # as some systems won't have matplotlib installed.
@@ -315,7 +315,7 @@ def main():
     boundary_function(model)
     boundary_forces_function(model)
 
-    integrator = RK4(model)
+    integrator = EulerOpenCL(model)
 
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)

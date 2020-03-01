@@ -1096,9 +1096,9 @@ class OpenCL(Model):
                     damage_data.append(damage_sum)
                     tip_displacement_data.append(tip_displacement)
                     
-                    if damage_sum > 3000.0:
-                        print('Failure criterion reached, Peridynamic Simulation -- Continuing anyway')
-                        #break
+                    if damage_sum > 160.0:
+                        print('Failure criterion reached, Peridynamic Simulation -- STOP')
+                        break
                     if toolbar == 0:
                         print('Print number {}/{} complete in {} s '.format(int(step/write), int(steps/write), time.time() - st))
                         st = time.time()
@@ -1107,7 +1107,6 @@ class OpenCL(Model):
             load_scale = min(1.0, model.load_scale_rate * step)
             if load_scale != 1.0:
                 integrator.incrementLoad(model, load_scale)
-                    
             # Loading bar update
             if step%(steps/toolbar_width)<1 & toolbar:
                 sys.stdout.write("\u2588")
