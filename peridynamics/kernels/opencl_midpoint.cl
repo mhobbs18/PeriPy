@@ -80,9 +80,9 @@ __kernel void
 
 		// Final result
 
-		f0 = (FCTypes[DPN*i + 0] == 2 ? f0 : f0); //- FCValues[DPN * i + 0]);
-		f1 = (FCTypes[DPN*i + 1] == 2 ? f1 : f1); //- FCValues[DPN * i + 1]);
-		f2 = (FCTypes[DPN*i + 2] == 2 ? f2 : f2 + FCValues[DPN * i + 2]);
+		f0 = (FCTypes[DPN*i + 0] == 2 ? f0 : f0); //+ FCValues[DPN * i + 0]);
+		f1 = (FCTypes[DPN*i + 1] == 2 ? f1 : f1); //+ FCValues[DPN * i + 1]);
+		f2 = (FCTypes[DPN*i + 2] == 2 ? f2 : f2); //+ FCValues[DPN * i + 2]);
 		
 		Udn[DPN * i + 0] = f0 / PD_ETA;
 		Udn[DPN * i + 1] = f1 / PD_ETA;
@@ -90,53 +90,36 @@ __kernel void
 	}
 }
 
-// Update displacements using k1 through k4
-__kernel void
-	UpdateDisplacement(
-        __global double const *k1dn,
-        __global double const *k2dn,
-        __global double const *k3dn,
-        __global double const *k4dn,
-        __global int const *ICTypes,
-		__global double const *ICValues,
-        __global double *Un
-	)
-{
-	const int i = get_global_id(0);
-
-	if (i < PD_DPN_NODE_NO)
-	{
-        Un[i] = ICTypes[i] == 2 ? Un[i] + (1.00 / 6.00) * PD_DT * (k1dn[i] + 2 * k2dn[i] + 2 * k3dn[i] + k4dn[i]) : Un[i] + ICValues[i];
-	}
-}
-
-// Partial update of displacement to calculate
+// Partial update of displacement
 __kernel void
 	PartialUpdateDisplacement(
         __global double const *Udn,
-        __global double *Un
+        __global double const *Un,
+		__global double *Un1
 	)
 {
 	const int i = get_global_id(0);
 
 	if (i < PD_DPN_NODE_NO)
 	{
-		Un[i] = Un[i] + (PD_DT / 2.00) * Udn[i];
+		Un1[i] = Un[i] + (PD_DT / 2.00) * Udn[i];
 	}
 }
 
-// Partial update of displacement to calculate
+// Full update of displacement
 __kernel void
 	FullUpdateDisplacement(
         __global double const *Udn,
-        __global double *Un
+        __global double *Un,
+		__global int const *ICTypes,
+		__global double const *ICValues
 	)
 {
 	const int i = get_global_id(0);
 
 	if (i < PD_DPN_NODE_NO)
 	{
-		Un[i] = Un[i] + (PD_DT) * Udn[i];
+		Un[i] = ICTypes[i] == 2 ? Un[i] + (PD_DT) * Udn[i] : Un[i] + ICValues[i];
 	}
 }
 
@@ -185,7 +168,7 @@ __kernel void
 
 __kernel void
 	CalculateDamage(
-		__global float *Phi,
+		__global double *Phi,
 		__global int const *Horizons,
 		__global int const *HorizonLengths
 	)
@@ -204,6 +187,6 @@ __kernel void
 			}
 		}
 
-		Phi[i] = 1.00f - (float) active_bonds / (float) (HorizonLengths[i] - 1);
+		Phi[i] = 1.00f - (double) active_bonds / (double) (HorizonLengths[i] - 1);
 	}
 }

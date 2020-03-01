@@ -20,27 +20,11 @@
 // A horizon by horizon approach is chosen to proceed with the solution, in which
 // no assembly of the system of equations is required.
 
-// Update un
-__kernel void
-	TimeMarching1(
-        __global double const *Udn,
-        __global double *Un,
-		__global int const *BCTypes,
-		__global double const *BCValues
-	)
-{
-	const int i = get_global_id(0);
-
-	if (i < PD_DPN_NODE_NO)
-	{
-		Un[i] = BCTypes[i] == 2 ? Un[i] + PD_DT * (Udn[i]) : Un[i] + BCValues[i] ;
-	}
-}
 
 
 // Calculate force using un, force BC applied at end here
 __kernel void
-	TimeMarching2(
+	CalcBondForce(
         __global double *Udn,
         __global double const *Un,
         __global double const *Vols,
@@ -96,16 +80,67 @@ __kernel void
 
 		// Final result
 
-		f0 = (FCTypes[DPN*i + 0] == 2 ? f0 : f0);
-		f1 = (FCTypes[DPN*i + 1] == 2 ? f1 : f1);
-		f2 = (FCTypes[DPN*i + 2] == 2 ? f2 : f2);// + FCValues[DPN * i + 2]);
+		f0 = (FCTypes[DPN*i + 0] == 2 ? f0 : f0); //+ FCValues[DPN * i + 0]);
+		f1 = (FCTypes[DPN*i + 1] == 2 ? f1 : f1); //+ FCValues[DPN * i + 1]);
+		f2 = (FCTypes[DPN*i + 2] == 2 ? f2 : f2); //+ FCValues[DPN * i + 2]);
 		
-		Udn[DPN * i + 0] = f0;
-		Udn[DPN * i + 1] = f1;
-		Udn[DPN * i + 2] = f2;
+		Udn[DPN * i + 0] = f0 / PD_ETA;
+		Udn[DPN * i + 1] = f1 / PD_ETA;
+		Udn[DPN * i + 2] = f2 / PD_ETA;
 	}
 }
 
+// Update displacements using k1 through k4
+__kernel void
+	UpdateDisplacement(
+        __global double const *k1dn,
+        __global double const *k2dn,
+        __global double const *k3dn,
+		__global double const *k4dn,
+        __global int const *ICTypes,
+		__global double const *ICValues,
+        __global double *Un
+	)
+{
+	const int i = get_global_id(0);
+
+	if (i < PD_DPN_NODE_NO)
+	{
+        Un[i] = ICTypes[i] == 2 ? Un[i] + (1.00 / 6.00) * PD_DT * (k1dn[i] + 2 * k2dn[i] + 2 * k3dn[i] + k4dn[i]) : Un[i] + ICValues[i];
+	}
+}
+
+// Partial update of displacement
+__kernel void
+	PartialUpdateDisplacement(
+        __global double const *Udn,
+        __global double const *Un,
+		__global double *Un1
+	)
+{
+	const int i = get_global_id(0);
+
+	if (i < PD_DPN_NODE_NO)
+	{
+		Un1[i] = Un[i] + (PD_DT/2) * Udn[i];
+	}
+}
+
+// Partial update of displacement
+__kernel void
+	PartialUpdateDisplacement2(
+        __global double const *Udn,
+        __global double const *Un,
+		__global double *Un3
+	)
+{
+	const int i = get_global_id(0);
+
+	if (i < PD_DPN_NODE_NO)
+	{
+		Un3[i] = Un[i] + PD_DT * (Udn[i]);
+	}
+}
 
 __kernel void
 	CheckBonds(

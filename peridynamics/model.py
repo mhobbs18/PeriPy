@@ -546,7 +546,7 @@ class OpenCL(Model):
     This class allows users to define a peridynamics system from parameters and
     a set of initial conditions (coordinates and connectivity).
     """
-    def __init__(self, bond_type, initial_crack=[], dimensions=2):
+    def __init__(self, mesh_file_name, volume_total, bond_type, network_file_name = 'Network.vtk', initial_crack=[], dimensions=2):
         """
         Construct a :class:`OpenCL` object, which inherits Model class.
         
@@ -584,17 +584,6 @@ class OpenCL(Model):
         # verbose
         self.v = True
 
-        self.token_problems = [
-                'test.msh', 'debug3D.msh', 'debug3D2.msh'
-                ]
-        self.verification_problems = [
-                '1000beam2D.msh', '1000beam3D.msh', '1000beam3DT.msh'
-                ]
-        self.benchmark_problems = ['3300beam.msh']
-
-        self.mesh_file = 'test.msh'
-        self.network_file = 'Network.vtk'
-
         if dimensions == 2:
             self.mesh_elements = _mesh_elements_2d
         elif dimensions == 3:
@@ -613,188 +602,35 @@ class OpenCL(Model):
         # cuboidal (not tetra) elements, look up "gmsh transfinite") (default 0)
         # I'm only planning on using this for validation against literature
         self.transfinite = 0
-
-        self.youngs_modulus_concrete = 1.*22e9
-        self.density_concrete = 2400.0
-        self.youngs_modulus_steel = 1.*210e9
-        self.density_steel = 8000.0
-        self.compressive_strength_concrete = 1.*25e6
-        self.tensile_strength_concrete = 2.6e6
-        self.fracture_energy_concrete = 100
-        self.yield_strength_steel = 1.*250e6
-
-        # These classical material model parameters may be used in post 
-        # processing to plot stress strain fields (not yet implemented)
-        self.poisson_ratio_steel = 0.3
-        self.poisson_ratio_concrete = 0.2
-        self.shear_modulus_steel = 78e9
-        self.shear_modulus_concrete = (
-                self.youngs_modulus_concrete/(
-                        2*(1+self.poisson_ratio_concrete))
-                )
-        self.effective_modulus_concrete = (
-                self.youngs_modulus_concrete/(
-                        (1-2*self.poisson_ratio_concrete)*(1+self.poisson_ratio_concrete))
-                )
-        self.effective_modulus_steel = (
-                self.youngs_modulus_steel/(
-                        (1-2*self.poisson_ratio_steel)*(1+self.poisson_ratio_steel))
-                )
-
         # Peridynamics parameters. These parameters will be passed to openCL
         # kernels by command line argument Bond-based peridynamics, known in
         # PDLAMMPS as Prototype Microelastic Brittle (PMB) Model requires a
         #poisson ratio of v = 0.25, but this makes little to no difference 
         # in quasi-brittle materials
         self.poisson_ratio = 0.25
-        # Make assumption that bulk density is that of concrete
-        self.density = self.density_concrete
-        self.bulk_modulus_concrete = (
-                self.youngs_modulus_concrete/ (3* (1 - 2*self.poisson_ratio))
-                )
-        self.bulk_modulus_steel = (
-                self.youngs_modulus_steel / (3* (1- 2*self.poisson_ratio))
-                )
-        if self.mesh_file in self.benchmark_problems:
-            # Problem specific parameters
-            self.volume_total = 3.3 * 0.6 * 0.25
-            self.dx = np.power(1.*self.volume_total/4625,1./3)
-            self.horizon = self.dx * np.pi 
-            self.family_volume =(4./3)*np.pi*np.power(self.horizon, 3)
-            self.damping = 2.0e6                         # damping term
-            # Peridynamic bond stiffness, c
-            self.bond_stiffness_concrete = (
-                    np.double((18.00 * self.bulk_modulus_concrete) /
-                              (np.pi * np.power(self.horizon, 4)))
-                    )
-            self.bond_stiffness_steel = (
-                    np.double((18.00 * self.bulk_modulus_steel) /
-                              (np.pi * np.power(self.horizon, 4)))
-                    )
-            # Peridynamic critical stretch, s00
-            self.critical_strain_concrete = (
-                    np.double(self.tensile_strength_concrete /
-                              self.youngs_modulus_concrete)
-                    )
-            #self.critical_strain_concrete = np.double(0.000533) # check this value
-            self.critical_strain_steel = np.double(0.01)
-            # User input parameters
-            #self.load_rate = np.double(1e-5)
-            self.crackLength = np.double(0.3)
-            self.saf_fac = 0.2 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
-            #self.dt = (
-            #        0.8 * np.power( 2.0 * self.density_concrete * self.dx / 
-            #                       (np.pi * np.power(self.horizon, 2.0) * self.dx * self.bond_stiffness_concrete), 0.5)
-            #        * self.saf_fac
-            #        )
-            self.dt = 1e-7
-            self.self_weight = 1.*self.density_concrete * self.volume_total * 9.81
-            self.max_reaction = 1.* self.self_weight # in newtons, about 85 times self weight
-            self.load_scale_rate = 1/1000
-        elif self.mesh_file in self.verification_problems:
-            # Problem specific parameters
-            self.volume_total = 1.0 * 0.2 * 0.1
-            self.average_node_volume = 1.* self.volume_total / 67500 # volume_total / nnodes
-            self.dx = 1./150
-            self.horizon = self.dx * np.pi 
-            self.family_volume = np.pi * np.power(self.horizon, 2)
-            self.damping = 2.8e6                           # damping term
-            # Peridynamic bond stiffness, c
-            self.bond_stiffness_concrete = (
-                    np.double((18.00 * self.bulk_modulus_concrete) /
-                              (np.pi * np.power(self.horizon, 4)))
-                    )
-            self.bond_stiffness_steel = (
-                    np.double((18.00 * self.bulk_modulus_steel) /
-                              (np.pi * np.power(self.horizon, 4)))
-                    )
-            # Peridynamic critical stretch, s00
-            self.critical_strain_concrete = (
-                    np.double(self.tensile_strength_concrete /
-                              self.youngs_modulus_concrete)
-                    )
-            self.critical_strain_steel = np.double(0.01)
-            # User input parameters
-            #self.load_rate = np.double(1e-5)
-            self.crackLength = np.double(0)
-            self.saf_fac = 0.70 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
-            #self.dt = (
-            #        0.8 * np.power( 2.0 * self.density_concrete * self.dx / 
-            #                       (np.pi * np.power(self.horizon, 2.0) * self.dx * self.bond_stiffness_concrete), 0.5)
-            #        * self.saf_fac
-            #        )
-            self.dt = 1e-15
-            #self.max_reaction = 10000.0 # in newtons
-            self.self_weight = 1.*self.density_concrete * self.volume_total * 9.81
-            self.max_reaction = 1.* self.self_weight # in newtons, about 85 times self weight
-            self.load_scale_rate = 1/1000
-        elif self.mesh_file == 'debug3D.msh':
-            # Problem specific parameters
-            self.volume_total = 1.0 * 1.0 * 1.0
-            self.average_node_volume = 1.* self.volume_total / 67500 # volume_total / nnodes
-            self.dx = 1./9
-            self.horizon = self.dx * np.pi 
-            self.family_volume = np.pi * np.power(self.horizon, 2)
-            self.damping = 2.5e6                           # damping term
-            # Peridynamic bond stiffness, c
-            self.bond_stiffness_concrete = (
-                    np.double((18.00 * self.bulk_modulus_concrete) /
-                              (np.pi * np.power(self.horizon, 4)))
-                    )
-            self.bond_stiffness_steel = (
-                    np.double((18.00 * self.bulk_modulus_steel) /
-                              (np.pi * np.power(self.horizon, 4)))
-                    )
-            # Peridynamic critical stretch, s00
-            self.critical_strain_concrete = (
-                    np.double(self.tensile_strength_concrete /
-                              self.youngs_modulus_concrete)
-                    )
-            self.critical_strain_steel = np.double(0.01)
-            # User input parameters
-            #self.load_rate = np.double(1e-4)
-            self.crackLength = np.double(0)
-            self.saf_fac = 0.70 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
-            #self.dt = (
-            #        0.8 * np.power( 2.0 * self.density_concrete * self.dx /
-            #                       (np.pi * np.power(self.horizon, 2.0) * self.dx * self.bond_stiffness_concrete), 0.5)
-            #        * self.saf_fac
-            #        )
-            self.dt = np.double(1e-6)
-            self.self_weight = 1.*self.density_concrete * self.volume_total * 9.81
-            self.max_reaction = 1.* self.self_weight # in newtons, about 85 times self weight
-            #self.max_reaction = 10000.0 # in newtons
-            self.load_scale_rate = 1/1000
-        elif self.mesh_file in self.token_problems:
-            # Problem specific parameters
-            self.volume_total = 1.0
-            self.dx = np.power(1.*self.volume_total/2113,1./(self.dimensions))
-            #self.horizon = self.dx * np.pi 
-            self.horizon = 0.1
-            self.family_volume = np.pi * np.power(self.horizon, 2)
-            self.damping = 2.5e6                           # damping term
-            # Peridynamic bond stiffness, c
-            self.bond_stiffness_concrete = (
-                    np.double((18.00 * 0.05) /
-                    (np.pi * np.power(self.horizon, 4)))
-                    )
-            self.critical_strain_concrete = 0.005
-            # User input parameters
-            self.crackLength = np.double(0.3)
-            self.dt = np.double(1e-3)
-            self.self_weight = 1.*self.density_concrete * self.volume_total * 9.81
-            self.max_reaction = 1.* self.self_weight # in newtons, about 85 times self weight
-            self.load_scale_rate = 1/1000
+        # These are the parameters that the user needs to define
+        self.density = None
+        self.horizon = None
+        self.family_volume = None
+        self.damping = None
+        self.bond_stiffness_concrete = None
+        self.bond_stiffness_steel = None
+        self.critical_strain_concrete = None
+        self.critical_strain_steel = None
+        self.crackLength = None
+        self.dt = None
+        self.max_reaction = None
+        self.load_scale_rate = None
 
-        self._read_mesh(self.mesh_file)
+        self._read_mesh(mesh_file_name)
 
         st = time.time()
 
-        self._set_volume(self.volume_total)
+        self._set_volume(volume_total)
 
         # If the network has already been written to file, then read, if not, setNetwork
         try:
-            self._read_network(self.network_file)
+            self._read_network(network_file_name)
         except:
             print('No network file found: writing network file.')
             self._set_network(self.horizon, bond_type)
@@ -812,11 +648,8 @@ class OpenCL(Model):
         self.tip_types = np.zeros(self.nnodes, dtype=np.intc)
 
         if self.v == True:
-            print("total volume", self.sum_total_volume)
-            print("volume total", self.volume_total)
-            print("Horizon distance,", self.horizon)
-            print("Max reaction", self.max_reaction)
-            print("Time step", self.dt)
+            print("sum total volume", self.sum_total_volume)
+            print("user input volume total", volume_total)
 
     def _read_network(self, network_file):
         """ For reading a network file if it has been written to file yet.

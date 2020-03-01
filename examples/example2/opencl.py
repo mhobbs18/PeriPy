@@ -26,8 +26,6 @@ token_problems = ['test.msh', 'debug3D.msh', 'debug3D2.msh']
 verification_problems = ['1000beam2D.msh', '1000beam3D.msh', '1000beam3DT.msh']
 benchmark_problems = ['3300beam.msh']
 
-plain = 1
-
 @initial_crack_helper
 def is_crack(x, y):
     output = 0
@@ -94,9 +92,7 @@ def is_rebar(p):
         # Beam type 1 for flexural failure beam
         # Beam type 2 for shear failure beam
         beam_type = 2
-        if plain == 1:
-            return False
-        elif beam_type == 1:
+        if beam_type == 1:
             bar_centers = [
                     # Tensile bars 25mm of cover, WARNING: only gives 21.8mm inner spacing of bars
                     np.array((0.0321, 0.185)),
@@ -130,6 +126,15 @@ def is_rebar(p):
         return False
 
 def bond_type(x, y):
+    """ 
+    Determines bond type given pair of node coordinates.
+    Usage:
+        'plain = 1' will return a plain concrete bond for all bonds, an so a
+    plain concrete beam.
+        'plain = 0' will return a concrete beam with some rebar as specified
+        in "is_rebar()"
+    """
+    plain = 0
     output = 0 # default to concrete
     bool1 = is_rebar(x)
     bool2 = is_rebar(y)
@@ -277,7 +282,34 @@ def main():
         profile.enable()
 
     st = time.time()
-    model = OpenCL(bond_type=bond_type, initial_crack=is_crack)
+
+    volume_total = 1.0
+    density_concrete = 2400.0
+    self_weight = 1.*density_concrete * volume_total * 9.81
+
+    model = OpenCL(mesh_file_name, volume_total, bond_type=bond_type, initial_crack=is_crack)
+    #dx = np.power(1.*volume_total/model.nnodes,1./(model.dimensions))
+    # Set simulation parameters
+    # not a transfinite mesh
+    model.transfinite = 0
+    # do precise stiffness correction factors
+    model.precise_stiffness_correction = 1
+    #Make assumption that bulk density is that of concrete
+    model.density = density_concrete
+    #self.horizon = dx * np.pi 
+    model.horizon = 0.1
+    model.family_volume = np.pi * np.power(model.horizon, 2)
+    model.damping = 2.5e6                           # damping term
+    # Peridynamic bond stiffness, c
+    model.bond_stiffness_concrete = (
+            np.double((18.00 * 0.05) /
+            (np.pi * np.power(model.horizon, 4)))
+            )
+    model.critical_strain_concrete = 0.005
+    model.crackLength = np.double(0.3)
+    model.dt = np.double(1e-3)
+    model.max_reaction = 1.* self_weight # in newtons, about 85 times self weight
+    model.load_scale_rate = 1/1000
 
     # Set force and displacement boundary conditions
     boundary_function(model)
