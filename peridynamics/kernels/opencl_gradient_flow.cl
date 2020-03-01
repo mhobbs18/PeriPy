@@ -151,7 +151,7 @@ __kernel void
 
 __kernel void
 	CalculateDamage(
-		__global float *Phi,
+		__global double *Phi,
 		__global int const *Horizons,
 		__global int const *HorizonLengths
 	)
@@ -170,6 +170,6 @@ __kernel void
 			}
 		}
 
-		Phi[i] = 1.00f - (float) active_bonds / (float) (HorizonLengths[i] - 1);
+		Phi[i] = 1.00f - (double) active_bonds / (double) (HorizonLengths[i] - 1);
 	}
 }

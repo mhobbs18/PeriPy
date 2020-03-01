@@ -1,33 +1,28 @@
-import time
 from .integrators import Integrator
 from collections import namedtuple
 from itertools import combinations
 import meshio
 import numpy as np
+from scipy import sparse
+from scipy.spatial.distance import cdist
+import warnings
+#bb515 imports
+import time
 import sys
-sys.path.insert(1, './peridynamics')
-sys.path.insert(1, './peridynamics/post_processing')
-# bb515 I have added these imports here
-import vtk as vtk
-import periFunctions as func
+from .post_processing import vtk
 
-
+# bb515 NOTE: _MeshElements(connectivity="tetra") works whereas 
+# "tetrahedron" raises 'KeyError: 'tetrahedron'' on most recent
+# versions of meshio
 _MeshElements = namedtuple("MeshElements", ["connectivity", "boundary"])
 _mesh_elements_2d = _MeshElements(connectivity="triangle",
                                   boundary="line")
 _mesh_elements_3d = _MeshElements(connectivity="tetra",
                                   boundary="triangle")
 
-# bb515 NOTE: _MeshElements(connectivity="tetra") works whereas "tetrahedron" raises a KeyError: 'tetrahedron'
-
-sys.path.insert(1, '../examples/example1')
-sys.path.insert(1, './kernels')
-sys.path.insert(1, './post_processing')
-
-
 class Model:
     """
-    A peridynamics model using OpenCL.
+    A peridynamics model.
 
     This class allows users to define a peridynamics system from parameters and
     a set of initial conditions (coordinates and connectivity).
@@ -105,7 +100,8 @@ class Model:
         >>> u, damage = model.simulate(steps=1000, integrator=euler,
         >>>                            boundary_function=boundary_function)
     """
-    def __init__(self, bond_type, initial_crack=[], dimensions=3):
+    def __init__(self, mesh_file, horizon, critical_strain, elastic_modulus,
+                 initial_crack=[], dimensions=2):
         """
         Construct a :class:`Model` object.
 
@@ -134,341 +130,21 @@ class Model:
         :raises DimensionalityError: when an invalid `dimensions` argument is
             provided.
         """
-        ## bb515 I have wrongly defined all the PD parameters here, but unsure how to restructure this as there are too many arguments for the command line. We
-        ## should probably make an input parameters file.
-        
-        # verbose
-        self.v = True
+        self.horizon = horizon
+        self.critical_strain = critical_strain
 
-        self.token_problems = ['test.msh', 'debug3D.msh', 'debug3D2.msh']
-        self.verification_problems = ['1000beam2D.msh', '1000beam3D.msh', '1000beam3DT.msh']
-        self.benchmark_problems = ['3300beam.msh']
-        
-        self.mesh_file = '1000beam3DT.msh'
-        self.network_file = 'Network.vtk'
-        
-        if dimensions == 2:
-            self.mesh_elements = _mesh_elements_2d
-        elif dimensions == 3:
-            self.mesh_elements = _mesh_elements_3d
-        else:
-            raise DimensionalityError(dimensions)
-            
-        self.dimensions = dimensions
-        
-        
-        # Are the stiffness correction factors calculated using mesh element volumes (default 'precise', 1) or average nodal volume of a transfinite mesh (0)      
-        self.precise_stiffness_correction = 1
-        
-        # Is the mesh transfinite mesh (support regular grid spacing with cuboidal (not tetra) elements, look up "gmsh transfinite") (default 0)
-        # This mode will likely not be compatible with FEM, so shouldn't be used apart from the validation I'm doing
-        self.transfinite = 0
+        self.bond_stiffness = (
+            18.0 * elastic_modulus / (np.pi * self.horizon**4)
+            )
 
-        # Classical material model parameters
-        self.YOUNGSM_CONCRETE = 1.*22e9
-        self.DENSITY_CONCRETE = 2400.0
-        self.YOUNGSM_STEEL = 1.*210e9
-        self.DENSITY_STEEL = 8000.0
-        self.COMPRESSIVE_STRENGTH_CONCRETE = 1.*25e6
-        self.TENSILE_STRENGTH_CONCRETE = 2.6e6
-        self.CONCRETE_FRACTURE_ENERGY = 100
-        self.YIELD_STRENGTH_STEEL = 1.*250e6
-# =============================================================================
-#         # These classical material model parameters may be used in post processing to plot stress strain fields
-#         # (not yet implemented)
-#         self.POISSON_STEEL = 0.3                                    # Poisson ratio
-#         self.POISSON_CONCRETE = 0.2
-#         self.G_STEEL = 78e9                                         # Shear modulus
-#         self.G_CONCRETE = self.YOUNGSM_CONCRETE/(2*(1+self.POISSON_CONCRETE))  # TODO need to verify this value
-#         self.EFFECTIVEMODULUS_CONCRETE = self.YOUNGSM_CONCRETE/((1-2*self.POISSON_CONCRETE)(1+self.POISSON_CONCRETE))   # Effective modulus
-#         self.EFFECTIVEMODULUS_STEEL = self.YOUNGSM_STEEL/((1-2*self.POISSON_STEEL)*(1+self.POISSON_STEEL))
-# =============================================================================
-        
-        # Peridynamics parameters. These parameters will be passed to openCL kernels by command line argument
-        # Bond-based peridynamics, known in PDLAMMPS as Prototype Microelastic Brittle (PMB) Model requires
-        # a poisson ratio of v = 0.25, but this makes little to no difference in quasi-brittle materials
-        self.PD_POISSON = 0.25
-        self.PD_K_CONCRETE = self.YOUNGSM_CONCRETE/ (3* (1 - 2*self.PD_POISSON))
-        self.PD_K_STEEL = self.YOUNGSM_STEEL / (3* (1- 2*self.PD_POISSON))
-        # Density and damping of governing ODE
-        self.PD_DENSITY = np.double(self.DENSITY_CONCRETE)       # force density term
-        if self.mesh_file in self.benchmark_problems:
-            # Problem specific parameters
-            self.volume_total = 3.3 * 0.6 * 0.25
-            self.dx = np.power(1.*self.volume_total/4625,1./3)
-            self.PD_HORIZON = self.dx * np.pi 
-            self.PD_FAMILY_VOLUME =(4./3)*np.pi*np.power(self.PD_HORIZON, 3)
-            self.PD_DAMPING = 2.0e6                         # damping term
-            # Peridynamic bond stiffness, c
-            self.PD_C_CONCRETE = np.double(
-                    (18.00 * self.PD_K_CONCRETE) / (np.pi * np.power(self.PD_HORIZON, 4)))
-            self.PD_C_STEEL = np.double(
-                    (18.00 * self.PD_K_STEEL) / (np.pi * np.power(self.PD_HORIZON, 4)))
-            # Peridynamic critical stretch, s00
-            self.PD_S0_CONCRETE = np.double(0.000533) # check this value
-            self.PD_S0_STEEL = np.double(0.01)
-            # User input parameters
-            #self.loadRate = np.double(1e-5)
-            self.crackLength = np.double(0.3)
-            self.saf_fac = 0.2 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
-            #self.dt = (0.8 * np.power( 2.0 * self.DENSITY_CONCRETE * self.dx / (np.pi * np.power(self.PD_HORIZON, 2.0) * self.dx * self.PD_C_CONCRETE), 0.5)) * self.saf_fac
-            self.dt = 1e-13
-            self.self_weight = 1.*self.DENSITY_CONCRETE * self.volume_total * 9.81
-            self.max_reaction = 1.* self.self_weight # in newtons, about 85 times self weight
-            self.load_scale_rate = 1/1000
-        elif self.mesh_file == '1000beam3DT.msh':
-            # Problem specific parameters
-            self.volume_total = 1.0 * 0.2 * 0.1
-            self.PD_NODE_VOLUME_AVERAGE = 1.* self.volume_total / 67500 # volume_total / nnodes
-            self.dx = 1./150
-            self.PD_HORIZON = self.dx * np.pi 
-            self.PD_FAMILY_VOLUME = np.pi * np.power(self.PD_HORIZON, 2)
-            self.PD_DAMPING = 2.8e6                           # damping term
-            # Peridynamic bond stiffness, c
-            self.PD_C_CONCRETE = np.double(
-                    (18.00 * self.PD_K_CONCRETE) / (np.pi * np.power(self.PD_HORIZON, 4)))
-            self.PD_C_STEEL = np.double(
-                    (18.00 * self.PD_K_STEEL) / (np.pi * np.power(self.PD_HORIZON, 4)))
-            # Peridynamic critical stretch, s00
-            self.PD_S0_CONCRETE = np.double(self.TENSILE_STRENGTH_CONCRETE / self.YOUNGSM_CONCRETE)
-            self.PD_S0_STEEL = np.double(0.01)
-            # User input parameters
-            self.loadRate = np.double(1e-5)
-            self.crackLength = np.double(0)
-            self.saf_fac = 0.70 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
-            #self.dt = (0.8 * np.power( 2.0 * self.DENSITY_CONCRETE * self.dx / (np.pi * np.power(self.PD_HORIZON, 2.0) * self.dx * self.PD_C_CONCRETE), 0.5)) * self.saf_fac
-            self.dt = 1e-15
-            #self.max_reaction = 10000.0 # in newtons
-            self.self_weight = 1.*self.DENSITY_CONCRETE * self.volume_total * 9.81
-            self.max_reaction = 1.* self.self_weight # in newtons, about 85 times self weight
-            self.load_scale_rate = 1/1000
-        elif self.mesh_file == 'debug3D.msh':
-            # Problem specific parameters
-            self.volume_total = 1.0 * 1.0 * 1.0
-            self.PD_NODE_VOLUME_AVERAGE = 1.* self.volume_total / 67500 # volume_total / nnodes
-            self.dx = 1./9
-            self.PD_HORIZON = self.dx * np.pi 
-            self.PD_FAMILY_VOLUME = np.pi * np.power(self.PD_HORIZON, 2)
-            self.PD_DAMPING = 2.5e6                           # damping term
-            # Peridynamic bond stiffness, c
-            self.PD_C_CONCRETE = np.double(
-                    (18.00 * self.PD_K_CONCRETE) / (np.pi * np.power(self.PD_HORIZON, 4)))
-            self.PD_C_STEEL = np.double(
-                    (18.00 * self.PD_K_STEEL) / (np.pi * np.power(self.PD_HORIZON, 4)))
-            # Peridynamic critical stretch, s00
-            self.PD_S0_CONCRETE = np.double(self.TENSILE_STRENGTH_CONCRETE / self.YOUNGSM_CONCRETE)
-            self.PD_S0_STEEL = np.double(0.01)
-            # User input parameters
-            self.loadRate = np.double(1e-4)
-            self.crackLength = np.double(0)
-            self.saf_fac = 0.70 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
-            self.dt = (0.8 * np.power( 2.0 * self.DENSITY_CONCRETE * self.dx / (np.pi * np.power(self.PD_HORIZON, 2.0) * self.dx * self.PD_C_CONCRETE), 0.5)) * self.saf_fac
-            self.self_weight = 1.*self.DENSITY_CONCRETE * self.volume_total * 9.81
-            self.max_reaction = 1.* self.self_weight # in newtons, about 85 times self weight
-            #self.max_reaction = 10000.0 # in newtons
-            self.load_scale_rate = 1/1000
-        elif self.mesh_file in self.token_problems:
-            # Problem specific parameters
-            self.volume_total = 3.3 * 0.6 * 0.25
-            self.dx = np.power(1.*self.volume_total/4625,1./3)
-            self.PD_HORIZON = self.dx * np.pi 
-            self.PD_FAMILY_VOLUME =np.pi * np.power(self.PD_HORIZON, 2)
-            self.PD_DAMPING = 2.5e6                           # damping term
-            # Peridynamic bond stiffness, c
-            self.PD_C_CONCRETE = np.double(
-                    (18.00 * self.PD_K_CONCRETE) / (np.pi * np.power(self.PD_HORIZON, 4)))
-            self.PD_C_STEEL = np.double(
-                    (18.00 * self.PD_K_STEEL) / (np.pi * np.power(self.PD_HORIZON, 4)))
-            # Peridynamic critical stretch, s00
-            self.PD_S0_CONCRETE = 0.000533 # check this value
-            self.PD_S0_STEEL = np.double(0.01)
-            # User input parameters
-            self.loadRate = np.double(1e-4)
-            self.crackLength = np.double(0.3)
-            self.saf_fac = 0.70 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
-            #self.dt = (0.8 * np.power( 2.0 * self.DENSITY_CONCRETE * self.dx / (np.pi * np.power(self.PD_HORIZON, 2.0) * self.dx * self.PD_C_CONCRETE), 0.5)) * self.saf_fac
-            self.dt = np.double(1e-6)
-            self.self_weight = 1.*self.DENSITY_CONCRETE * self.volume_total * 9.81
-            self.max_reaction = 1.* self.self_weight # in newtons, about 85 times self weight
-            self.load_scale_rate = 1/1000
-        # No. coordinate dimensions
-        self._read_mesh(self.mesh_file)
-        self.DPN = np.intc(3)
-        self.PD_DPN_NODE_NO = np.intc(self.DPN * self.nnodes)
-        
-        st = time.time()
-        
-        self._set_volume(self.volume_total)
-        
-        # If the network has already been written to file, then read, if not, setNetwork
-        try:
-            self._read_network(self.network_file)
-        except:
-            self._set_network(self.PD_HORIZON, bond_type)
-        
-        # bb515 Initating crack is done when we _read_network or _set_network
-        #self._set_connectivity(initial_crack)
-        
-        print(
-            "Building horizons took {} seconds. Horizon length: {}".format(
-                (time.time() - st), self.MAX_HORIZON_LENGTH))
-        # bb515 self.setH() # Will further optimise the code, TODO Set the node distance and store in OpenCL device memory
+        # Calculate the volume for each node
+        self._set_volume()
 
-        # initiate
-        self.bctypes = np.zeros((self.nnodes, self.DPN), dtype=np.intc)
-        self.bcvalues = np.zeros((self.nnodes, self.DPN), dtype=np.float64)
-        self.tiptypes = np.zeros(self.nnodes, dtype=np.intc)
-        
-        if self.v == True:
-            print("total volume", self.sum_total_volume)
-            print("volume total", self.volume_total)
-            print("Horizon distance,", self.PD_HORIZON)
-            print("Max reaction", self.max_reaction)
-            print("Time step", self.dt)
-            
-    def _read_network(self, network_file):
-        """ For reading a network file if it has been written to file yet. Quicker than building horizons from scratch."""
-        
-        f = open(network_file, "r")
-        
-        if f.mode == "r":
-            iline = 0
-            
-            # Read the Max horizons length first
-            find_MHL = 0
-            while (find_MHL == 0):
-                iline += 1
-                line = f.readline()
-                row = line.strip()
-                rowAsList = row.split()
-                
-                find_MHL = 1 if 'MAX_HORIZON_LENGTH' in rowAsList else 0
-            
-            
-            MAX_HORIZON_LENGTH = int(rowAsList[1])
-            
-            # Now read nnodes
-            find_nnodes = 0
-            while (find_nnodes == 0):
-                iline += 1
-                line = f.readline()
-                row = line.strip()
-                rowAsList = row.split()
-                
-                find_nnodes = 1 if 'NNODES' in rowAsList else 0
-            
-            nnodes = int(rowAsList[1])
+        # Set the connectivity
+        self._set_connectivity(initial_crack)
 
-            # Now read horizons lengths
-            find_horizons_lengths = 0
-            while (find_horizons_lengths == 0):
-                iline += 1
-                line = f.readline()
-                row = line.strip()
-                rowAsList = row.split()
-                
-                find_horizons_lengths = 1 if 'HORIZONS_LENGTHS' in rowAsList else 0
-            
-            horizons_lengths = np.zeros(nnodes, dtype=int)
-            for i in range(0, nnodes):
-                iline += 1
-                line = f.readline()
-                horizons_lengths[i] = np.intc(line.split())
-                
-            print('Building family matrix from file')
-            # Now read family matrix
-            find_family = 0
-            while (find_family == 0):
-                iline += 1
-                line = f.readline()
-                row = line.strip()
-                rowAsList = row.split()
-                
-                find_family = 1 if 'FAMILY' in rowAsList else 0
-            
-            family = []
-            for i in range(nnodes):
-                iline += 1
-                line = f.readline()
-                row = line.strip()
-                rowAsList = line.split()
-                family.append(np.zeros(len(rowAsList), dtype=np.intc))
-                for j in range(0, len(rowAsList)):
-                    family[i][j] = np.intc(rowAsList[j])
-            
-            print('Finding stiffness values')
-            # Now read stiffness values
-            find_stiffness = 0
-            while (find_stiffness == 0):
-                iline += 1
-                line = f.readline()
-                row = line.strip()
-                rowAsList = row.split()
-                
-                find_stiffness = 1 if 'STIFFNESS' in rowAsList else 0
-            print('Building stiffnesses from file')
-            
-            bond_stiffness_family = []
-            for i in range(nnodes):
-                iline += 1
-                line = f.readline()
-                row = line.strip()
-                rowAsList = line.split()
-                bond_stiffness_family.append(np.zeros(len(rowAsList), dtype=np.float64))
-                for j in range(0, len(rowAsList)):
-                    bond_stiffness_family[i][j] = (rowAsList[j])
-            
-            print('Finding critical stretch values')
-            # Now read critcal stretch values
-            find_stretch = 0
-            while (find_stretch == 0):
-                iline += 1
-                line = f.readline()
-                row = line.strip()
-                rowAsList = row.split()
-                
-                find_stretch = 1 if 'STRETCH' in rowAsList else 0
-            
-            print('Building critical stretch values from file')
-            bond_critical_stretch_family = []
-            for i in range(nnodes):
-                iline += 1
-                line = f.readline()
-                row = line.strip()
-                rowAsList = line.split()
-                bond_critical_stretch_family.append(np.zeros(len(rowAsList), dtype=np.float64))
-                for j in range(0, len(rowAsList)):
-                    bond_critical_stretch_family[i][j] = rowAsList[j]
-            
-            # Maximum number of nodes that any one of the nodes is connected to
-            MAX_HORIZON_LENGTH_CHECK = np.intc(
-                len(max(family, key=lambda x: len(x)))
-                )
-            
-            assert MAX_HORIZON_LENGTH == MAX_HORIZON_LENGTH_CHECK, 'Read failed on MAX_HORIZON_LENGTH check'
-            
-            horizons = -1 * np.ones([nnodes, MAX_HORIZON_LENGTH])
-            for i, j in enumerate(family):
-                horizons[i][0:len(j)] = j
-                
-            bond_stiffness = -1. * np.ones([nnodes, MAX_HORIZON_LENGTH])
-            for i, j in enumerate(bond_stiffness_family):
-                bond_stiffness[i][0:len(j)] = j
-            
-            bond_critical_stretch = -1. * np.ones([nnodes, MAX_HORIZON_LENGTH])
-            for i, j in enumerate(bond_critical_stretch_family):
-                bond_critical_stretch[i][0:len(j)] = j
-
-            # Make sure it is in a datatype that C can handle
-            self.horizons = horizons.astype(np.intc)
-            self.bond_stiffness = bond_stiffness
-            self.bond_critical_stretch = bond_critical_stretch
-            
-            self.horizons_lengths = horizons_lengths
-            self.family = family
-            self.MAX_HORIZON_LENGTH = MAX_HORIZON_LENGTH
-            self.nnodes = nnodes
-            f.close()
+        # Set the node distance and failure strain matrices
+        self._set_H()
 
     def _read_mesh(self, filename):
         """
@@ -480,14 +156,13 @@ class Model:
         :rtype: NoneType
         """
         mesh = meshio.read(filename)
-        
+
         if self.transfinite == 1:
             # In this case, only need coordinates, encoded as mesh points
             self.coords = mesh.points
             self.nnodes = self.coords.shape[0]
-            
+
         else:
-            
             # Get coordinates, encoded as mesh points
             self.coords = mesh.points
             self.nnodes = self.coords.shape[0]
@@ -497,11 +172,9 @@ class Model:
 
             # Get boundary connectivity, mesh lines
             self.connectivity_bnd = mesh.cells[self.mesh_elements.boundary]
-            
-            # bb515 this has been removed?
+
+            # Get number elements on boundary?
             self.nelem_bnd = self.connectivity_bnd.shape[0]
-        
-    
     def write_mesh(self, filename, damage=None, displacements=None,
                    file_format=None):
         """
@@ -534,6 +207,734 @@ class Model:
             file_format=file_format
             )
 
+    def _set_volume(self):
+        """
+        Calculate the value of each node.
+
+        :returns: None
+        :rtype: NoneType
+        """
+        self.V = np.zeros(self.nnodes)
+
+        for element in self.connectivity:
+            # Compute area / volume
+            val = 1. / len(element)
+
+            # Define area of element
+            if (self.dimensions == 2):
+                xi, yi, *_ = self.coords[element[0]]
+                xj, yj, *_ = self.coords[element[1]]
+                xk, yk, *_ = self.coords[element[2]]
+                val *= 0.5 * ((xj - xi) * (yk - yi) - (xk - xi) * (yj - yi))
+
+            self.V[element] += val
+
+    def _set_connectivity(self, initial_crack):
+        """
+        Sets the sparse connectivity matrix, should only ever be called once.
+
+        :arg initial_crack: The initial crack of the system. The argument may
+            be a list of tuples where each tuple is a pair of integers
+            representing nodes between which to create a crack. Alternatively,
+            the arugment may be a function which takes the (nnodes, 3)
+            :class:`numpy.ndarray` of coordinates as an argument, and returns a
+            list of tuples defining the initial crack.
+        :type initial_crack: list(tuple(int, int)) or function
+
+        :returns: None
+        :rtype: NoneType
+        """
+        if callable(initial_crack):
+            initial_crack = initial_crack(self.coords)
+
+        # Calculate the Euclidean distance between each pair of nodes
+        distance = cdist(self.coords, self.coords, 'euclidean')
+
+        # Construct uncracked connectivity matrix (connectivity determined only
+        # by the horizon)
+        nnodes = self.nnodes
+        conn_0 = np.zeros((nnodes, nnodes))
+        # Connect nodes which are within horizon of each other
+        conn_0[distance < self.horizon] = 1
+
+        # Construct the initial connectivity matrix
+        conn = conn_0.copy()
+        for i, j in initial_crack:
+            # Connectivity is symmetric
+            conn[i, j] = 0
+            conn[j, i] = 0
+        # Nodes are not connected with themselves
+        np.fill_diagonal(conn, 0)
+
+        # Initial bond damages
+        count = np.sum(conn, axis=0)
+        self.family = np.sum(conn_0, axis=0)
+        damage = np.divide((self.family - count), self.family)
+        damage.resize(self.nnodes)
+
+        # Lower triangular - count bonds only once
+        # make diagonal values 0
+        conn = np.tril(conn, -1)
+
+        # Convert to sparse matrix
+        self.conn = sparse.csr_matrix(conn)
+        self.conn_0 = sparse.csr_matrix(conn_0)
+
+        return damage
+
+    def _set_H(self):
+        """
+        Constructs the failure strains matrix and H matrix, which is a sparse
+        matrix containing distances.
+
+        :returns: None
+        :rtype: NoneType
+        """
+        coords = self.coords
+
+        # Extract the coordinates
+        V_x = coords[:, 0]
+        V_y = coords[:, 1]
+        V_z = coords[:, 2]
+
+        # Tiled matrices
+        lam_x = np.tile(V_x, (self.nnodes, 1))
+        lam_y = np.tile(V_y, (self.nnodes, 1))
+        lam_z = np.tile(V_z, (self.nnodes, 1))
+
+        # Dense matrices
+        H_x0 = -lam_x + lam_x.transpose()
+        H_y0 = -lam_y + lam_y.transpose()
+        H_z0 = -lam_z + lam_z.transpose()
+
+        # Into sparse matrices
+        self.H_x0 = sparse.csr_matrix(self.conn_0.multiply(H_x0))
+        self.H_y0 = sparse.csr_matrix(self.conn_0.multiply(H_y0))
+        self.H_z0 = sparse.csr_matrix(self.conn_0.multiply(H_z0))
+        self.H_x0.eliminate_zeros()
+        self.H_y0.eliminate_zeros()
+        self.H_z0.eliminate_zeros()
+
+        norms_matrix = (
+            self.H_x0.power(2) + self.H_y0.power(2) + self.H_z0.power(2)
+            )
+        self.L_0 = norms_matrix.sqrt()
+
+        # initiate fail_stretches matrix as a linked list format
+        fail_strains = np.full((self.nnodes, self.nnodes),
+                               self.critical_strain)
+        # Make into a sparse matrix
+        self.fail_strains = sparse.csr_matrix(fail_strains)
+
+    def bond_stretch(self, u):
+        """
+        Calculates the strain (bond stretch) of all nodes for a given
+        displacement.
+
+        :arg u: The displacement array with shape
+            (`nnodes`, `dimension`).
+        :type u: :class:`numpy.ndarray`
+
+        :returns: None
+        :rtype: NoneType
+        """
+        cols, rows, data_x, data_y, data_z = [], [], [], [], []
+
+        for i in range(self.nnodes):
+            row = self.conn_0.getrow(i)
+
+            rows.extend(row.indices)
+            cols.extend(np.full((row.nnz), i))
+            data_x.extend(np.full((row.nnz), u[i, 0]))
+            data_y.extend(np.full((row.nnz), u[i, 1]))
+            data_z.extend(np.full((row.nnz), u[i, 2]))
+
+        # Must not be lower triangular
+        lam_x = sparse.csr_matrix((data_x, (rows, cols)),
+                                  shape=(self.nnodes, self.nnodes))
+        lam_y = sparse.csr_matrix((data_y, (rows, cols)),
+                                  shape=(self.nnodes, self.nnodes))
+        lam_z = sparse.csr_matrix((data_z, (rows, cols)),
+                                  shape=(self.nnodes, self.nnodes))
+
+        delH_x = -lam_x + lam_x.transpose()
+        delH_y = -lam_y + lam_y.transpose()
+        delH_z = -lam_z + lam_z.transpose()
+
+        # Sparse matrices
+        self.H_x = delH_x + self.H_x0
+        self.H_y = delH_y + self.H_y0
+        self.H_z = delH_z + self.H_z0
+
+        norms_matrix = (
+            self.H_x.power(2) + self.H_y.power(2) + self.H_z.power(2)
+            )
+
+        self.L = norms_matrix.sqrt()
+
+        del_L = self.L - self.L_0
+
+        # Floor values close to zero from del_L sparse matrix
+        del_L = del_L.tolil()
+        del_L[~(del_L >= 1e-12).toarray()] = 0
+        del_L = del_L.tocsr()
+
+        # Step 1. initiate as a sparse matrix
+        strain = sparse.lil_matrix(self.conn.shape)
+
+        # Step 2. elementwise division
+        strain[self.L_0.nonzero()] = (
+            del_L[self.L_0.nonzero()]/self.L_0[self.L_0.nonzero()]
+            )
+
+        self.strain = strain
+
+        if strain.shape != self.L_0.shape:
+            warnings.warn(
+                'strain.shape was {}, whilst L_0.shape was {}'.format(
+                    strain.shape, self.L_0.shape
+                    )
+                )
+
+    def damage(self):
+        """
+        Calculates bond damage.
+
+        :returns: A (`nnodes`, ) array containing the damage
+            for each node.
+        :rtype: :class:`numpy.ndarray`
+        """
+        # Make sure only calculating for bonds that exist
+
+        # Step 1. initiate as sparse matrix
+        bond_healths = sparse.lil_matrix(self.conn.shape)
+
+        # Step 2. Find broken bonds, squared as strains can be negative
+        bond_healths[self.conn.nonzero()] = (
+                self.fail_strains.power(2)[self.conn.nonzero()]
+                - self.strain.power(2)[self.conn.nonzero()]
+                )
+
+        # Update failed bonds
+        bond_healths = bond_healths > 0
+
+        self.conn = sparse.csr_matrix(bond_healths)
+
+        # Bond damages
+        # Using lower triangular connectivity matrix, so just mirror it for
+        # bond damage calc
+        temp = self.conn + self.conn.transpose()
+
+        count = temp.sum(axis=0)
+        damage = np.divide((self.family - count), self.family)
+        damage.resize(self.nnodes)
+
+        return damage
+
+    def bond_force(self):
+        """
+        Calculate the force due to bonds acting on each node.
+
+        :returns: A (`nnodes`, 3) array of the component of the force in each
+            dimension for each node.
+        :rtype: :class:`numpy.ndarray`
+        """
+        # Container for the forces on each particle in each dimension
+        F = np.zeros((self.nnodes, 3))
+
+        # Step 1. Initiate container as a sparse matrix, only need calculate
+        # for bonds that exist
+        force_normd = sparse.lil_matrix(self.conn.shape)
+
+        # Step 2. find normalised forces
+        force_normd[self.conn.nonzero()] = (
+                self.strain[self.conn.nonzero()]/self.L[self.conn.nonzero()]
+                )
+
+        # Make lower triangular into full matrix
+        force_normd.tocsr()
+        force_normd = force_normd + force_normd.transpose()
+
+        # Multiply by the direction and scale of each bond (just trigonometry,
+        # we have already scaled for bond length in step 2)
+        bond_force_x = force_normd.multiply(self.H_x)
+        bond_force_y = force_normd.multiply(self.H_y)
+        bond_force_z = force_normd.multiply(self.H_z)
+
+        # now sum along the rows to calculate resultant force on nodes
+        F_x = np.array(bond_force_x.sum(axis=0))
+        F_y = np.array(bond_force_y.sum(axis=0))
+        F_z = np.array(bond_force_z.sum(axis=0))
+
+        F_x.resize(self.nnodes)
+        F_y.resize(self.nnodes)
+        F_z.resize(self.nnodes)
+
+        # Finally multiply by volume and stiffness
+        F_x = self.bond_stiffness * np.multiply(F_x, self.V)
+        F_y = self.bond_stiffness * np.multiply(F_y, self.V)
+        F_z = self.bond_stiffness * np.multiply(F_z, self.V)
+
+        F[:, 0] = F_x
+        F[:, 1] = F_y
+        F[:, 2] = F_z
+
+        return F
+
+    def simulate(self, steps, integrator, boundary_function=None, u=None,
+                 write=None):
+        """
+        Simulate the peridynamics model.
+
+        :arg int steps: The number of simulation steps to conduct.
+        :arg  integrator: The integrator to use, see
+            :mod:`peridynamics.integrators` for options.
+        :type integrator: :class:`peridynamics.integrators.Integrator`
+        :arg boundary_function: A function to apply the boundary conditions for
+            the simlation. It has the form
+            boundary_function(:class:`peridynamics.model.Model`,
+            :class:`numpy.ndarray`, `int`). The arguments are the model being
+            simulated, the current displacements, and the current step number
+            (beginning from 1). `boundary_function` returns a (nnodes, 3)
+            :class:`numpy.ndarray` of the updated displacements
+            after applying the boundary conditions. Default `None`.
+        :type boundary_function: function
+        :arg u: The initial displacements for the simulation. If `None` the
+            displacements will be initialised to zero. Default `None`.
+        :type u: :class:`numpy.ndarray`
+        :arg int write: The frequency, in number of steps, to write the system
+            to a mesh file by calling
+            :meth:`peridynamics.model.Model.write_mesh`. If `None` then no
+            output is written. Default `None`.
+        """
+
+        if not isinstance(integrator, Integrator):
+            raise InvalidIntegrator(integrator)
+
+        # Create initial displacements is none is provided
+        if u is None:
+            u = np.zeros((self.nnodes, 3))
+
+        # Create dummy boundary conditions function is none is provied
+        if boundary_function is None:
+            def boundary_function(model):
+                return model.u
+
+        for step in range(1, steps+1):
+            # Calculate bond stretch, damage and forces on nodes
+            self.bond_stretch(u)
+            damage = self.damage()
+            f = self.bond_force()
+
+            # Conduct one integration step
+            u = integrator(u, f)
+
+            # Apply boundary conditions
+            u = boundary_function(self, u, step)
+
+            if write:
+                if step % write == 0:
+                    self.write_mesh(f"U_{step}.vtk", damage, u)
+
+        return u, damage
+
+
+class OpenCL(Model):
+    """
+    A peridynamics model using OpenCL.
+
+    This class allows users to define a peridynamics system from parameters and
+    a set of initial conditions (coordinates and connectivity).
+    """
+    def __init__(self, bond_type, initial_crack=[], dimensions=2):
+        """
+        Construct a :class:`OpenCL` object, which inherits Model class.
+        
+        :arg str mesh_file: Path of the mesh file defining the systems nodes
+            and connectivity.
+        :arg float horizon: The horizon radius. Nodes within `horizon` of
+            another interact with that node and are said to be within its
+            neighbourhood.
+        :arg float critical_strain: The critical strain of the model. Bonds
+            which exceed this strain are permanently broken.
+        :arg float elastic_modulus: The appropriate elastic modulus of the
+            material.
+        :arg initial_crack: The initial crack of the system. The argument may
+            be a list of tuples where each tuple is a pair of integers
+            representing nodes between which to create a crack. Alternatively,
+            the arugment may be a function which takes the (nnodes, 3)
+            :class:`numpy.ndarray` of coordinates as an argument, and returns a
+            list of tuples defining the initial crack. Default is []
+        :type initial_crack: list(tuple(int, int)) or function
+        :arg int dimensions: The dimensionality of the model. The
+            default is 2.
+
+        :returns: A new :class:`Model` object.
+        :rtype: Model
+
+        :raises DimensionalityError: when an invalid `dimensions` argument is
+            provided.
+        """
+
+        ## bb515 I have wrongly defined all the PD parameters here, but
+        # unsure how to restructure this as there are too many arguments for
+        # the command line. We should probably make an input parameters file,
+        # and a 'material' class.
+
+        # verbose
+        self.v = True
+
+        self.token_problems = [
+                'test.msh', 'debug3D.msh', 'debug3D2.msh'
+                ]
+        self.verification_problems = [
+                '1000beam2D.msh', '1000beam3D.msh', '1000beam3DT.msh'
+                ]
+        self.benchmark_problems = ['3300beam.msh']
+
+        self.mesh_file = 'test.msh'
+        self.network_file = 'Network.vtk'
+
+        if dimensions == 2:
+            self.mesh_elements = _mesh_elements_2d
+        elif dimensions == 3:
+            self.mesh_elements = _mesh_elements_3d
+        else:
+            raise DimensionalityError(dimensions)
+
+        self.dimensions = dimensions
+        self.degrees_freedom = 3
+
+        # bb515 Are the stiffness correction factors calculated using mesh element
+        # volumes (default 'precise', 1) or average nodal volume of a transfinite
+        # mesh (0)      
+        self.precise_stiffness_correction = 1
+        # bb515 Is the mesh transfinite mesh (support regular grid spacing with 
+        # cuboidal (not tetra) elements, look up "gmsh transfinite") (default 0)
+        # I'm only planning on using this for validation against literature
+        self.transfinite = 0
+
+        self.youngs_modulus_concrete = 1.*22e9
+        self.density_concrete = 2400.0
+        self.youngs_modulus_steel = 1.*210e9
+        self.density_steel = 8000.0
+        self.compressive_strength_concrete = 1.*25e6
+        self.tensile_strength_concrete = 2.6e6
+        self.fracture_energy_concrete = 100
+        self.yield_strength_steel = 1.*250e6
+
+        # These classical material model parameters may be used in post 
+        # processing to plot stress strain fields (not yet implemented)
+        self.poisson_ratio_steel = 0.3
+        self.poisson_ratio_concrete = 0.2
+        self.shear_modulus_steel = 78e9
+        self.shear_modulus_concrete = (
+                self.youngs_modulus_concrete/(
+                        2*(1+self.poisson_ratio_concrete))
+                )
+        self.effective_modulus_concrete = (
+                self.youngs_modulus_concrete/(
+                        (1-2*self.poisson_ratio_concrete)*(1+self.poisson_ratio_concrete))
+                )
+        self.effective_modulus_steel = (
+                self.youngs_modulus_steel/(
+                        (1-2*self.poisson_ratio_steel)*(1+self.poisson_ratio_steel))
+                )
+
+        # Peridynamics parameters. These parameters will be passed to openCL
+        # kernels by command line argument Bond-based peridynamics, known in
+        # PDLAMMPS as Prototype Microelastic Brittle (PMB) Model requires a
+        #poisson ratio of v = 0.25, but this makes little to no difference 
+        # in quasi-brittle materials
+        self.poisson_ratio = 0.25
+        # Make assumption that bulk density is that of concrete
+        self.density = self.density_concrete
+        self.bulk_modulus_concrete = (
+                self.youngs_modulus_concrete/ (3* (1 - 2*self.poisson_ratio))
+                )
+        self.bulk_modulus_steel = (
+                self.youngs_modulus_steel / (3* (1- 2*self.poisson_ratio))
+                )
+        if self.mesh_file in self.benchmark_problems:
+            # Problem specific parameters
+            self.volume_total = 3.3 * 0.6 * 0.25
+            self.dx = np.power(1.*self.volume_total/4625,1./3)
+            self.horizon = self.dx * np.pi 
+            self.family_volume =(4./3)*np.pi*np.power(self.horizon, 3)
+            self.damping = 2.0e6                         # damping term
+            # Peridynamic bond stiffness, c
+            self.bond_stiffness_concrete = (
+                    np.double((18.00 * self.bulk_modulus_concrete) /
+                              (np.pi * np.power(self.horizon, 4)))
+                    )
+            self.bond_stiffness_steel = (
+                    np.double((18.00 * self.bulk_modulus_steel) /
+                              (np.pi * np.power(self.horizon, 4)))
+                    )
+            # Peridynamic critical stretch, s00
+            self.critical_strain_concrete = (
+                    np.double(self.tensile_strength_concrete /
+                              self.youngs_modulus_concrete)
+                    )
+            #self.critical_strain_concrete = np.double(0.000533) # check this value
+            self.critical_strain_steel = np.double(0.01)
+            # User input parameters
+            #self.load_rate = np.double(1e-5)
+            self.crackLength = np.double(0.3)
+            self.saf_fac = 0.2 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
+            #self.dt = (
+            #        0.8 * np.power( 2.0 * self.density_concrete * self.dx / 
+            #                       (np.pi * np.power(self.horizon, 2.0) * self.dx * self.bond_stiffness_concrete), 0.5)
+            #        * self.saf_fac
+            #        )
+            self.dt = 1e-7
+            self.self_weight = 1.*self.density_concrete * self.volume_total * 9.81
+            self.max_reaction = 1.* self.self_weight # in newtons, about 85 times self weight
+            self.load_scale_rate = 1/1000
+        elif self.mesh_file in self.verification_problems:
+            # Problem specific parameters
+            self.volume_total = 1.0 * 0.2 * 0.1
+            self.average_node_volume = 1.* self.volume_total / 67500 # volume_total / nnodes
+            self.dx = 1./150
+            self.horizon = self.dx * np.pi 
+            self.family_volume = np.pi * np.power(self.horizon, 2)
+            self.damping = 2.8e6                           # damping term
+            # Peridynamic bond stiffness, c
+            self.bond_stiffness_concrete = (
+                    np.double((18.00 * self.bulk_modulus_concrete) /
+                              (np.pi * np.power(self.horizon, 4)))
+                    )
+            self.bond_stiffness_steel = (
+                    np.double((18.00 * self.bulk_modulus_steel) /
+                              (np.pi * np.power(self.horizon, 4)))
+                    )
+            # Peridynamic critical stretch, s00
+            self.critical_strain_concrete = (
+                    np.double(self.tensile_strength_concrete /
+                              self.youngs_modulus_concrete)
+                    )
+            self.critical_strain_steel = np.double(0.01)
+            # User input parameters
+            #self.load_rate = np.double(1e-5)
+            self.crackLength = np.double(0)
+            self.saf_fac = 0.70 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
+            #self.dt = (
+            #        0.8 * np.power( 2.0 * self.density_concrete * self.dx / 
+            #                       (np.pi * np.power(self.horizon, 2.0) * self.dx * self.bond_stiffness_concrete), 0.5)
+            #        * self.saf_fac
+            #        )
+            self.dt = 1e-15
+            #self.max_reaction = 10000.0 # in newtons
+            self.self_weight = 1.*self.density_concrete * self.volume_total * 9.81
+            self.max_reaction = 1.* self.self_weight # in newtons, about 85 times self weight
+            self.load_scale_rate = 1/1000
+        elif self.mesh_file == 'debug3D.msh':
+            # Problem specific parameters
+            self.volume_total = 1.0 * 1.0 * 1.0
+            self.average_node_volume = 1.* self.volume_total / 67500 # volume_total / nnodes
+            self.dx = 1./9
+            self.horizon = self.dx * np.pi 
+            self.family_volume = np.pi * np.power(self.horizon, 2)
+            self.damping = 2.5e6                           # damping term
+            # Peridynamic bond stiffness, c
+            self.bond_stiffness_concrete = (
+                    np.double((18.00 * self.bulk_modulus_concrete) /
+                              (np.pi * np.power(self.horizon, 4)))
+                    )
+            self.bond_stiffness_steel = (
+                    np.double((18.00 * self.bulk_modulus_steel) /
+                              (np.pi * np.power(self.horizon, 4)))
+                    )
+            # Peridynamic critical stretch, s00
+            self.critical_strain_concrete = (
+                    np.double(self.tensile_strength_concrete /
+                              self.youngs_modulus_concrete)
+                    )
+            self.critical_strain_steel = np.double(0.01)
+            # User input parameters
+            #self.load_rate = np.double(1e-4)
+            self.crackLength = np.double(0)
+            self.saf_fac = 0.70 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
+            #self.dt = (
+            #        0.8 * np.power( 2.0 * self.density_concrete * self.dx /
+            #                       (np.pi * np.power(self.horizon, 2.0) * self.dx * self.bond_stiffness_concrete), 0.5)
+            #        * self.saf_fac
+            #        )
+            self.dt = np.double(1e-6)
+            self.self_weight = 1.*self.density_concrete * self.volume_total * 9.81
+            self.max_reaction = 1.* self.self_weight # in newtons, about 85 times self weight
+            #self.max_reaction = 10000.0 # in newtons
+            self.load_scale_rate = 1/1000
+        elif self.mesh_file in self.token_problems:
+            # Problem specific parameters
+            self.volume_total = 1.0
+            self.dx = np.power(1.*self.volume_total/2113,1./(self.dimensions))
+            #self.horizon = self.dx * np.pi 
+            self.horizon = 0.1
+            self.family_volume = np.pi * np.power(self.horizon, 2)
+            self.damping = 2.5e6                           # damping term
+            # Peridynamic bond stiffness, c
+            self.bond_stiffness_concrete = (
+                    np.double((18.00 * 0.05) /
+                    (np.pi * np.power(self.horizon, 4)))
+                    )
+            self.critical_strain_concrete = 0.005
+            # User input parameters
+            self.crackLength = np.double(0.3)
+            self.dt = np.double(1e-3)
+            self.self_weight = 1.*self.density_concrete * self.volume_total * 9.81
+            self.max_reaction = 1.* self.self_weight # in newtons, about 85 times self weight
+            self.load_scale_rate = 1/1000
+
+        self._read_mesh(self.mesh_file)
+
+        st = time.time()
+
+        self._set_volume(self.volume_total)
+
+        # If the network has already been written to file, then read, if not, setNetwork
+        try:
+            self._read_network(self.network_file)
+        except:
+            print('No network file found: writing network file.')
+            self._set_network(self.horizon, bond_type)
+
+        # Initate crack
+        self._set_connectivity(initial_crack)
+
+        print(
+            "Building horizons took {} seconds. Horizon length: {}".format(
+                (time.time() - st), self.max_horizon_length))
+
+        # Initiate boundary condition containers
+        self.bc_types = np.zeros((self.nnodes, self.degrees_freedom), dtype=np.intc)
+        self.bc_values = np.zeros((self.nnodes, self.degrees_freedom), dtype=np.float64)
+        self.tip_types = np.zeros(self.nnodes, dtype=np.intc)
+
+        if self.v == True:
+            print("total volume", self.sum_total_volume)
+            print("volume total", self.volume_total)
+            print("Horizon distance,", self.horizon)
+            print("Max reaction", self.max_reaction)
+            print("Time step", self.dt)
+
+    def _read_network(self, network_file):
+        """ For reading a network file if it has been written to file yet.
+        Significantly quicker than building horizons from scratch, however
+        the network file size is quite large for large node num.
+        :arg network_file: the network vtk file including information about
+        node families, bond stiffnesses, critical stretches, number of nodes
+        , max horizon length and horizon lengths.
+        """
+        def find_string(string, iline):
+            """
+            Function for incrimenting the line when reading the vtk file,
+            network_file until input string is found
+            :
+            :arg string: The string in the vtk to be found.
+            :arg iline: The current count of the line no. in the read of
+            'network_file'
+
+            :returns: list of strings of row of the chosen line
+            :rtype: list
+            """
+            found = 0
+            while (found == 0):
+                iline+= 1
+                line = f.readline()
+                row = line.strip()
+                row_as_list = row.split()
+                found = 1 if string in row_as_list else 0
+            return row_as_list, iline
+        
+        f = open(network_file, "r")
+
+        if f.mode == "r":
+            iline = 0
+
+            # Read the Max horizons length first
+            row_as_list, iline = find_string('MAX_HORIZON_LENGTH', iline)
+            max_horizon_length = int(row_as_list[1])
+            print('max_horizon_length', max_horizon_length)
+            # Read nnodes
+            row_as_list, iline = find_string('NNODES', iline)
+            nnodes = int(row_as_list[1])
+            print('nnodes', nnodes)
+            # Read horizons lengths
+            row_as_list, iline = find_string('HORIZONS_LENGTHS', iline)
+            horizons_lengths = np.zeros(nnodes, dtype=int)
+            for i in range(0, nnodes):
+                iline += 1
+                line = f.readline()
+                horizons_lengths[i] = np.intc(line.split())
+
+            # Read family matrix
+            print('Building family matrix from file')
+            row_as_list, iline = find_string('FAMILY', iline)
+            family = []
+            for i in range(nnodes):
+                iline += 1
+                line = f.readline()
+                row = line.strip()
+                row_as_list = row.split()
+                family.append(np.zeros(len(row_as_list), dtype=np.intc))
+                for j in range(0, len(row_as_list)):
+                    family[i][j] = np.intc(row_as_list[j])
+
+            # Read stiffness values
+            print('Building stiffnesses from file')
+            row_as_list, iline = find_string('STIFFNESS', iline)
+            bond_stiffness_family = []
+            for i in range(nnodes):
+                iline += 1
+                line = f.readline()
+                row = line.strip()
+                row_as_list = row.split()
+                bond_stiffness_family.append(np.zeros(len(row_as_list), dtype=np.float64))
+                for j in range(0, len(row_as_list)):
+                    bond_stiffness_family[i][j] = (row_as_list[j])
+
+            # Now read critcal stretch values
+            print('Building critical stretch values from file')
+            row_as_list, iline = find_string('STRETCH', iline)
+            bond_critical_stretch_family = []
+            for i in range(nnodes):
+                iline += 1
+                line = f.readline()
+                row = line.strip()
+                row_as_list = row.split()
+                bond_critical_stretch_family.append(np.zeros(len(row_as_list), dtype=np.float64))
+                for j in range(0, len(row_as_list)):
+                    bond_critical_stretch_family[i][j] = row_as_list[j]
+
+            # Maximum number of nodes that any one of the nodes is connected to
+            max_horizon_length_check = np.intc(
+                len(max(family, key=lambda x: len(x)))
+                )
+            assert max_horizon_length == max_horizon_length_check, 'Read failed on MAX_HORIZON_LENGTH check'
+
+            horizons = -1 * np.ones([nnodes, max_horizon_length])
+            for i, j in enumerate(family):
+                horizons[i][0:len(j)] = j
+
+            bond_stiffness = -1. * np.ones([nnodes, max_horizon_length])
+            for i, j in enumerate(bond_stiffness_family):
+                bond_stiffness[i][0:len(j)] = j
+
+            bond_critical_stretch = -1. * np.ones([nnodes, max_horizon_length])
+            for i, j in enumerate(bond_critical_stretch_family):
+                bond_critical_stretch[i][0:len(j)] = j
+
+            # Make sure it is in a datatype that C can handle
+            self.horizons = horizons.astype(np.intc)
+            self.bond_stiffness = bond_stiffness
+            self.bond_critical_stretch = bond_critical_stretch
+            self.horizons_lengths = horizons_lengths
+            self.family = family
+            self.max_horizon_length = max_horizon_length
+            self.nnodes = nnodes
+            f.close()
+
     def _set_volume(self, volume_total):
         """
         Calculate the value of each node.
@@ -544,16 +945,15 @@ class Model:
         :returns: None
         :rtype: NoneType
         """
-        
-        # bb515 this has changed significantly,
+        # bb515 this has changed significantly from the sequential code.
         # OpenCL (or rather C) requires that we are careful with
         # types so that they are compatible with the specifed C types in the
         # OpenCL kernels
         self.V = np.zeros(self.nnodes, dtype=np.float64)
-        
+
         # this is the sum total of the elemental volumes, initiated at 0.
         self.sum_total_volume = 0
-        
+
         if self.transfinite == 1:
             """ Tranfinite mode is when we have approximated the volumes of the nodes
             as the average volume of nodes on a rectangular grid.
@@ -566,59 +966,72 @@ class Model:
                 self.sum_total_volume += tmp
         else:
             for element in self.connectivity:
-                
+
                 # Compute Area or Volume
                 val = 1. / len(element)
-                
+
                 # Define area of element
                 if self.dimensions == 2:
-                    
+
                     xi, yi, *_ = self.coords[element[0]]
                     xj, yj, *_ = self.coords[element[1]]
                     xk, yk, *_ = self.coords[element[2]]
-                    
-                    element_area = 0.5 * np.absolute(((xj - xi) * (yk - yi) - (xk - xi) * (yj - yi)))
+
+                    element_area = (
+                            0.5 * np.absolute((
+                                    (xj - xi) * (yk - yi) - (xk - xi) * (yj - yi)))
+                            )
                     val *= element_area
                     self.sum_total_volume += element_area
-                    
+
                 elif self.dimensions == 3:
-        
+
                     a = self.coords[element[0]]
                     b = self.coords[element[1]]
                     c = self.coords[element[2]]
                     d = self.coords[element[3]]
-                    
+
                     # Volume of a tetrahedron
                     i = np.subtract(a,d)
                     j = np.subtract(b,d)
                     k = np.subtract(c,d)
-                    
+
                     element_volume = (1./6) * np.absolute(np.dot(i, np.cross(j,k)))
                     val*= element_volume
                     self.sum_total_volume += element_volume
                 else:
                     raise ValueError('dim', 'dimension size can only take values 2 or 3')
-                    
+
                 for j in range(0, len(element)):
                     self.V[element[j]] += val
-        # For non prismatic problems where the user does not know the volume_total, do another test?
-        assert self.sum_total_volume - volume_total < volume_total/1e5, "Sum total of elemental volumes was {}, but geometry had total volume {}".format(self.sum_total_volume, volume_total)
+
+        # For non prismatic problems where the user does not know the 
+        # volume_total, do another test?
+        assert self.sum_total_volume - volume_total < volume_total/1e5, \
+        "Total volume not as expected: total of elemental volumes was {},\
+        but expected total volume was {}".format(self.sum_total_volume, volume_total)
         self.V = self.V.astype(np.float64)
 
     def _set_network(self, horizon, bond_type):
         """
-        Sets the family matrix, and converts this to a horizons matrix (a fixed size data structure compatible with OpenCL).
+        Sets the family matrix, and converts this to a horizons matrix 
+        (a fixed size data structure compatible with OpenCL).
         Calculates horizons_lengths
-        
         Also initiate crack here if there is one
-        
-
         :arg horizon: Peridynamic horizon distance
-
         :returns: None
         :rtype: NoneType
         """
-        
+        def l2(y1, y2):
+            """
+            Euclidean distance between nodes y1 and y2.
+            """
+            l2 = 0
+            for i in range(len(y1)):
+                l2 += (y1[i] - y2[i]) * (y1[i] - y2[i])
+            l2 = np.sqrt(l2)
+            return l2
+
         # Container for nodal family
         family = []
         bond_stiffness_family = []
@@ -638,41 +1051,39 @@ class Model:
             tmp3 = []
             for j in range(0, self.nnodes):
                 if i != j:
-                    l2_sqr = func.l2_sqr(self.coords[i, :], self.coords[j, :])
-                    if np.sqrt(l2_sqr) < horizon:
+                    distance = l2(self.coords[i, :], self.coords[j, :])
+                    if distance < horizon:
                         tmp.append(j)
                         # Determine the material properties for that bond
                         material_flag = bond_type(self.coords[i, :], self.coords[j, :])
                         if material_flag == 'steel':
-                            tmp2.append(self.PD_C_STEEL)
-                            tmp3.append(self.PD_S0_STEEL)
+                            tmp2.append(self.bond_stiffness_steel)
+                            tmp3.append(self.critical_strain_steel)
                         elif material_flag == 'interface':
-                            tmp2.append(self.PD_C_CONCRETE) # choose the weakest stiffness of the two bond types
-                            tmp3.append(self.PD_S0_CONCRETE * 3.0) # 3.0 is used for interface bonds in the literature
+                            tmp2.append(self.bond_stiffness_concrete) # choose the weakest stiffness of the two bond types
+                            tmp3.append(self.critical_strain_concrete * 3.0) # 3.0 is used for interface bonds in the literature
                         elif material_flag == 'concrete':
-                            tmp2.append(self.PD_C_CONCRETE)
-                            tmp3.append(self.PD_S0_CONCRETE)
-             
+                            tmp2.append(self.bond_stiffness_concrete)
+                            tmp3.append(self.critical_strain_concrete)
+
             family.append(np.zeros(len(tmp), dtype=np.intc))
             bond_stiffness_family.append(np.zeros(len(tmp2), dtype=np.float64))
             bond_critical_stretch_family.append(np.zeros(len(tmp3), dtype=np.float64))
-            
-            
+
             self.horizons_lengths[i] = np.intc((len(tmp)))
             for j in range(0, len(tmp)):
                 family[i][j] = np.intc(tmp[j])
                 bond_stiffness_family[i][j] = np.float64(tmp2[j])
                 bond_critical_stretch_family[i][j] = np.float64(tmp3[j])
-            
-        
+
         assert len(family) == self.nnodes
         # As numpy array
         self.family = np.array(family)
-        
+
         # Do the bond critical ste
         self.bond_critical_stretch_family = np.array(bond_critical_stretch_family)
         self.bond_stiffness_family = np.array(bond_stiffness_family)
-        
+
         self.family_v = np.zeros(self.nnodes)
         for i in range(0, self.nnodes):
             tmp = 0 # tmp family volume
@@ -680,8 +1091,7 @@ class Model:
             for j in range(0, len(family_list)):
                 tmp += self.V[family_list[j]]
             self.family_v[i] = tmp
-        
-        
+
         if self.precise_stiffness_correction == 1:
             # Calculate stiffening factor nore accurately using actual nodal volumes
             for i in range(0, self.nnodes):
@@ -689,46 +1099,46 @@ class Model:
                 nodei_family_volume = self.family_v[i] # Possible to calculate more exactly, we have the volumes for free
                 for j in range(len(family_list)):
                     nodej_family_volume = self.family_v[j]
-                    stiffening_factor = 2.* self.PD_FAMILY_VOLUME /  (nodej_family_volume + nodei_family_volume)
+                    stiffening_factor = 2.* self.family_volume /  (nodej_family_volume + nodei_family_volume)
                     print('Stiffening factor {}'.format(stiffening_factor))
                     bond_stiffness_family[i][j] *= stiffening_factor
         elif self.precise_stiffness_correction == 0:
             # Calculate stiffening factor - surface corrections for 3D problem, for this we need family matrix
             for i in range(0, self.nnodes):
                 nnodes_i_family = len(family[i])
-                nodei_family_volume = nnodes_i_family * self.PD_NODE_VOLUME_AVERAGE # Possible to calculate more exactly, we have the volumes for free
+                nodei_family_volume = nnodes_i_family * self.average_node_volume # Possible to calculate more exactly, we have the volumes for free
                 for j in range(len(family[i])):
                     nnodes_j_family = len(family[j])
-                    nodej_family_volume = nnodes_j_family* self.PD_NODE_VOLUME_AVERAGE # Possible to calculate more exactly, we have the volumes for free
+                    nodej_family_volume = nnodes_j_family* self.average_node_volume # Possible to calculate more exactly, we have the volumes for free
                     
-                    stiffening_factor = 2.* self.PD_FAMILY_VOLUME /  (nodej_family_volume + nodei_family_volume)
+                    stiffening_factor = 2.* self.family_volume /  (nodej_family_volume + nodei_family_volume)
                     
                     bond_stiffness_family[i][j] *= stiffening_factor
-            
-        
+
         # Maximum number of nodes that any one of the nodes is connected to
-        self.MAX_HORIZON_LENGTH = np.intc(
+        self.max_horizon_length = np.intc(
             len(max(self.family, key=lambda x: len(x)))
             )
 
-        self.horizons = -1 * np.ones([self.nnodes, self.MAX_HORIZON_LENGTH])
+        self.horizons = -1 * np.ones([self.nnodes, self.max_horizon_length])
         for i, j in enumerate(self.family):
             self.horizons[i][0:len(j)] = j
-            
-        self.bond_stiffness = -1. * np.ones([self.nnodes, self.MAX_HORIZON_LENGTH])
+
+        self.bond_stiffness = -1. * np.ones([self.nnodes, self.max_horizon_length])
         for i, j in enumerate(self.bond_stiffness_family):
             self.bond_stiffness[i][0:len(j)] = j
-            
-        self.bond_critical_stretch = -1. * np.ones([self.nnodes, self.MAX_HORIZON_LENGTH])
+
+        self.bond_critical_stretch = -1. * np.ones([self.nnodes, self.max_horizon_length])
         for i, j in enumerate(self.bond_critical_stretch_family):
             self.bond_critical_stretch[i][0:len(j)] = j
 
         # Make sure it is in a datatype that C can handle
         self.horizons = self.horizons.astype(np.intc)
-        
+
         vtk.writeNetwork("Network"+".vtk", "Network",
-                      self.MAX_HORIZON_LENGTH, self.horizons_lengths, self.family, self.bond_stiffness_family, self.bond_critical_stretch_family)
-                    
+                      self.max_horizon_length, self.horizons_lengths,
+                      self.family, self.bond_stiffness_family, self.bond_critical_stretch_family)
+
     def _set_connectivity(self, initial_crack):
         """
         Sets the intial crack.
@@ -750,80 +1160,60 @@ class Model:
         also see self.family, which is a verlet list:
             self.horizons and self.horizons_lengths are neccessary OpenCL cannot deal with non fixed length arrays
         """
-        if callable(initial_crack):
-            initial_crack = initial_crack(self.coords)
-        
+        print("defining crack")
+        # This code is the fastest because it doesn't have to iterate through
+        # all possible initial crack bonds.
+        def is_crack(x, y):
+            output = 0
+            crack_length = 0.3
+            p1 = x
+            p2 = y
+            if x[0] > y[0]:
+                p2 = x
+                p1 = y
+            # 1e-6 makes it fall one side of central line of particles
+            if p1[0] < 0.5 + 1e-6 and p2[0] > 0.5 + 1e-6:
+                # draw a straight line between them
+                m = (p2[1] - p1[1]) / (p2[0] - p1[0])
+                c = p1[1] - m * p1[0]
+                # height a x = 0.5
+                height = m * 0.5 + c
+                if (height > 0.5 * (1 - crack_length)
+                        and height < 0.5 * (1 + crack_length)):
+                    output = 1
+            return output
+
+        for i in range(0, self.nnodes):
+            for k in range(0, self.max_horizon_length):
+                j = self.horizons[i][k]
+                if is_crack(self.coords[i, :], self.coords[j, :]):
+                    self.horizons[i][k] = np.intc(-1)
 # =============================================================================
-#         initiate_crack = 0
-#         # Initiate crack
-#         if initiate_crack == 1:
-#             for i in range(0, self.nnodes):
-#     
-#                 for k in range(0, self.MAX_HORIZON_LENGTH):
-#                     j = self.horizons[i][k]
-#                     if self.isCrack(self.coords[i, :], self.coords[j, :]):
-#                         self.horizons[i][k] = np.intc(-1)
-#             
+#         # bb515 this code is really slow due to the non symmetric nature of
+#         # self.horizons
+#         if callable(initial_crack):
+#             initial_crack = initial_crack(self.coords)
+#         for i,j in initial_crack:
+#             for k, m in enumerate(self.horizons[i]):
+#                 if m == j:
+#                     self.horizons[i][k] = -1
+#             # connectivity is symmetric
+#             for k, m in enumerate(self.horizons[j]):
+#                 if m == i:
+#                     self.horizons[j][k] = -1
 # =============================================================================
-        # bb515 this code is meant to replace the code commented out above, and now uses your "initial_crack" list. I haven't tested this code, it might be buggy.
-        for i,j in initial_crack:
-            for l, m in enumerate(self.horizons[i]):
-                if m == j:
-                    self.horizons[i][l] = -1
-    
-    def _set_H(self):
-        """
-        Constructs the failure strains matrix and H matrix, which is a sparse
-        matrix containing distances.
-
-        :returns: None
-        :rtype: NoneType
-        
-        bb515 failure strains matrix is replaced by self.bond_critical_stretch
-        for OpenCL
-        """
-        # TODO add this back in?
-
-    def bond_stretch(self, u):
-        """
-        Calculates the strain (bond stretch) of all nodes for a given
-        displacement.
-
-        :arg u: The displacement array with shape
-            (`nnodes`, `dimension`).
-        :type u: :class:`numpy.ndarray`
-
-        :returns: None
-        :rtype: NoneType
-        
-        
-        bb515 this is replaced by '__kernel void CheckBonds' OpenCL kernel.
-        But has recently been merged into a TimeMarching kernel as this is more optimal (don't calculate norms twice)
-        """
-
-    def damage(self):
-        """
-        Calculates bond damage.
-
-        :returns: A (`nnodes`, ) array containing the damage
-            for each node.
-        :rtype: :class:`numpy.ndarray`
-        
-        
-        bb515 this has been replaced by an OpenCL kernel '__kernel void CalculateDamage' NOTE this kernel function works on my laptop, but for some reason
-        it calculates damages wrong, but only when its ran on the GPU ?? 20/02/20
-        """
-
-    def bond_force(self):
-        """
-        Calculate the force due to bonds acting on each node.
-
-        :returns: A (`nnodes`, 3) array of the component of the force in each
-            dimension for each node.
-        :rtype: :class:`numpy.ndarray`
-        
-        bb515 replaced by opencl kernel "__kernel void TimeMarching2" or similar name for different integrators, e.g. "__kernel void TimeMarching<n>" where n is an integer
-        """
+# =============================================================================
+#         # This does the same thing, but slower.
+#         if callable(initial_crack):
+#             initial_crack = initial_crack(self.coords)
+#         for i, j in initial_crack:
+#             for k in range(len(self.horizons[i])):
+#                 if self.horizons[i][k] == j:
+#                     self.horizons[i][k] = np.intc(-1)
+#                 # Connectivity is symmetric
+#                 if self.horizons[j][k] == i:
+#                     self.horizons[j][k] = np.intc(-1)
+# =============================================================================
 
     def simulate(self, model, steps, integrator, write=None, toolbar=0):
         """
@@ -874,8 +1264,8 @@ class Model:
                     tip_displacement_data.append(tip_displacement)
                     
                     if damage_sum > 3000.0:
-                        print('Failure criterion reached, Peridynamic Simulation -- Stopping')
-                        break
+                        print('Failure criterion reached, Peridynamic Simulation -- Continuing anyway')
+                        #break
                     if toolbar == 0:
                         print('Print number {}/{} complete in {} s '.format(int(step/write), int(steps/write), time.time() - st))
                         st = time.time()
@@ -924,6 +1314,7 @@ def initial_crack_helper(crack_function):
                 crack.append((i, j))
         return crack
     return initial_crack
+
 
 class DimensionalityError(Exception):
     """
