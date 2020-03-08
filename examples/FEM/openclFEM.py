@@ -8,9 +8,9 @@ import cProfile
 from io import StringIO
 import numpy as np
 import pathlib
-from peridynamics import OpenCLProbabilistic
+from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
-from peridynamics.integrators import EulerOpenCL
+from peridynamics.integrators import EulerOpenCLFEM
 from pstats import SortKey, Stats
 # TODO: add argument on command line that gives option to plot results or not,
 # as some systems won't have matplotlib installed.
@@ -268,7 +268,7 @@ def boundary_forces_function(model):
             pass
         elif bnd == -1:
             model.force_bc_values[i, 2] = np.float64(1.* bnd * model.max_reaction * load_scale / (model.num_force_bc_nodes))
-                
+
 def main():
     """
     3D canteliver beam peridynamics simulation
@@ -284,25 +284,22 @@ def main():
     st = time.time()
 
     volume_total = 1.0
-    density_concrete = 1
+    density_concrete = 2400.0
     self_weight = 1.*density_concrete * volume_total * 9.81
-    # Sength scale for covariance matrix
-    l = 1e-2
-    # Vertical scale of the covariance matrix
-    nu = 9e-4
-    model = OpenCLProbabilistic(mesh_file_name, volume_total, nu, l, bond_type=bond_type, initial_crack=is_crack)
+
+    model = OpenCL(mesh_file_name, volume_total, bond_type=bond_type, initial_crack=is_crack)
     #dx = np.power(1.*volume_total/model.nnodes,1./(model.dimensions))
     # Set simulation parameters
     # not a transfinite mesh
     model.transfinite = 0
     # do precise stiffness correction factors
     model.precise_stiffness_correction = 1
-    # Only one material in this example, that is 'concrete'
+    #Make assumption that bulk density is that of concrete
     model.density = density_concrete
     #self.horizon = dx * np.pi 
     model.horizon = 0.1
     model.family_volume = np.pi * np.power(model.horizon, 2)
-    model.damping = 1 # damping term
+    model.damping = 2.5e6                           # damping term
     # Peridynamic bond stiffness, c
     model.bond_stiffness_concrete = (
             np.double((18.00 * 0.05) /
@@ -311,17 +308,21 @@ def main():
     model.critical_strain_concrete = 0.005
     model.crackLength = np.double(0.3)
     model.dt = np.double(1e-3)
-    model.max_reaction = 1.* self_weight # in newtons, about 85 * self weight
+    model.max_reaction = 1.* self_weight # in newtons, about 85 times self weight
     model.load_scale_rate = 1/1000
+
     # Set force and displacement boundary conditions
     boundary_function(model)
     boundary_forces_function(model)
+    # Set FEM boundary nodes
+
+    integrator = EulerOpenCLFEM(model)
+
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
-    integrator = EulerOpenCL(model)
-    damage_data, tip_displacement_data = model.simulate(model, sample=1, steps=350, integrator=integrator, write=350, toolbar=0)
-    print(damage_data)
+
+    damage_data, tip_displacement_data = model.simulate(model, steps=500, integrator=integrator, write=10, toolbar=0)
     plt.figure(1)
     plt.title('damage over time')
     plt.plot(damage_data)
@@ -338,6 +339,7 @@ def main():
         stats = Stats(profile, stream=s).sort_stats(SortKey.CUMULATIVE)
         stats.print_stats()
         print(s.getvalue())
+
 
 if __name__ == "__main__":
     main()

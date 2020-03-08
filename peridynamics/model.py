@@ -10,7 +10,7 @@ import warnings
 import time
 import sys
 from .post_processing import vtk
-
+import peridynamics.grid as fem
 # bb515 NOTE: _MeshElements(connectivity="tetra") works whereas 
 # "tetrahedron" raises 'KeyError: 'tetrahedron'' on most recent
 # versions of meshio
@@ -537,7 +537,6 @@ class Model:
                     self.write_mesh(f"U_{step}.vtk", damage, u)
 
         return u, damage
-
 
 class OpenCL(Model):
     """
@@ -1270,6 +1269,245 @@ class OpenCLProbabilistic(OpenCL):
         #self.C = self.K
         #self.L_0 = np.sqrt(norms_matrix)
 
+    def simulate(self, model, sample, steps, integrator, write=None, toolbar=0):
+        """
+        Simulate the peridynamics model.
+
+        :arg int steps: The number of simulation steps to conduct.
+        :arg  integrator: The integrator to use, see
+            :mod:`peridynamics.integrators` for options.
+        :type integrator: :class:`peridynamics.integrators.Integrator`
+        :arg boundary_function: A function to apply the boundary conditions for
+            the simlation. It has the form
+            boundary_function(:class:`peridynamics.model.Model`,
+            :class:`numpy.ndarray`, `int`). The arguments are the model being
+            simulated, the current displacements, and the current step number
+            (beginning from 1). `boundary_function` returns a (nnodes, 3)
+            :class:`numpy.ndarray` of the updated displacements
+            after applying the boundary conditions. Default `None`.
+        :type boundary_function: function
+        :arg u: The initial displacements for the simulation. If `None` the
+            displacements will be initialised to zero. Default `None`.
+        :type u: :class:`numpy.ndarray`
+        :arg int write: The frequency, in number of steps, to write the system
+            to a mesh file by calling
+            :meth:`peridynamics.model.Model.write_mesh`. If `None` then no
+            output is written. Default `None`.
+        """
+        if not isinstance(integrator, Integrator):
+            raise InvalidIntegrator(integrator)
+
+        # Container for plotting data
+        damage_data = []
+        tip_displacement_data = []
+
+        #Progress bar
+        toolbar_width = 40
+        if toolbar:    
+            sys.stdout.write("[%s]" % (" " * toolbar_width))
+            sys.stdout.flush()
+            sys.stdout.write("\b" * (toolbar_width+1)) # return to start of line, after '['
+        st = time.time()
+        for step in range(1, steps+1):
+            # Conduct one integration step
+            integrator.runtime(model)
+            if write:
+                if step % write == 0:
+                    damage_data, tip_displacement = integrator.write(model, step, sample)
+                    tip_displacement_data.append(tip_displacement)
+                    if toolbar == 0:
+                        print('Print number {}/{} complete in {} s '.format(int(step/write), int(steps/write), time.time() - st))
+                        st = time.time()
+
+            # Increase load in linear increments
+            load_scale = min(1.0, model.load_scale_rate * step)
+            if load_scale != 1.0:
+                integrator.incrementLoad(model, load_scale)
+            # Loading bar update
+            if step%(steps/toolbar_width)<1 & toolbar:
+                sys.stdout.write("\u2588")
+                sys.stdout.flush()
+        
+        if toolbar:
+            sys.stdout.write("]\n")
+
+        return damage_data, tip_displacement_data
+
+class OpenCLFEM(OpenCL):
+    """
+    A combined FEM and peridynamics model using OpenCL.
+
+    This class allows users to define a peridynamics system from parameters and
+    a set of initial conditions (coordinates and connectivity).
+    """
+    def __init__(self, mesh_file_name, horizon, volume_total, nu, l, bond_type, network_file_name = 'Network.vtk', initial_crack=[], dimensions=2):
+        """
+        Construct a :class:`OpenCL` object, which inherits Model class.
+        
+        :arg str mesh_file: Path of the mesh file defining the systems nodes
+            and connectivity.
+        :arg float horizon: The horizon radius. Nodes within `horizon` of
+            another interact with that node and are said to be within its
+            neighbourhood.
+        :arg float critical_strain: The critical strain of the model. Bonds
+            which exceed this strain are permanently broken.
+        :arg float elastic_modulus: The appropriate elastic modulus of the
+            material.
+        :arg initial_crack: The initial crack of the system. The argument may
+            be a list of tuples where each tuple is a pair of integers
+            representing nodes between which to create a crack. Alternatively,
+            the arugment may be a function which takes the (nnodes, 3)
+            :class:`numpy.ndarray` of coordinates as an argument, and returns a
+            list of tuples defining the initial crack. Default is []
+        :type initial_crack: list(tuple(int, int)) or function
+        :arg int dimensions: The dimensionality of the model. The
+            default is 2.
+
+        :returns: A new :class:`Model` object.
+        :rtype: Model
+
+        :raises DimensionalityError: when an invalid `dimensions` argument is
+            provided.
+        """
+		# verbose
+        self.v = True
+
+        if dimensions == 2:
+            self.mesh_elements = _mesh_elements_2d
+        elif dimensions == 3:
+            self.mesh_elements = _mesh_elements_3d
+        else:
+            raise DimensionalityError(dimensions)
+
+        self.dimensions = dimensions
+        self.degrees_freedom = 3
+
+        # bb515 Are the stiffness correction factors calculated using mesh element
+        # volumes (default 'precise', 1) or average nodal volume of a transfinite
+        # mesh (0)      
+        self.precise_stiffness_correction = 1
+        # bb515 Is the mesh transfinite mesh (support regular grid spacing with 
+        # cuboidal (not tetra) elements, look up "gmsh transfinite") (default 0)
+        # I'm only planning on using this for validation against literature
+        self.transfinite = 0
+        # Peridynamics parameters. These parameters will be passed to openCL
+        # kernels by command line argument Bond-based peridynamics, known in
+        # PDLAMMPS as Prototype Microelastic Brittle (PMB) Model requires a
+        #poisson ratio of v = 0.25, but this makes little to no difference 
+        # in quasi-brittle materials
+        self.poisson_ratio = 0.25
+        # These are the parameters that the user needs to define
+        self.density = None
+        self.horizon = horizon
+        self.family_volume = None
+        self.damping = None
+        self.bond_stiffness_concrete = None
+        self.bond_stiffness_steel = None
+        self.critical_strain_concrete = None
+        self.critical_strain_steel = None
+        self.crackLength = None
+        self.dt = None
+        self.max_reaction = None
+        self.load_scale_rate = None
+
+        self._read_mesh(mesh_file_name)
+
+        st = time.time()
+
+        self._set_volume(volume_total)
+        # Set covariance matrix
+        self._set_H(l, nu)
+        # If the network has already been written to file, then read, if not, setNetwork
+        try:
+            self._read_network(network_file_name)
+        except:
+            print('No network file found: writing network file.')
+            self._set_network(self.horizon, bond_type)
+
+        # Initate crack
+        self._set_connectivity(initial_crack)
+
+        print(
+            "Building horizons took {} seconds. Horizon length: {}".format(
+                (time.time() - st), self.max_horizon_length))
+
+        # Initiate boundary condition containers
+        self.bc_types = np.zeros((self.nnodes, self.degrees_freedom), dtype=np.intc)
+        self.bc_values = np.zeros((self.nnodes, self.degrees_freedom), dtype=np.float64)
+        self.tip_types = np.zeros(self.nnodes, dtype=np.intc)
+
+        # Build FEM grid overlaying particles
+        self.fem_grid = fem.grid()
+        # Dimensions of the FEM grid
+        self.L = []
+        # Bottom left of the fem grid
+        self.X0 = []
+        # Number of FEM nodes in each direction 
+        self.nfem = []
+        for i in range(0, self.dimensions):
+            self.X0.append(np.min(self.coords[:,i]))
+            self.L.append(np.max(self.coords[:,i]))
+            self.nfem.append(int(np.ceil(self.L[i]/self.horizon)))
+        # Build the structured finite elemtent mesh
+        self.fem_grid.build_structured_mesh(self.L, self.nfem, self.X0)
+        # Get local FEM partition of unity coordinates and particle to element mapping
+        self.coords_local, self.p2e = self.fem_grid.particle_to_cell(self.coords[:, :self.dimensions])
+        if self.v == True:
+            print("sum total volume", self.sum_total_volume)
+            print("user input volume total", volume_total)
+    def _set_H(self, l, nu, epsilon=1e-5):
+        """
+        Constructs the failure strains matrix and H matrix, which is a sparse
+        matrix containing distances.
+
+        :returns: None
+        :rtype: NoneType
+        """
+        coords = self.coords
+
+        # Extract the coordinates
+        V_x = coords[:, 0]
+        V_y = coords[:, 1]
+        V_z = coords[:, 2]
+
+        # Tiled matrices
+        lam_x = np.tile(V_x, (self.nnodes, 1))
+        lam_y = np.tile(V_y, (self.nnodes, 1))
+        lam_z = np.tile(V_z, (self.nnodes, 1))
+
+        # Dense matrices
+        H_x0 = -lam_x + lam_x.transpose()
+        H_y0 = -lam_y + lam_y.transpose()
+        H_z0 = -lam_z + lam_z.transpose()
+
+        norms_matrix = (
+                np.power(H_x0, 2) + np.power(H_y0, 2) + np.power(H_z0, 2)
+                )
+        # inv length scale parameter
+        inv_length_scale = np.divide(-1., 2.*pow(l,2))
+        # radial basis functions
+        rbf = np.multiply(inv_length_scale, norms_matrix)
+
+        # Exponential of radial basis functions
+        K = np.exp(rbf)
+
+        # Multiply by the vertical scale to get covariance matrix, K
+        self.K = np.multiply (pow(nu, 2), K)
+
+        # Create C matrix for samping perturbations
+
+        # add epsilon before scaling by a vertical variance scale, nu
+        I = np.identity(self.nnodes)
+        K_tild = K = np.multiply(epsilon, I)
+        K_tild = np.multiply(pow(nu, 2), K_tild)
+
+        self.C = np.linalg.cholesky(K_tild)
+
+        #K = np.identity(self.nnodes)
+        #self.K = np.multiply(pow(nu, 2), K)
+        #self.C = self.K
+        #self.L_0 = np.sqrt(norms_matrix)
+
     def simulate(self, model, steps, integrator, write=None, toolbar=0):
         """
         Simulate the peridynamics model.
@@ -1368,7 +1606,6 @@ def initial_crack_helper(crack_function):
                 crack.append((i, j))
         return crack
     return initial_crack
-
 
 class DimensionalityError(Exception):
     """

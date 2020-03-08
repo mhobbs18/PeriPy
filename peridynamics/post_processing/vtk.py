@@ -79,3 +79,17 @@ def writeNetwork(fileName, title, max_horizon_length, horizons_lengths, family, 
         f.write("\n")
 
     f.close()
+
+def writeDamage(fileName, title, damage_data):
+    f = open(fileName, "w")
+    f.write("# vtk DataFile Version 2.0\n")
+    f.write("%s \n" % title)
+    f.write("ASCII\n")
+    f.write("\n")
+    f.write("DATASET Damage vector\n")
+    f.write("NNODES %d \n" % int(len(damage_data)))   
+    f.write("DAMAGE \n")
+    for i in range(0, np.shape(damage_data)[0]):
+        f.write("{:f} ".format(np.float64(damage_data[i])))
+        f.write("\n")
+    f.close()
