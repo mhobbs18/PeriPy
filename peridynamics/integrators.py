@@ -2119,13 +2119,15 @@ class HeunEuler(Integrator):
         """
 
     def runtime(self, model):
-        # store the last stable displacements
+        # store the last stable displacements and horizons
         self.d_un = self.d_un2
+        self.d_horizons_stable = self.d_horizons
         # Find k1dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,), 
                                           None, self.d_k1dn, self.d_un2, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
         # Find first order accurate displacements
+        # Scalars like self.h_dt can live on the host memory
         self.cl_kernel_partial_displacement_update(self.queue, (model.nnodes * model.degrees_freedom,),
                                                      None, self.d_k1dn, self.d_un2, self.d_un1, self.h_dt)
         # Find k2dn (forces)
@@ -2136,13 +2138,14 @@ class HeunEuler(Integrator):
         self.cl_kernel_displacement_update(self.queue, 
                                               (model.nnodes * model.degrees_freedom,), 
                                               None, self.d_k1dn, self.d_k2dn, self.d_bc_types, self.d_bc_values, self.d_un2, self.h_dt)
-        # Check for broken bonds
-        self.cl_kernel_check_bonds(self.queue,
-                              (model.nnodes, model.max_horizon_length),
-                              None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
         if self.adapt_time_step(model) == 1:
             # Reset displacements to last stable time-step
             self.d_un2 = self.d_un
+        else:
+            # Check for broken bonds
+            self.cl_kernel_check_bonds(self.queue, 
+                                       (model.nnodes, model.max_horizon_length),
+                                       None, self.d_horizons, self.d_un_2, self.d_coords, self.d_bond_critical_stretch)
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -2250,6 +2253,11 @@ class DormandPrince(Integrator):
         self.cl_kernel_displacement_update = program.UpdateDisplacement
         self.cl_kernel_partial_displacement_update = program.PartialUpdateDisplacement
         self.cl_kernel_partial_displacement_update2 = program.PartialUpdateDisplacement2
+        self.cl_kernel_partial_displacement_update3 = program.PartialUpdateDisplacement3
+        self.cl_kernel_partial_displacement_update4 = program.PartialUpdateDisplacement4
+        self.cl_kernel_partial_displacement_update5 = program.PartialUpdateDisplacement5
+        self.cl_kernel_partial_displacement_update6 = program.PartialUpdateDisplacement6
+
         self.cl_kernel_check_bonds = program.CheckBonds
         self.cl_kernel_calculate_damage = program.CalculateDamage
 
@@ -2285,16 +2293,18 @@ class DormandPrince(Integrator):
         self.h_bond_critical_stretch = np.ascontiguousarray(model.bond_critical_stretch, dtype=np.float64)
 
         # Displacements
-        self.h_un = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
-        self.h_un1 = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
-        self.h_un2 = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
-        self.h_un3 = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_un4 = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_un5 = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_un_temp = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
         # Forces
         self.h_k1dn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
         self.h_k2dn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
         self.h_k3dn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
         self.h_k4dn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_k5dn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_k6dn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_k7dn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
         # Damage vector
         self.h_damage = np.empty(model.nnodes).astype(np.float64)
@@ -2337,15 +2347,16 @@ class DormandPrince(Integrator):
         self.d_horizons = cl.Buffer(
                 self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
                 hostbuf=self.h_horizons)
-        self.d_un = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_un.nbytes)
-        self.d_un1 = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_k1dn.nbytes)
-        self.d_un2 = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_k1dn.nbytes)
-        self.d_un3 = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_k1dn.nbytes)
+        self.d_un4 = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_un4.nbytes)
+        self.d_un5 = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_un5.nbytes)
+        self.d_un_temp = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_un_temp.nbytes)
         self.d_k1dn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_k1dn.nbytes)
         self.d_k2dn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_k2dn.nbytes)
         self.d_k3dn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_k3dn.nbytes)
-        self.d_k4dn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_k3dn.nbytes)
-        #self.d_dt = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_dt)
+        self.d_k4dn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_k4dn.nbytes)
+        self.d_k5dn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_k5dn.nbytes)
+        self.d_k6dn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_k6dn.nbytes)
+        self.d_k7dn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_k7dn.nbytes)
         # Write only
         self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_damage.nbytes)
         # Initialize kernel parameters
@@ -2356,7 +2367,15 @@ class DormandPrince(Integrator):
         self.cl_kernel_partial_displacement_update.set_scalar_arg_dtypes(
             [None, None, None, None])
         self.cl_kernel_partial_displacement_update2.set_scalar_arg_dtypes(
-            [None, None, None, None])
+            [None, None, None, None, None])
+        self.cl_kernel_partial_displacement_update3.set_scalar_arg_dtypes(
+            [None, None, None, None, None, None])
+        self.cl_kernel_partial_displacement_update4.set_scalar_arg_dtypes(
+            [None, None, None, None, None, None, None])
+        self.cl_kernel_partial_displacement_update5.set_scalar_arg_dtypes(
+            [None, None, None, None, None, None, None, None])
+        self.cl_kernel_partial_displacement_update6.set_scalar_arg_dtypes(
+            [None, None, None, None, None, None, None, None, None])
         self.cl_kernel_check_bonds.set_scalar_arg_dtypes([None, None, None, None])
         self.cl_kernel_calculate_damage.set_scalar_arg_dtypes([None, None, None])
     def __call__(self):
@@ -2378,29 +2397,50 @@ class DormandPrince(Integrator):
         # Find k1dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,), 
-                                          None, self.d_k1dn, self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                          None, self.d_k1dn, self.d_un5, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
         # Partial update of displacements
         self.cl_kernel_partial_displacement_update(self.queue, (model.nnodes * model.degrees_freedom,),
-                                                     None, self.d_k1dn, self.d_un, self.d_un1, self.h_dt)
+                                                     None, self.d_k1dn, self.d_un5, self.d_un_temp, self.h_dt)
         # Find k2dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,), 
-                                          None, self.d_k2dn, self.d_un1, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
-        # Partial update of displacements
-        self.cl_kernel_partial_displacement_update(self.queue, (model.nnodes * model.degrees_freedom,),
-                                                      None, self.d_k2dn, self.d_un, self.d_un2, self.h_dt)
+                                          None, self.d_k2dn, self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+        # Partial update of displacements 2
+        self.cl_kernel_partial_displacement_update2(self.queue, (model.nnodes * model.degrees_freedom,),
+                                                     None, self.d_k1dn, self.d_k2dn, self.d_un5, self.d_un_temp, self.h_dt)
         # Find k3dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,),
-                                          None, self.d_k3dn, self.d_un2, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
-        # Partial update of displacements
-        self.cl_kernel_partial_displacement_update2(self.queue, 
-                                                   (model.nnodes * model.degrees_freedom,),
-                                                   None, self.d_k3dn, self.d_un, self.d_un3, self.h_dt)
-        # Find k3dn (forces)
+                                          None, self.d_k3dn, self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+        # Partial update of displacements 3
+        self.cl_kernel_partial_displacement_update3(self.queue, (model.nnodes * model.degrees_freedom,),
+                                                     None, self.d_k1dn, self.d_k2dn, self.d_k3dn, self.d_un5, self.d_un_temp, self.h_dt)
+        # Find k4dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,),
-                                          None, self.d_k4dn, self.d_un3, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                          None, self.d_k4dn, self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+        # Partial update of displacements 4
+        self.cl_kernel_partial_displacement_update4(self.queue, (model.nnodes * model.degrees_freedom,),
+                                                     None, self.d_k1dn, self.d_k2dn, self.d_k3dn, self.d_k4dn, self.d_un5, self.d_un_temp, self.h_dt)
+        # Find k5dn (forces)
+        self.cl_kernel_calc_bond_force(self.queue, 
+                                          (model.nnodes,),
+                                          None, self.d_k5dn, self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+        # Partial update of displacements 5
+        self.cl_kernel_partial_displacement_update5(self.queue, (model.nnodes * model.degrees_freedom,),
+                                                     None, self.d_k1dn, self.d_k2dn, self.d_k3dn, self.d_k4dn, self.d_k5dn, self.d_un5, self.d_un_temp, self.h_dt)
+        # Find k6dn (forces)
+        self.cl_kernel_calc_bond_force(self.queue, 
+                                          (model.nnodes,),
+                                          None, self.d_k6dn, self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+        # Partial update of displacements 6
+        self.cl_kernel_partial_displacement_update6(self.queue, (model.nnodes * model.degrees_freedom,),
+                                                     None, self.d_k1dn, self.d_k2dn, self.d_k3dn, self.d_k4dn, self.d_k5dn, self.d_k6dn, self.d_un5, self.d_un_temp, self.h_dt)
+        # Find k7dn (forces)
+        self.cl_kernel_calc_bond_force(self.queue, 
+                                          (model.nnodes,),
+                                          None, self.d_k7dn, self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+
         # Finally update the displacements using weighted average of 4 incriments
         self.cl_kernel_displacement_update(self.queue, 
                                               (model.nnodes * model.degrees_freedom,), 

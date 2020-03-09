@@ -10,7 +10,7 @@ import numpy as np
 import pathlib
 from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
-from peridynamics.integrators import RK4
+from peridynamics.integrators import HeunEuler
 from pstats import SortKey, Stats
 # TODO: add argument on command line that gives option to plot results or not,
 # as some systems won't have matplotlib installed.
@@ -140,29 +140,14 @@ def is_boundary(horizon, x):
     1 is displacement loaded IN +ve direction
     0 is clamped boundary
     """
-    if mesh_file_name in token_problems:
-        # Does not live on a boundary
-        bnd = 2
-        # Does live on boundary
+    if mesh_file_name == '3300beam.msh':
+        bnd = [2, 2, 2]
         if x[0] < 1.5 * horizon:
-            bnd = -1
-        elif x[0] > 1.0 - 1.5 * horizon:
-            bnd = 1
-    elif mesh_file_name in verification_problems:
-        # Does not live on a boundary
-        bnd = 2
-        # Does live on boundary
-        if x[0] < 1.5* horizon:
-            bnd = 0
-        if x[0] > 1.0 - 1.* horizon:
-            if x[2] > 0.2 - 1.* horizon:
-                bnd = 1
-    elif mesh_file_name == '3300beam.msh':
-        bnd = 2
-        if x[0] < 1.5 * horizon:
-            bnd = 0
-        if x[0] > 3.3 - 0.3* horizon:
-            bnd = 1
+            bnd[0] = 0
+            bnd[1] = 0
+            bnd[2] = 0
+        if x[0] > 3.3 - 0.2* horizon:
+            bnd[2] = 1
     return bnd
 
 def is_forces_boundary(horizon, x):
@@ -210,12 +195,12 @@ def boundary_function(model):
     for i in range(0, model.nnodes):
         # Define boundary types and values
         bnd = is_boundary(model.horizon, model.coords[i][:])
-        model.bc_types[i, 0] = np.intc(2)
-        model.bc_types[i, 1] = np.intc(2)
-        model.bc_types[i, 2] = np.intc((bnd))
-        model.bc_values[i, 2] = np.float64(bnd * 0.5 * load_rate)
-        #model.bc_values[i, 0] = np.float64(bnd * -0.5/theta * load_rate)
-
+        model.bc_types[i, 0] = np.intc(bnd[0])
+        model.bc_types[i, 1] = np.intc(bnd[1])
+        model.bc_types[i, 2] = np.intc((bnd[2]))
+        model.bc_values[i, 0] = np.float64(bnd[0] * 0.5 * load_rate)
+        model.bc_values[i, 1] = np.float64(bnd[1] * 0.5 * load_rate)
+        model.bc_values[i, 2] = np.float64(bnd[2] * 0.5 * load_rate)
         # Define tip here
         tip = is_tip(model.horizon, model.coords[i][:])
         model.tip_types[i] = np.intc(tip)
@@ -323,7 +308,7 @@ def main():
     boundary_function(model)
     boundary_forces_function(model)
 
-    integrator = RK4(model)
+    integrator = HeunEuler(model)
 
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
