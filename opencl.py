@@ -10,7 +10,7 @@ import numpy as np
 import pathlib
 from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
-from peridynamics.integrators import EulerOpenCL
+from peridynamics.integrators import RK4
 from pstats import SortKey, Stats
 # TODO: add argument on command line that gives option to plot results or not,
 # as some systems won't have matplotlib installed.
@@ -19,7 +19,7 @@ import time
 import shutil
 import os
 
-mesh_file_name = 'test.msh'
+mesh_file_name = '3300beam.msh'
 mesh_file = pathlib.Path(__file__).parent.absolute() / mesh_file_name
 
 token_problems = ['test.msh', 'debug3D.msh', 'debug3D2.msh']
@@ -29,22 +29,6 @@ benchmark_problems = ['3300beam.msh']
 @initial_crack_helper
 def is_crack(x, y):
     output = 0
-    crack_length = 0.3
-    p1 = x
-    p2 = y
-    if x[0] > y[0]:
-        p2 = x
-        p1 = y
-    # 1e-6 makes it fall one side of central line of particles
-    if p1[0] < 0.5 + 1e-6 and p2[0] > 0.5 + 1e-6:
-        # draw a straight line between them
-        m = (p2[1] - p1[1]) / (p2[0] - p1[0])
-        c = p1[1] - m * p1[0]
-        # height a x = 0.5
-        height = m * 0.5 + c
-        if (height > 0.5 * (1 - crack_length)
-                and height < 0.5 * (1 + crack_length)):
-            output = 1
     return output
 
 def is_tip(horizon, x):
@@ -178,8 +162,7 @@ def is_boundary(horizon, x):
         if x[0] < 1.5 * horizon:
             bnd = 0
         if x[0] > 3.3 - 0.3* horizon:
-            if x[2] > 0.6 - 0.3*horizon:
-                bnd = 1
+            bnd = 1
     return bnd
 
 def is_forces_boundary(horizon, x):
@@ -216,7 +199,7 @@ def boundary_function(model):
     Initiates displacement boundary conditions,
     also define the 'tip' (for plotting displacements)
     """
-    load_rate = 1e-5
+    load_rate = 1e-9
     #theta = 18.75
     # initiate
     model.bc_types = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.intc)
@@ -227,10 +210,10 @@ def boundary_function(model):
     for i in range(0, model.nnodes):
         # Define boundary types and values
         bnd = is_boundary(model.horizon, model.coords[i][:])
-        model.bc_types[i, 0] = np.intc((bnd))
-        model.bc_types[i, 1] = np.intc((bnd))
+        model.bc_types[i, 0] = np.intc(2)
+        model.bc_types[i, 1] = np.intc(2)
         model.bc_types[i, 2] = np.intc((bnd))
-        model.bc_values[i, 0] = np.float64(bnd * 0.5 * load_rate)
+        model.bc_values[i, 2] = np.float64(bnd * 0.5 * load_rate)
         #model.bc_values[i, 0] = np.float64(bnd * -0.5/theta * load_rate)
 
         # Define tip here
@@ -268,7 +251,7 @@ def boundary_forces_function(model):
             pass
         elif bnd == -1:
             model.force_bc_values[i, 2] = np.float64(1.* bnd * model.max_reaction * load_scale / (model.num_force_bc_nodes))
-                
+
 def main():
     """
     3D canteliver beam peridynamics simulation
@@ -283,18 +266,20 @@ def main():
 
     st = time.time()
 
-    volume_total = 1.0
-    density_concrete = 1
+    volume_total = 3.3 * 0.6 * 0.25
+    density_concrete = 2400
     self_weight = 1.*density_concrete * volume_total * 9.81
+    youngs_modulus_concrete = 1.*22e9
+    youngs_modulus_steel = 1.*210e9
+    tensile_strength_concrete = 2.6e6
 # =============================================================================
 #     # Sength scale for covariance matrix
 #     l = 1e-2
 #     # Vertical scale of the covariance matrix
-#     nu = 9e-4
+#     nu = 9e-20
 #     model = OpenCLProbabilistic(mesh_file_name, volume_total, nu, l, bond_type=bond_type, initial_crack=is_crack)
 # =============================================================================
-    model = OpenCL(mesh_file_name, volume_total, bond_type=bond_type, initial_crack=is_crack)
-    #dx = np.power(1.*volume_total/model.nnodes,1./(model.dimensions))
+    model = OpenCL(mesh_file_name, volume_total, bond_type=bond_type, initial_crack=is_crack, dimensions=3)
     # Set simulation parameters
     # not a transfinite mesh
     model.transfinite = 0
@@ -302,37 +287,59 @@ def main():
     model.precise_stiffness_correction = 1
     # Only one material in this example, that is 'concrete'
     model.density = density_concrete
-    #self.horizon = dx * np.pi 
-    model.horizon = 0.1
-    model.family_volume = np.pi * np.power(model.horizon, 2)
-    model.damping = 1 # damping term
+    dx = np.power(1.*volume_total/model.nnodes,1./(model.dimensions))
+    model.horizon = dx * np.pi 
+    model.family_volume =(4./3)*np.pi*np.power(model.horizon, 3)
+    model.damping = 2.0e6 # damping term
     # Peridynamic bond stiffness, c
+    bulk_modulus_concrete = youngs_modulus_concrete/ (3* (1 - 2*model.poisson_ratio))
+    bulk_modulus_steel = youngs_modulus_steel / (3* (1- 2*model.poisson_ratio))
     model.bond_stiffness_concrete = (
-            np.double((18.00 * 0.05) /
-            (np.pi * np.power(model.horizon, 4)))
-            )
-    model.critical_strain_concrete = 0.005
+    np.double((18.00 * bulk_modulus_concrete) /
+    (np.pi * np.power(model.horizon, 4)))
+    )
+    model.bond_stiffness_steel = (
+    np.double((18.00 * bulk_modulus_steel) /
+    (np.pi * np.power(model.horizon, 4)))
+    )
+    model.critical_strain_concrete = (
+    np.double(tensile_strength_concrete /
+    youngs_modulus_concrete)
+    )
+    #model.critical_strain_concrete = np.double(0.000533) # check this value
+    model.critical_strain_steel = np.double(0.01)
     model.crackLength = np.double(0.3)
-    model.dt = np.double(1e-3)
-    model.max_reaction = 1.* self_weight # in newtons, about 85 * self weight
+    #saf_fac = 0.2 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
+    #model.dt = (
+    # 0.8 * np.power( 2.0 * density_concrete * dx / 
+    # (np.pi * np.power(model.horizon, 2.0) * dx * model.bond_stiffness_concrete), 0.5)
+    # * saf_fac
+    # )
+    model.dt = 1e-13
+    model.max_reaction = 1.* self_weight # in newtons, about 85 times self weight
     model.load_scale_rate = 1/1000
+
     # Set force and displacement boundary conditions
     boundary_function(model)
     boundary_forces_function(model)
+
+    integrator = RK4(model)
+
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
-    integrator = EulerOpenCL(model)
-    damage_data, damage_sum_data, tip_displacement_data = model.simulate(model, sample=1, steps=1, integrator=integrator, write=1, toolbar=0)
+
+    damage_data, damage_sum_data, tip_displacement_data = model.simulate(model, sample=1, steps=200, integrator=integrator, write=1, toolbar=0)
 # =============================================================================
 #     plt.figure(1)
 #     plt.title('damage over time')
-#     plt.plot(damage_sum_data)
+#     plt.plot(damage_data)
 #     plt.figure(2)
 #     plt.title('tip displacement over time')
 #     plt.plot(tip_displacement_data)
 #     plt.show()
 # =============================================================================
+    print(damage_sum_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
     if args.profile:
         profile.disable()
@@ -340,6 +347,7 @@ def main():
         stats = Stats(profile, stream=s).sort_stats(SortKey.CUMULATIVE)
         stats.print_stats()
         print(s.getvalue())
+
 
 if __name__ == "__main__":
     main()

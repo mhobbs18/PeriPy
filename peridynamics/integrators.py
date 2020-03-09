@@ -2166,7 +2166,7 @@ class HeunEuler(Integrator):
                   model.coords, self.h_damage, self.h_un2)
         #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
         return self.h_damage, tip_displacement
-    def adapt_time_step(self, model, error_size_max=1e-2, error_size_min=3e-6):
+    def adapt_time_step(self, model, error_size_max=1e-10, error_size_min=3e-20):
         adapt = 0
         # Check for error size
         self.cl_kernel_check_error(self.queue,
