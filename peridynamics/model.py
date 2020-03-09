@@ -1016,7 +1016,7 @@ class OpenCL(Model):
                 if is_crack(self.coords[i, :], self.coords[j, :]):
                     self.horizons[i][k] = np.intc(-1)
 # =============================================================================
-#         # bb515 this code is really slow due to the non symmetric nature of
+#         # bb515 this code is really slow due to the non symmetry of
 #         # self.horizons
 #         if callable(initial_crack):
 #             initial_crack = initial_crack(self.coords)
@@ -1042,7 +1042,7 @@ class OpenCL(Model):
 #                     self.horizons[j][k] = np.intc(-1)
 # =============================================================================
 
-    def simulate(self, model, steps, integrator, write=None, toolbar=0):
+    def simulate(self, model, sample, steps, integrator, write=None, toolbar=0):
         """
         Simulate the peridynamics model.
 
@@ -1071,7 +1071,7 @@ class OpenCL(Model):
             raise InvalidIntegrator(integrator)
 
         # Container for plotting data
-        damage_data = []
+        damage_sum_data = []
         tip_displacement_data = []
         
         #Progress bar
@@ -1086,13 +1086,12 @@ class OpenCL(Model):
             integrator.runtime(model)
             if write:
                 if step % write == 0:
-                    damage_sum, tip_displacement = integrator.write(model, step)
-                    damage_data.append(damage_sum)
+                    damage_data, tip_displacement = integrator.write(model, step, sample)
                     tip_displacement_data.append(tip_displacement)
-                    
-                    if damage_sum > 160.0:
-                        print('Failure criterion reached, Peridynamic Simulation -- STOP')
-                        break
+                    damage_sum = np.sum(damage_data)
+                    damage_sum_data.append(damage_sum)
+                    if damage_sum > 0.05*model.nnodes:
+                        print('Warning: over 5% of bonds have broken! -- PERIDYNAMICS SIMULATION CONTINUING')
                     if toolbar == 0:
                         print('Print number {}/{} complete in {} s '.format(int(step/write), int(steps/write), time.time() - st))
                         st = time.time()
@@ -1109,7 +1108,7 @@ class OpenCL(Model):
         if toolbar:
             sys.stdout.write("]\n")
 
-        return damage_data, tip_displacement_data
+        return damage_data, damage_sum_data, tip_displacement_data
 class OpenCLProbabilistic(OpenCL):
     """
     A peridynamics model using OpenCL.

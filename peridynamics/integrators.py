@@ -20,7 +20,6 @@ class Integrator(ABC):
     @abstractmethod
     def __call__(self):
         pass
-
 class Euler(Integrator):
     r"""
     Euler integrator.
@@ -260,19 +259,15 @@ class EulerCromerOpenCL(Integrator):
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
-    def write(self, model, t):
+    def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
-        """        
+        """
         self.cl_kernel_calculate_damage(self.queue, (model.nnodes,), None, 
                                            self.d_damage, self.d_horizons,
                                            self.d_horizons_lengths)
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
-        cl.enqueue_copy(self.queue, self.h_udn, self.d_udn)
-        cl.enqueue_copy(self.queue, self.h_uddn, self.d_uddn)
-
         # TODO define a failure criterion, idea: rate of change of damage goes to 0 after it has started increasing
-        damage_sum =  np.sum(self.h_damage)
         tip_displacement = 0
         tmp = 0
         for i in range(model.nnodes):
@@ -283,10 +278,11 @@ class EulerCromerOpenCL(Integrator):
             tip_displacement /= tmp
         else:
             tip_displacement = None
-        vtk.write("output/U_"+"t"+str(t)+".vtk", "Solution time step = "+str(t),
+        vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
+        #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
+        return self.h_damage, tip_displacement
 
-        return damage_sum, tip_displacement
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
             tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
@@ -485,7 +481,7 @@ class EulerOpenCL(Integrator):
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
-    def write(self, model, t):
+    def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
         self.cl_kernel_calculate_damage(self.queue, (model.nnodes,), None, 
@@ -493,9 +489,7 @@ class EulerOpenCL(Integrator):
                                            self.d_horizons_lengths)
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
-
         # TODO define a failure criterion, idea: rate of change of damage goes to 0 after it has started increasing
-        damage_sum =  np.sum(self.h_damage)
         tip_displacement = 0
         tmp = 0
         for i in range(model.nnodes):
@@ -506,10 +500,10 @@ class EulerOpenCL(Integrator):
             tip_displacement /= tmp
         else:
             tip_displacement = None
-        vtk.write("output/U_"+"t"+str(t)+".vtk", "Solution time step = "+str(t),
+        vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
-
-        return damage_sum, tip_displacement
+        #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
+        return self.h_damage, tip_displacement
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
@@ -719,7 +713,7 @@ class EulerCromerOpenCLOptimised(Integrator):
         self.cl_kernel_reduce(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_forces, self.d_udn, self.d_uddn, self.d_force_bc_types, self.d_force_bc_values)
 
-    def write(self, model, t):
+    def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
         self.cl_kernel_calculate_damage(self.queue, (model.nnodes,), None, 
@@ -727,22 +721,21 @@ class EulerCromerOpenCLOptimised(Integrator):
                                            self.d_horizons_lengths)
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
-
-        # TODO define a failure criterion, idea: rate of change of damage
-        # goes to 0 after it has started increasing
-        damage_sum =  np.sum(self.h_damage)
+        # TODO define a failure criterion, idea: rate of change of damage goes to 0 after it has started increasing
         tip_displacement = 0
         tmp = 0
         for i in range(model.nnodes):
             if self.h_tip_types[i] == 1:
                 tmp +=1
                 tip_displacement += self.h_un[i][2]
-
-        tip_displacement /= tmp
-        vtk.write("output/U_"+"t"+str(t)+".vtk", "Solution time step = "+str(t),
+        if tmp != 0:
+            tip_displacement /= tmp
+        else:
+            tip_displacement = None
+        vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
-
-        return damage_sum, tip_displacement
+        #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
+        return self.h_damage, tip_displacement
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
@@ -955,7 +948,7 @@ class MidpointOpenCL(Integrator):
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
-    def write(self, model, t):
+    def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
         self.cl_kernel_calculate_damage(self.queue, (model.nnodes,), None, 
@@ -963,21 +956,21 @@ class MidpointOpenCL(Integrator):
                                            self.d_horizons_lengths)
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
-
         # TODO define a failure criterion, idea: rate of change of damage goes to 0 after it has started increasing
-        damage_sum =  np.sum(self.h_damage)
         tip_displacement = 0
         tmp = 0
         for i in range(model.nnodes):
             if self.h_tip_types[i] == 1:
                 tmp +=1
                 tip_displacement += self.h_un[i][2]
-
-        tip_displacement /= tmp
-        vtk.write("output/U_"+"t"+str(t)+".vtk", "Solution time step = "+str(t),
+        if tmp != 0:
+            tip_displacement /= tmp
+        else:
+            tip_displacement = None
+        vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
-
-        return damage_sum, tip_displacement
+        #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
+        return self.h_damage, tip_displacement
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
@@ -1158,7 +1151,7 @@ class VelocityVerletOpenCL(Integrator):
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
 
-    def write(self, model, t):
+    def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
         self.cl_kernel_calculate_damage(self.queue, (model.nnodes,), None, 
@@ -1166,21 +1159,21 @@ class VelocityVerletOpenCL(Integrator):
                                            self.d_horizons_lengths)
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
-
         # TODO define a failure criterion, idea: rate of change of damage goes to 0 after it has started increasing
-        damage_sum =  np.sum(self.h_damage)
         tip_displacement = 0
         tmp = 0
         for i in range(model.nnodes):
             if self.h_tip_types[i] == 1:
                 tmp +=1
                 tip_displacement += self.h_un[i][2]
-
-        tip_displacement /= tmp
-        vtk.write("output/U_"+"t"+str(t)+".vtk", "Solution time step = "+str(t),
+        if tmp != 0:
+            tip_displacement /= tmp
+        else:
+            tip_displacement = None
+        vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
-
-        return damage_sum, tip_displacement
+        #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
+        return self.h_damage, tip_displacement
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
@@ -1406,7 +1399,7 @@ class Kutta3(Integrator):
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
-    def write(self, model, t):
+    def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
         self.cl_kernel_calculate_damage(self.queue, (model.nnodes,), None, 
@@ -1414,21 +1407,21 @@ class Kutta3(Integrator):
                                            self.d_horizons_lengths)
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
-
         # TODO define a failure criterion, idea: rate of change of damage goes to 0 after it has started increasing
-        damage_sum =  np.sum(self.h_damage)
         tip_displacement = 0
         tmp = 0
         for i in range(model.nnodes):
             if self.h_tip_types[i] == 1:
                 tmp +=1
                 tip_displacement += self.h_un[i][2]
-
-        tip_displacement /= tmp
-        vtk.write("output/U_"+"t"+str(t)+".vtk", "Solution time step = "+str(t),
+        if tmp != 0:
+            tip_displacement /= tmp
+        else:
+            tip_displacement = None
+        vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
-
-        return damage_sum, tip_displacement
+        #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
+        return self.h_damage, tip_displacement
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
@@ -1667,7 +1660,8 @@ class RK4(Integrator):
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
-    def write(self, model, t):
+
+    def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
         self.cl_kernel_calculate_damage(self.queue, (model.nnodes,), None, 
@@ -1675,21 +1669,21 @@ class RK4(Integrator):
                                            self.d_horizons_lengths)
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
-
         # TODO define a failure criterion, idea: rate of change of damage goes to 0 after it has started increasing
-        damage_sum =  np.sum(self.h_damage)
         tip_displacement = 0
         tmp = 0
         for i in range(model.nnodes):
             if self.h_tip_types[i] == 1:
                 tmp +=1
                 tip_displacement += self.h_un[i][2]
-
-        tip_displacement /= tmp
-        vtk.write("output/U_"+"t"+str(t)+".vtk", "Solution time step = "+str(t),
+        if tmp != 0:
+            tip_displacement /= tmp
+        else:
+            tip_displacement = None
+        vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
-
-        return damage_sum, tip_displacement
+        #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
+        return self.h_damage, tip_displacement
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
@@ -1914,7 +1908,7 @@ class RK4AT(Integrator):
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
-    def write(self, model, t):
+    def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
         self.cl_kernel_calculate_damage(self.queue, (model.nnodes,), None, 
@@ -1922,21 +1916,21 @@ class RK4AT(Integrator):
                                            self.d_horizons_lengths)
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
-
         # TODO define a failure criterion, idea: rate of change of damage goes to 0 after it has started increasing
-        damage_sum =  np.sum(self.h_damage)
         tip_displacement = 0
         tmp = 0
         for i in range(model.nnodes):
             if self.h_tip_types[i] == 1:
                 tmp +=1
                 tip_displacement += self.h_un[i][2]
-
-        tip_displacement /= tmp
-        vtk.write("output/U_"+"t"+str(t)+".vtk", "Solution time step = "+str(t),
+        if tmp != 0:
+            tip_displacement /= tmp
+        else:
+            tip_displacement = None
+        vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
-
-        return damage_sum, tip_displacement
+        #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
+        return self.h_damage, tip_displacement
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
             tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
@@ -2149,7 +2143,7 @@ class HeunEuler(Integrator):
         if self.adapt_time_step(model) == 1:
             # Reset displacements to last stable time-step
             self.d_un2 = self.d_un
-    def write(self, model, t):
+    def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
         self.cl_kernel_calculate_damage(self.queue, (model.nnodes,), None, 
@@ -2157,21 +2151,21 @@ class HeunEuler(Integrator):
                                            self.d_horizons_lengths)
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un2, self.d_un2)
-
         # TODO define a failure criterion, idea: rate of change of damage goes to 0 after it has started increasing
-        damage_sum =  np.sum(self.h_damage)
         tip_displacement = 0
         tmp = 0
         for i in range(model.nnodes):
             if self.h_tip_types[i] == 1:
                 tmp +=1
                 tip_displacement += self.h_un2[i][2]
-
-        tip_displacement /= tmp
-        vtk.write("output/U_"+"t"+str(t)+".vtk", "Solution time step = "+str(t),
+        if tmp != 0:
+            tip_displacement /= tmp
+        else:
+            tip_displacement = None
+        vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un2)
-
-        return damage_sum, tip_displacement
+        #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
+        return self.h_damage, tip_displacement
     def adapt_time_step(self, model, error_size_max=1e-2, error_size_min=3e-6):
         adapt = 0
         # Check for error size
@@ -2415,7 +2409,7 @@ class DormandPrince(Integrator):
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
-    def write(self, model, t):
+    def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
         self.cl_kernel_calculate_damage(self.queue, (model.nnodes,), None, 
@@ -2423,21 +2417,21 @@ class DormandPrince(Integrator):
                                            self.d_horizons_lengths)
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
-
         # TODO define a failure criterion, idea: rate of change of damage goes to 0 after it has started increasing
-        damage_sum =  np.sum(self.h_damage)
         tip_displacement = 0
         tmp = 0
         for i in range(model.nnodes):
             if self.h_tip_types[i] == 1:
                 tmp +=1
                 tip_displacement += self.h_un[i][2]
-
-        tip_displacement /= tmp
-        vtk.write("output/U_"+"t"+str(t)+".vtk", "Solution time step = "+str(t),
+        if tmp != 0:
+            tip_displacement /= tmp
+        else:
+            tip_displacement = None
+        vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
-
-        return damage_sum, tip_displacement
+        #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
+        return self.h_damage, tip_displacement
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
             tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
@@ -2675,9 +2669,9 @@ class EulerStochastic(Integrator):
             tip_displacement /= tmp
         else:
             tip_displacement = None
-        vtk.write("output/U_"+"t"+str(t)+ "sample" + str(sample) + ".vtk", "Solution time step = "+str(t),
+        vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
-        vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
+        #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
         return self.h_damage, tip_displacement
 
     def incrementLoad(self, model, load_scale):

@@ -8,13 +8,13 @@ import cProfile
 from io import StringIO
 import numpy as np
 import pathlib
-from peridynamics import OpenCLProbabilistic
+from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
 from peridynamics.integrators import EulerOpenCL
 from pstats import SortKey, Stats
 # TODO: add argument on command line that gives option to plot results or not,
 # as some systems won't have matplotlib installed.
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import time
 import shutil
 import os
@@ -286,11 +286,14 @@ def main():
     volume_total = 1.0
     density_concrete = 1
     self_weight = 1.*density_concrete * volume_total * 9.81
-    # Sength scale for covariance matrix
-    l = 1e-2
-    # Vertical scale of the covariance matrix
-    nu = 9e-4
-    model = OpenCLProbabilistic(mesh_file_name, volume_total, nu, l, bond_type=bond_type, initial_crack=is_crack)
+# =============================================================================
+#     # Sength scale for covariance matrix
+#     l = 1e-2
+#     # Vertical scale of the covariance matrix
+#     nu = 9e-4
+#     model = OpenCLProbabilistic(mesh_file_name, volume_total, nu, l, bond_type=bond_type, initial_crack=is_crack)
+# =============================================================================
+    model = OpenCL(mesh_file_name, volume_total, bond_type=bond_type, initial_crack=is_crack)
     #dx = np.power(1.*volume_total/model.nnodes,1./(model.dimensions))
     # Set simulation parameters
     # not a transfinite mesh
@@ -320,18 +323,17 @@ def main():
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
     integrator = EulerOpenCL(model)
-    damage_data, tip_displacement_data = model.simulate(model, sample=1, steps=350, integrator=integrator, write=350, toolbar=0)
-    print(damage_data)
-    plt.figure(1)
-    plt.title('damage over time')
-    plt.plot(damage_data)
-    plt.figure(2)
-    plt.title('tip displacement over time')
-    plt.plot(tip_displacement_data)
-    plt.show()
+    damage_data, damage_sum_data, tip_displacement_data = model.simulate(model, sample=1, steps=350, integrator=integrator, write=10, toolbar=0)
+# =============================================================================
+#     plt.figure(1)
+#     plt.title('damage over time')
+#     plt.plot(damage_sum_data)
+#     plt.figure(2)
+#     plt.title('tip displacement over time')
+#     plt.plot(tip_displacement_data)
+#     plt.show()
+# =============================================================================
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
-    print(damage_data)
-    print(tip_displacement_data)
     if args.profile:
         profile.disable()
         s = StringIO()
