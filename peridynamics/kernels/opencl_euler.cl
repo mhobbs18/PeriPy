@@ -170,6 +170,6 @@ __kernel void
 			}
 		}
 
-		Phi[i] = 1.00f - (double) active_bonds / (double) (HorizonLengths[i] - 1);
+		Phi[i] = 1.00 - (double) active_bonds / (double) (HorizonLengths[i]);
 	}
 }

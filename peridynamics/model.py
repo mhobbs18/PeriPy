@@ -756,7 +756,7 @@ class OpenCL(Model):
             self.horizons = horizons.astype(np.intc)
             self.bond_stiffness = bond_stiffness
             self.bond_critical_stretch = bond_critical_stretch
-            self.horizons_lengths = horizons_lengths
+            self.horizons_lengths = horizons_lengths.astype(np.intc)
             self.family = family
             self.max_horizon_length = max_horizon_length
             self.nnodes = nnodes

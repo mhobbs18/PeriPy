@@ -323,7 +323,7 @@ def main():
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
     integrator = EulerOpenCL(model)
-    damage_data, damage_sum_data, tip_displacement_data = model.simulate(model, sample=1, steps=350, integrator=integrator, write=10, toolbar=0)
+    damage_data, damage_sum_data, tip_displacement_data = model.simulate(model, sample=1, steps=1, integrator=integrator, write=1, toolbar=0)
 # =============================================================================
 #     plt.figure(1)
 #     plt.title('damage over time')
