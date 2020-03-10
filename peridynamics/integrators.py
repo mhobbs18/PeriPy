@@ -1665,7 +1665,6 @@ class RK4(Integrator):
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
-
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -1674,13 +1673,16 @@ class RK4(Integrator):
                                            self.d_horizons_lengths)
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
+        cl.enqueue_copy(self.queue, self.h_k1dn, self.d_k1dn)
         # TODO define a failure criterion, idea: rate of change of damage goes to 0 after it has started increasing
         tip_displacement = 0
+        tip_shear_force = 0
         tmp = 0
         for i in range(model.nnodes):
             if self.h_tip_types[i] == 1:
                 tmp +=1
                 tip_displacement += self.h_un[i][2]
+                tip_shear_force += self.h_k1dn[i][2]
         if tmp != 0:
             tip_displacement /= tmp
         else:
@@ -1688,7 +1690,7 @@ class RK4(Integrator):
         vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
         #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
-        return self.h_damage, tip_displacement
+        return self.h_damage, tip_displacement, tip_shear_force
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
