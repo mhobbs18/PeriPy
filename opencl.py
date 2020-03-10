@@ -10,7 +10,7 @@ import numpy as np
 import pathlib
 from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
-from peridynamics.integrators import HeunEuler
+from peridynamics.integrators import HeunEulerNew
 from pstats import SortKey, Stats
 # TODO: add argument on command line that gives option to plot results or not,
 # as some systems won't have matplotlib installed.
@@ -184,7 +184,7 @@ def boundary_function(model):
     Initiates displacement boundary conditions,
     also define the 'tip' (for plotting displacements)
     """
-    load_rate = 1e-9
+    load_rate = 1e-8
     #theta = 18.75
     # initiate
     model.bc_types = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.intc)
@@ -300,7 +300,7 @@ def main():
     # (np.pi * np.power(model.horizon, 2.0) * dx * model.bond_stiffness_concrete), 0.5)
     # * saf_fac
     # )
-    model.dt = 1e-13
+    model.dt = 1.5e-8
     model.max_reaction = 1.* self_weight # in newtons, about 85 times self weight
     model.load_scale_rate = 1/1000
 
@@ -308,13 +308,13 @@ def main():
     boundary_function(model)
     boundary_forces_function(model)
 
-    integrator = HeunEuler(model)
+    integrator = HeunEulerNew(model)
 
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
 
-    damage_data, damage_sum_data, tip_displacement_data = model.simulate(model, sample=1, steps=200, integrator=integrator, write=1, toolbar=0)
+    damage_data, damage_sum_data, tip_displacement_data = model.simulate(model, sample=1, steps=20000, integrator=integrator, write=20, toolbar=0)
 # =============================================================================
 #     plt.figure(1)
 #     plt.title('damage over time')

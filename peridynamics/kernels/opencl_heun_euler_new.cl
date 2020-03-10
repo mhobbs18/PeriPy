@@ -15,7 +15,7 @@
 // Macros
 
 #define DPN 3
-// MAX_HORIZON_LENGTH, PD_E, PD_S0, PD_NODE_NO, PD_DPN_NODE_NO will be defined on JIT compiler's command line
+// MAX_HORIZON_LENGTH, PD_DT, PD_E, PD_S0, PD_NODE_NO, PD_DPN_NODE_NO will be defined on JIT compiler's command line
 
 // A horizon by horizon approach is chosen to proceed with the solution, in which
 // no assembly of the system of equations is required.
@@ -90,19 +90,13 @@ __kernel void
 	}
 }
 
-// Update 4th order displacements using k1 through k7
+// Update displacements using k1 through k4
 __kernel void
-	UpdateDisplacement4(
-        __global double const *k1dn,
-        __global double const *k3dn,
-		__global double const *k4dn,
-		__global double const *k5dn,
-		__global double const *k6dn,
-		__global double const *k7dn,
+	UpdateDisplacement(
         __global int const *ICTypes,
 		__global double const *ICValues,
-		__global double const *Un5,
-        __global double *Un4,
+		__global double const *Un2_1,
+        __global double *Un2,
 		double PD_DT
 	)
 {
@@ -110,36 +104,15 @@ __kernel void
 
 	if (i < PD_DPN_NODE_NO)
 	{
-        Un4[i] = ICTypes[i] == 2 ? Un5[i] + PD_DT *((5179 * k1dn[i] / 57600) + (7571 * k3dn[i] / 16695) + (393 * k4dn[i] / 640) - (92097* k5dn[i] / 339200) + (187* k6dn[i] / 2100) + (k7dn[i] / 40)) : Un5[i] + ICValues[i];
-	}
-}
-
-// Update 5th order displacements using k1 through k6
-__kernel void
-	UpdateDisplacement5(
-        __global double const *k1dn,
-        __global double const *k3dn,
-		__global double const *k4dn,
-		__global double const *k5dn,
-        __global int const *ICTypes,
-		__global double const *ICValues,
-        __global double *Un5,
-		double PD_DT
-	)
-{
-	const int i = get_global_id(0);
-
-	if (i < PD_DPN_NODE_NO)
-	{
-        Un5[i] = ICTypes[i] == 2 ? Un5[i] + PD_DT *((35 * k1dn[i] / 384) + (500 * k3dn[i] / 1113) + (125 * k4dn[i] / 192) - (2187* k5dn[i] / 6784) + (11 * k6dn[i] / 84))  : Un5[i] + ICValues[i];
+        Un2[i] = ICTypes[i] == 2 ? Un2[i] + Un2_1[i]  : Un2[i] + ICValues[i];
 	}
 }
 
 // Partial update of displacement
 __kernel void
 	PartialUpdateDisplacement(
-		__global double const *k1dn,
-        __global double const *U5n,
+        __global double const *Udn,
+        __global double const *Un2,
 		__global double *Un1,
 		double PD_DT
 	)
@@ -148,125 +121,35 @@ __kernel void
 
 	if (i < PD_DPN_NODE_NO)
 	{
-		Un1[i] = U5n[i] + (PD_DT / 5) * k1dn[i];
-	}
-}
-
-// Partial update of displacement
-__kernel void
-	PartialUpdateDisplacement2(
-        __global double const *k1dn,
-		__global double const *k2dn,
-        __global double const *U5n,
-		__global double *Un2,
-		double PD_DT
-	)
-{
-	const int i = get_global_id(0);
-
-	if (i < PD_DPN_NODE_NO)
-	{
-		Un2[i] = U5n[i] + PD_DT * ((3 * k1dn[i] / 40) + (9 * k2dn[i] / 40));
-	}
-}
-
-// Partial update of displacement
-__kernel void
-	PartialUpdateDisplacement3(
-        __global double const *k1dn,
-		__global double const *k2dn,
-		__global double const *k3dn,
-        __global double const *U5n,
-		__global double *Un3,
-		double PD_DT
-	)
-{
-	const int i = get_global_id(0);
-
-	if (i < PD_DPN_NODE_NO)
-	{
-		Un3[i] = U5n[i] + PD_DT * ((44 * k1dn[i] / 45) - (56 * k2dn[i] / 15) + (32 * k3dn[i] / 9));
-	}
-}
-
-// Partial update of displacement
-__kernel void
-	PartialUpdateDisplacement4(
-        __global double const *k1dn,
-		__global double const *k2dn,
-		__global double const *k3dn,
-		__global double const *k4dn,
-        __global double const *U5n,
-		__global double *Un4,
-		double PD_DT
-	)
-{
-	const int i = get_global_id(0);
-
-	if (i < PD_DPN_NODE_NO)
-	{
-		Un4[i] = U5n[i] + PD_DT * ((19372 * k1dn[i] / 6561) - (25360 * k2dn[i] / 2187) + (64448 * k3dn[i] / 6561) - (212 * k4dn[i] / 729));
-	}
-}
-
-// Partial update of displacement
-__kernel void
-	PartialUpdateDisplacement5(
-        __global double const *k1dn,
-		__global double const *k2dn,
-		__global double const *k3dn,
-		__global double const *k4dn,
-		__global double const *k5dn,
-        __global double const *U5n,
-		__global double *Un5,
-		double PD_DT
-	)
-{
-	const int i = get_global_id(0);
-
-	if (i < PD_DPN_NODE_NO)
-	{
-		Un5[i] = U5n[i] + PD_DT * ((9017 * k1dn[i] / 3168) - (355 * k2dn[i] / 33) + (46732 * k3dn[i] / 5247) + ( 49 * k4dn[i] / 176) - ( 5103 * k5dn[i] / 18656));
-	}
-}
-
-// Partial update of displacement
-__kernel void
-	PartialUpdateDisplacement6(
-        __global double const *k1dn,
-		__global double const *k2dn,
-		__global double const *k3dn,
-		__global double const *k4dn,
-		__global double const *k5dn,
-		__global double const *k6dn,
-        __global double const *U5n,
-		__global double *U4n,
-		double PD_DT
-	)
-{
-	const int i = get_global_id(0);
-
-	if (i < PD_DPN_NODE_NO)
-	{
-		U4n[i] = U5n[i] + PD_DT * ((35 * k1dn[i] / 384) + (500 * k3dn[i] / 1113) + (125 * k4dn[i] / 192) - (2187 * k5dn[i] / 6784) + (11 * k6dn[i] / 84));
+		Un1[i] = Un2[i] + PD_DT * Udn[i];
 	}
 }
 
 // Check error size
 __kernel void
 	CheckError(
-        __global double const *Un4,
-		__global double const *Un5,
-        __global double *En
+		__global double const *k1dn,
+        __global double const *k2dn,
+        __global double const *Un1,
+		__global double *Un2_1,
+        __global double *En,
+		double PD_DT
 	)
 {
 	const int i = get_global_id(0);
-
+	double U2_1;
+	double U_1;
 	if (i < PD_DPN_NODE_NO)
 	{
-		En[i] = Un2[i] - Un1[i];
+		// 2nd order accurate displacement
+		U2_1 = (1.00 / 2.00) * PD_DT * (k1dn[i] + k2dn[i]);
+		// error
+		En[i] = U2_1 - Un1[i];
+		// store 2nd order displacements
+		Un2_1[i] = U2_1;
 	}
 }
+
 __kernel void
 	CheckBonds(
 		__global int *Horizons,
