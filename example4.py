@@ -8,13 +8,13 @@ import cProfile
 from io import StringIO
 import numpy as np
 import pathlib
-from peridynamics import OpenCLProbabilistic
+from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
-from peridynamics.integrators import EulerStochastic
+from peridynamics.integrators import HeunEuler
 from pstats import SortKey, Stats
 # TODO: add argument on command line that gives option to plot results or not,
 # as some systems won't have matplotlib installed.
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import time
 import shutil
 import os
@@ -29,34 +29,12 @@ benchmark_problems = ['3300beam.msh']
 @initial_crack_helper
 def is_crack(x, y):
     output = 0
-    crack_length = 0.3
-    p1 = x
-    p2 = y
-    if x[0] > y[0]:
-        p2 = x
-        p1 = y
-    # 1e-6 makes it fall one side of central line of particles
-    if p1[0] < 0.5 + 1e-6 and p2[0] > 0.5 + 1e-6:
-        # draw a straight line between them
-        m = (p2[1] - p1[1]) / (p2[0] - p1[0])
-        c = p1[1] - m * p1[0]
-        # height a x = 0.5
-        height = m * 0.5 + c
-        if (height > 0.5 * (1 - crack_length)
-                and height < 0.5 * (1 + crack_length)):
-            output = 1
     return output
 
 def is_tip(horizon, x):
     output = 0
-    if mesh_file_name in verification_problems:
-        if x[0] > 1.0 - 1./3 * horizon:
-            output = 1
-    elif mesh_file_name in benchmark_problems:
-        if x[0] > 3.3 - 0.5 * horizon:
-            output = 1
-    elif mesh_file_name in token_problems:
-        if x[0] > 1.0 - 1. * horizon:
+    if mesh_file_name == '3300beam.msh':
+        if x[0] > 3.3 - 0.2 * horizon:
             output = 1
     return output
 
@@ -156,30 +134,14 @@ def is_boundary(horizon, x):
     1 is displacement loaded IN +ve direction
     0 is clamped boundary
     """
-    if mesh_file_name in token_problems:
-        # Does not live on a boundary
-        bnd = 2
-        # Does live on boundary
+    if mesh_file_name == '3300beam.msh':
+        bnd = [2, 2, 2]
         if x[0] < 1.5 * horizon:
-            bnd = -1
-        elif x[0] > 1.0 - 1.5 * horizon:
-            bnd = 1
-    elif mesh_file_name in verification_problems:
-        # Does not live on a boundary
-        bnd = 2
-        # Does live on boundary
-        if x[0] < 1.5* horizon:
-            bnd = 0
-        if x[0] > 1.0 - 1.* horizon:
-            if x[2] > 0.2 - 1.* horizon:
-                bnd = 1
-    elif mesh_file_name == '3300beam.msh':
-        bnd = 2
-        if x[0] < 1.5 * horizon:
-            bnd = 0
-        if x[0] > 3.3 - 0.3* horizon:
-            if x[2] > 0.6 - 0.3*horizon:
-                bnd = 1
+            bnd[0] = 0
+            bnd[1] = 0
+            bnd[2] = 0
+        if x[0] > 3.3 - 0.2* horizon:
+            bnd[2] = 1
     return bnd
 
 def is_forces_boundary(horizon, x):
@@ -216,7 +178,7 @@ def boundary_function(model):
     Initiates displacement boundary conditions,
     also define the 'tip' (for plotting displacements)
     """
-    load_rate = 1e-5
+    load_rate = 1e-8
     #theta = 18.75
     # initiate
     model.bc_types = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.intc)
@@ -227,12 +189,12 @@ def boundary_function(model):
     for i in range(0, model.nnodes):
         # Define boundary types and values
         bnd = is_boundary(model.horizon, model.coords[i][:])
-        #model.bc_types[i, 0] = np.intc((bnd))
-        #model.bc_types[i, 1] = np.intc((bnd))
-        model.bc_types[i, 2] = np.intc((bnd))
-        model.bc_values[i, 2] = np.float64(bnd * 0.5 * load_rate)
-        #model.bc_values[i, 0] = np.float64(bnd * -0.5/theta * load_rate)
-
+        model.bc_types[i, 0] = np.intc(bnd[0])
+        model.bc_types[i, 1] = np.intc(bnd[1])
+        model.bc_types[i, 2] = np.intc((bnd[2]))
+        model.bc_values[i, 0] = np.float64(bnd[0] * 0.5 * load_rate)
+        model.bc_values[i, 1] = np.float64(bnd[1] * 0.5 * load_rate)
+        model.bc_values[i, 2] = np.float64(bnd[2] * 0.5 * load_rate)
         # Define tip here
         tip = is_tip(model.horizon, model.coords[i][:])
         model.tip_types[i] = np.intc(tip)
@@ -284,16 +246,19 @@ def main():
     st = time.time()
 
     volume_total = 3.3 * 0.6 * 0.25
-    
     density_concrete = 2400
     self_weight = 1.*density_concrete * volume_total * 9.81
-    # Sength scale for covariance matrix
-    l = 1e-2
-    # Vertical scale of the covariance matrix
-    nu = 9e-20
-
-    model = OpenCLProbabilistic(mesh_file_name, volume_total, nu, l, bond_type=bond_type, initial_crack=is_crack)
-    #dx = np.power(1.*volume_total/model.nnodes,1./(model.dimensions))
+    youngs_modulus_concrete = 1.*22e9
+    youngs_modulus_steel = 1.*210e9
+    tensile_strength_concrete = 2.6e6
+# =============================================================================
+#     # Sength scale for covariance matrix
+#     l = 1e-2
+#     # Vertical scale of the covariance matrix
+#     nu = 9e-20
+#     model = OpenCLProbabilistic(mesh_file_name, volume_total, nu, l, bond_type=bond_type, initial_crack=is_crack)
+# =============================================================================
+    model = OpenCL(mesh_file_name, volume_total, bond_type=bond_type, initial_crack=is_crack, dimensions=3)
     # Set simulation parameters
     # not a transfinite mesh
     model.transfinite = 0
@@ -301,33 +266,35 @@ def main():
     model.precise_stiffness_correction = 1
     # Only one material in this example, that is 'concrete'
     model.density = density_concrete
-    dx = np.power(1.*model.volume_total/4625,1./3)
+    dx = np.power(1.*volume_total/model.nnodes,1./(model.dimensions))
     model.horizon = dx * np.pi 
     model.family_volume =(4./3)*np.pi*np.power(model.horizon, 3)
     model.damping = 2.0e6 # damping term
     # Peridynamic bond stiffness, c
+    bulk_modulus_concrete = youngs_modulus_concrete/ (3* (1 - 2*model.poisson_ratio))
+    bulk_modulus_steel = youngs_modulus_steel / (3* (1- 2*model.poisson_ratio))
     model.bond_stiffness_concrete = (
-    np.double((18.00 * model.bulk_modulus_concrete) /
+    np.double((18.00 * bulk_modulus_concrete) /
     (np.pi * np.power(model.horizon, 4)))
     )
     model.bond_stiffness_steel = (
-    np.double((18.00 * model.bulk_modulus_steel) /
+    np.double((18.00 * bulk_modulus_steel) /
     (np.pi * np.power(model.horizon, 4)))
     )
     model.critical_strain_concrete = (
-    np.double(model.tensile_strength_concrete /
-    model.youngs_modulus_concrete)
+    np.double(tensile_strength_concrete /
+    youngs_modulus_concrete)
     )
     #model.critical_strain_concrete = np.double(0.000533) # check this value
     model.critical_strain_steel = np.double(0.01)
     model.crackLength = np.double(0.3)
-    saf_fac = 0.2 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
+    #saf_fac = 0.2 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
     #model.dt = (
     # 0.8 * np.power( 2.0 * density_concrete * dx / 
     # (np.pi * np.power(model.horizon, 2.0) * dx * model.bond_stiffness_concrete), 0.5)
     # * saf_fac
     # )
-    model.dt = 1e-7
+    model.dt = 1.5e-8
     model.max_reaction = 1.* self_weight # in newtons, about 85 times self weight
     model.load_scale_rate = 1/1000
 
@@ -335,23 +302,28 @@ def main():
     boundary_function(model)
     boundary_forces_function(model)
 
-    integrator = EulerStochastic(model)
+    integrator = HeunEuler(model)
 
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
 
-    damage_data, tip_displacement_data = model.simulate(model, steps=500, integrator=integrator, write=10, toolbar=0)
-    plt.figure(1)
-    plt.title('damage over time')
-    plt.plot(damage_data)
-    plt.figure(2)
-    plt.title('tip displacement over time')
-    plt.plot(tip_displacement_data)
-    plt.show()
+    damage_data, damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=200, integrator=integrator, write=10, toolbar=0)
+# =============================================================================
+#     plt.figure(1)
+#     plt.title('damage over time')
+#     plt.plot(damage_data)
+#     plt.figure(2)
+#     plt.title('tip displacement over time')
+#     plt.plot(tip_displacement_data)
+#     plt.show()
+#     plt.figure(3)
+#     plt.title('tip shear force over time')
+#     plt.plot(tip_shear_force_data)
+#     plt.show()
+# =============================================================================
+    print(tip_shear_force_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
-    print(damage_data)
-    print(tip_displacement_data)
     if args.profile:
         profile.disable()
         s = StringIO()

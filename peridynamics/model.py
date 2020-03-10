@@ -1123,6 +1123,7 @@ class OpenCL(Model):
         # Container for plotting data
         damage_sum_data = []
         tip_displacement_data = []
+        tip_shear_force_data = []
         
         #Progress bar
         toolbar_width = 40
@@ -1136,8 +1137,9 @@ class OpenCL(Model):
             integrator.runtime(model)
             if write:
                 if step % write == 0:
-                    damage_data, tip_displacement = integrator.write(model, step, sample)
+                    damage_data, tip_displacement, tip_shear_force = integrator.write(model, step, sample)
                     tip_displacement_data.append(tip_displacement)
+                    tip_shear_force_data.append(tip_shear_force)
                     damage_sum = np.sum(damage_data)
                     damage_sum_data.append(damage_sum)
                     if damage_sum > 0.05*model.nnodes:
@@ -1158,7 +1160,7 @@ class OpenCL(Model):
         if toolbar:
             sys.stdout.write("]\n")
 
-        return damage_data, damage_sum_data, tip_displacement_data
+        return damage_data, damage_sum_data, tip_displacement_data, tip_shear_force_data
 class OpenCLProbabilistic(OpenCL):
     """
     A peridynamics model using OpenCL.
@@ -1349,6 +1351,7 @@ class OpenCLProbabilistic(OpenCL):
         # Container for plotting data
         damage_data = []
         tip_displacement_data = []
+        tip_shear_force_data = []
 
         #Progress bar
         toolbar_width = 40
@@ -1362,8 +1365,9 @@ class OpenCLProbabilistic(OpenCL):
             integrator.runtime(model)
             if write:
                 if step % write == 0:
-                    damage_data, tip_displacement = integrator.write(model, step, sample)
+                    damage_data, tip_displacement, tip_shear_force = integrator.write(model, step, sample)
                     tip_displacement_data.append(tip_displacement)
+                    tip_shear_force_data.append(tip_shear_force)
                     if toolbar == 0:
                         print('Print number {}/{} complete in {} s '.format(int(step/write), int(steps/write), time.time() - st))
                         st = time.time()
@@ -1380,7 +1384,7 @@ class OpenCLProbabilistic(OpenCL):
         if toolbar:
             sys.stdout.write("]\n")
 
-        return damage_data, tip_displacement_data
+        return damage_data, tip_displacement_data, tip_shear_force_data
 
 class OpenCLFEM(OpenCL):
     """
