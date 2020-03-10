@@ -127,6 +127,26 @@ class Model:
         :raises DimensionalityError: when an invalid `dimensions` argument is
             provided.
         """
+        # Is the mesh transfinite mesh (support regular grid spacing with
+        #cuboidal (not tetra) elements (default 0)
+        self.transfinite = 0
+        # Are the stiffness correction factors calculated using mesh
+        # element volumes (default 'precise', 1) or average nodal 
+        # volume of a transfinite mesh (0)  
+        #self.precise_stiffness_correction = 1
+        # Set model dimensionality
+        self.dimensions = dimensions
+
+        if dimensions == 2:
+            self.mesh_elements = _mesh_elements_2d
+        elif dimensions == 3:
+            self.mesh_elements = _mesh_elements_3d
+        else:
+            raise DimensionalityError(dimensions)
+
+        # Read coordinates and connectivity from mesh file
+        self._read_mesh(mesh_file)
+
         self.horizon = horizon
         self.critical_strain = critical_strain
 
@@ -134,6 +154,9 @@ class Model:
         self.bond_stiffness = (
             18.0 * elastic_modulus / (np.pi * self.horizon**4)
             )
+
+        # Read coordinates and connectivity from mesh file
+        self._read_mesh(mesh_file)
 
         # Calculate the volume for each node
         self.volume = self._volume()
@@ -174,13 +197,13 @@ class Model:
             self.nnodes = self.coords.shape[0]
 
             # Get connectivity, mesh triangle cells
-            self.connectivity = mesh.cells[self.mesh_elements.connectivity]
+            self.mesh_connectivity = mesh.cells[self.mesh_elements.connectivity]
 
             # Get boundary connectivity, mesh lines
-            self.connectivity_bnd = mesh.cells[self.mesh_elements.boundary]
+            self.mesh_boundary = mesh.cells[self.mesh_elements.boundary]
 
             # Get number elements on boundary?
-            self.nelem_bnd = self.connectivity_bnd.shape[0]
+            self.nelem_bnd = self.mesh_boundary.shape[0]
     def write_mesh(self, filename, damage=None, displacements=None,
                    file_format=None):
         """
@@ -819,7 +842,7 @@ class OpenCL(Model):
                 self.V[i] = tmp
                 self.sum_total_volume += tmp
         else:
-            for element in self.connectivity:
+            for element in self.mesh_connectivity:
 
                 # Compute Area or Volume
                 val = 1. / len(element)
