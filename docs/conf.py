@@ -1,4 +1,4 @@
-# Configuration file for the Sphinx documentation builder.
+"""Configuration file for the Sphinx documentation builder."""
 #
 # This file only contains a selection of the most common options. For a full
 # list see the documentation:
@@ -38,7 +38,8 @@ autoclass_content = 'both'
 
 # intersphinx configuration
 intersphinx_mapping = {
-    'numpy': ('https://docs.scipy.org/doc/numpy/', None)
+    'numpy': ('https://docs.scipy.org/doc/numpy/', None),
+    'scipy': ('https://docs.scipy.org/doc/scipy/reference', None)
     }
 
 # Add any paths that contain templates here, relative to this directory.

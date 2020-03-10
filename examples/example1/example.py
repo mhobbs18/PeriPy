@@ -1,8 +1,4 @@
-"""
-Created on Sun Nov 10 16:25:58 2019
-
-@author: Ben Boys
-"""
+"""A simple, 2D peridynamics simulation example."""
 import argparse
 import cProfile
 from io import StringIO
@@ -18,6 +14,7 @@ mesh_file = pathlib.Path(__file__).parent.absolute() / "test.msh"
 
 @initial_crack_helper
 def is_crack(x, y):
+    """Determine whether a pair of particles define the crack."""
     output = 0
     crack_length = 0.3
     p1 = x
@@ -39,6 +36,12 @@ def is_crack(x, y):
 
 
 def boundary_function(model, u, step):
+    """
+    Apply a load to the system.
+
+    Particles on each of the sides of the system are pulled apart with
+    increasing time step.
+    """
     load_rate = 0.00001
 
     u[model.lhs, 1:3] = np.zeros((len(model.lhs), 2))
@@ -55,9 +58,7 @@ def boundary_function(model, u, step):
 
 
 def main():
-    """
-    Stochastic peridynamics, takes multiple stable states (fully formed cracks)
-    """
+    """Conduct a peridynamics simulation."""
     parser = argparse.ArgumentParser()
     parser.add_argument('--profile', action='store_const', const=True)
     args = parser.parse_args()
@@ -76,11 +77,11 @@ def main():
 
     integrator = Euler(dt=1e-3)
 
-    u, damage = model.simulate(
-        steps=10,
+    u, damage, *_ = model.simulate(
+        steps=100,
         integrator=integrator,
         boundary_function=boundary_function,
-        write=10
+        write=1000
         )
 
     if args.profile:

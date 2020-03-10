@@ -1,6 +1,5 @@
+"""Integrators."""
 from abc import ABC, abstractmethod
-
-# bb515 added these:
 from peridynamics.probabilistic import noise
 import pyopencl as cl
 import numpy as np
@@ -17,9 +16,14 @@ class Integrator(ABC):
     All integrators must define a call method which performs one
     integration step and returns the updated displacements.
     """
+
     @abstractmethod
     def __call__(self):
-        pass
+        """
+        Conduct one iteraction of the integrator.
+
+        This method should be implemennted in every concrete integrator.
+        """
 class Euler(Integrator):
     r"""
     Euler integrator.
@@ -34,9 +38,10 @@ class Euler(Integrator):
     the force at time :math:`t`, :math:`\delta t` is the time step and
     :math:`d` is a dampening factor.
     """
+
     def __init__(self, dt, dampening=1.0):
         """
-        Create a :class:`Euler` integrator object.
+        Create an :class:`Euler` integrator object.
 
         :arg float dt: The integration time step.
         :arg float dampening: The dampening factor. The default is 1.0
