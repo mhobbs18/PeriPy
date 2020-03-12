@@ -2570,9 +2570,7 @@ class EulerStochastic(Integrator):
             + "-DPD_NODE_NO=" + str(model.nnodes) + SEP
             + "-DMAX_HORIZON_LENGTH=" + str(model.max_horizon_length) + SEP
             + "-DPD_DT=" + str(model.dt) + SEP)
-        
-        from pathlib import Path
-        print(Path.cwd())
+
         program = cl.Program(self.context, kernelsource).build([options_string])
         self.cl_kernel_time_marching_1 = program.TimeMarching1
         self.cl_kernel_time_marching_2 = program.TimeMarching2
@@ -2585,11 +2583,6 @@ class EulerStochastic(Integrator):
         # horizons and horizons lengths
         self.h_horizons = model.horizons
         self.h_horizons_lengths = model.horizons_lengths
-        print(self.h_horizons_lengths)
-        print(self.h_horizons)
-        print("shape horizons lengths", self.h_horizons_lengths.shape)
-        print("shape horizons lengths", self.h_horizons.shape)
-        print(self.h_horizons_lengths.dtype, "dtype")
 
         # Nodal coordinates
         self.h_coords = np.ascontiguousarray(model.coords, dtype=np.float64)
@@ -2624,20 +2617,6 @@ class EulerStochastic(Integrator):
 
         # Covariance matrix
         self.h_K = model.K
-
-        if model.v == True:
-            # Print the dtypes
-            print("horizons", self.h_horizons.dtype)
-            print("horizons_length", self.h_horizons_lengths.dtype)
-            print("force_bc_types", self.h_bc_types.dtype)
-            print("force_bc_values", self.h_bc_values.dtype)
-            print("bc_types", self.h_bc_types.dtype)
-            print("bc_values", self.h_bc_values.dtype)
-            print("coords", self.h_coords.dtype)
-            print("vols", self.h_vols.dtype)
-            print("un", self.h_un.dtype)
-            print("udn1", self.h_udn1.dtype)
-            print("damage", self.h_damage.dtype)
 
         # Build OpenCL data structures
 
@@ -2704,7 +2683,65 @@ class EulerStochastic(Integrator):
         :returns: The new displacements after integration.
         :rtype: :class:`numpy.ndarray`
         """
+    def reset(self, model):
+        # Displacements
+        self.h_un = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_pn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
+        # Forces
+        self.h_udn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_udn1 = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
+
+        # Damage vector
+        self.h_damage = np.empty(model.nnodes).astype(np.float64)
+
+        # Covariance matrix
+        self.h_K = model.K
+
+        # Build OpenCL data structures
+
+        # Read only
+        self.d_coords = cl.Buffer(self.context,
+                             cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                             hostbuf=self.h_coords)
+        self.d_bc_types = cl.Buffer(self.context,
+                              cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                              hostbuf=self.h_bc_types)
+        self.d_bc_values = cl.Buffer(self.context,
+                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                               hostbuf=self.h_bc_values)
+        self.d_force_bc_types = cl.Buffer(self.context,
+                              cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                              hostbuf=self.h_force_bc_types)
+        self.d_force_bc_values = cl.Buffer(self.context,
+                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                               hostbuf=self.h_force_bc_values)
+        self.d_vols = cl.Buffer(self.context,
+                           cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                           hostbuf=self.h_vols)
+        self.d_bond_stiffness = cl.Buffer(self.context,
+                           cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                           hostbuf=self.h_bond_stiffness)
+        self.d_bond_critical_stretch = cl.Buffer(self.context,
+                           cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                           hostbuf=self.h_bond_critical_stretch)
+        self.d_horizons_lengths = cl.Buffer(
+                self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                hostbuf=self.h_horizons_lengths)
+        self.d_K = cl.Buffer(
+                self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                hostbuf=self.h_K)
+
+        # Read and write
+        self.d_horizons = cl.Buffer(
+                self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
+                hostbuf=self.h_horizons)
+        self.d_un = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_un.nbytes)
+        self.d_udn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1.nbytes)
+        self.d_udn1 = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1.nbytes)
+        # Write only
+        self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_damage.nbytes)
+        # Initialize kernel parameters
     def runtime(self, model):
         # Sample random noise vector
         self.h_pn = noise(model.C, model.K, model.nnodes)
@@ -2750,8 +2787,8 @@ class EulerStochastic(Integrator):
             tip_displacement /= tmp
         else:
             tip_displacement = None
-        vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
-                  model.coords, self.h_damage, self.h_un)
+        #vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
+                  #model.coords, self.h_damage, self.h_un)
         #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
         return self.h_damage, tip_displacement, tip_shear_force
 

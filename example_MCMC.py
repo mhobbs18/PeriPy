@@ -12,13 +12,12 @@ from peridynamics import OpenCLProbabilistic
 from peridynamics.model import initial_crack_helper
 from peridynamics.integrators import EulerStochastic
 from pstats import SortKey, Stats
-from scipy.special import gamma
 import scipy.stats as sp
-import matplotlib.pyplot as plt
-import time
+#import matplotlib.pyplot as plt
 import shutil
 import os
 import mcmc
+import csv
 
 mesh_file_name = 'test.msh'
 mesh_file = pathlib.Path(__file__).parent.absolute() / mesh_file_name
@@ -356,7 +355,7 @@ def main():
     # MCMC wrapper function
     # read the data
     damage_data = read_data(model)
-    samples = 10
+    samples = 1000
     realisations = 10
     
     # Define start point of the Metropolis Hastings sampler w[1] is lambda, w[0] is sigma
@@ -365,22 +364,20 @@ def main():
     # Define proposal density of the MCMC sampler
     w_cov = [[0.001, 0.0],[0.0, 0.001]]
     
-    # Define the covariance matrix of the multivariate distribution
-    cov_ = np.identity(len(damage_data))
     # Get the intial likelihood
     # update (l, sigma)
     model._set_H(np.exp(w_prev[1]), np.exp(w_prev[0]))
+    integrator = EulerStochastic(model)
     likelihood_prev = 0
     for realisation in range(realisations):
-        integrator = EulerStochastic(model)
+        integrator.reset(model)
         sample_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=350, integrator=integrator, write=350, toolbar=0)
-        likelihood_prev += mcmc.get_likelihood(damage_data, sample_data, cov_)
-    likelihood_prev /= realisations
+        likelihood_prev += mcmc.get_fast_likelihood(damage_data, sample_data)
     
     assert likelihood_prev != 0, 'Floating point error on first likelihood value: likelihood must be more than 0'
 
     # Evaluate the pdf of the distribution we want to sample from
-    prior_prev = mcmc.pi(w_prev[0])*mcmc.pi(w_prev[1])
+    prior_prev = mcmc.gamma_prior_pdf(w_prev[0])*mcmc.gamma_prior_pdf(w_prev[1])
     data = [[],[]]
     total_samples = 0
     
@@ -391,18 +388,18 @@ def main():
         # update (l, sigma)
         model._set_H(np.exp(w_prev[1]), np.exp(w_prev[0]))
         # Multiply two single variate prior distributions
-        prior = mcmc.pi(w[0])*mcmc.pi(w[1])
+        prior = mcmc.gamma_prior_pdf(w[0])*mcmc.gamma_prior_pdf(w[1])
         if prior ==0:
             None
         else:
             # Get the likelihood
             likelihood = 0
             for realisation in range(realisations):
-                integrator = EulerStochastic(model)
+                integrator.reset(model)
                 sample_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample, steps=350, integrator=integrator, write=350, toolbar=0)
                 
-                likelihood += mcmc.get_likelihood(damage_data, sample_data, cov_)
-            likelihood /= realisations
+                likelihood += mcmc.get_fast_likelihood(damage_data, sample_data)
+            # unnecessary to divide by realisations since we are doing a sum.
             
             # compute acceptance ratio
             r = (prior * likelihood)/ (prior_prev * likelihood_prev)
@@ -427,7 +424,7 @@ def main():
     
     print(data)
 # =============================================================================
-#     NO_BINS = 100
+#     NO_BINS = 10
 #     xstart = -1.5
 #     xfinish = 1.5
 #     ystart = -6.0
@@ -446,13 +443,11 @@ def main():
 #     plt.show()
 # =============================================================================
     
-# =============================================================================
-#     # Write data to a file
-#     with open(r"C:\Users\Ben Boys\Documents\Gyroid Beam Project\python\week 5\Metropolis hastings\mcmc.csv", 'w', newline='') as myfile:
-#         wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
-#         data_zipped = zip(*data)
-#         wr.writerow(data_zipped)
-# =============================================================================
+    # Write data to a file
+    with open(pathlib.Path(__file__).parent.absolute() / "mcmc.csv", 'w', newline='') as myfile:
+        wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
+        data_zipped = zip(*data)
+        wr.writerow(data_zipped)
     
     if args.profile:
         profile.disable()
