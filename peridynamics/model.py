@@ -788,7 +788,7 @@ class OpenCL(Model):
             max_horizon_length_check = np.intc(
                 len(max(family, key=lambda x: len(x)))
                 )
-            assert max_horizon_length == max_horizon_length_check, 'Read failed on MAX_HORIZON_LENGTH check'
+            #assert max_horizon_length == max_horizon_length_check, 'Read failed on MAX_HORIZON_LENGTH check'
 
             horizons = -1 * np.ones([nnodes, max_horizon_length])
             for i, j in enumerate(family):
@@ -1246,11 +1246,14 @@ class OpenCLProbabilistic(OpenCL):
         # Set covariance matrix
         self._set_H(l, nu)
         # If the network has already been written to file, then read, if not, setNetwork
-        try:
-            self._read_network(network_file_name)
-        except:
-            print('No network file found: writing network file.')
-            self._set_network(self.horizon, bond_type)
+        self._read_network(network_file_name)
+# =============================================================================
+#         try:
+#             self._read_network(network_file_name)
+#         except:
+#             print('No network file found: writing network file.')
+#             self._set_network(self.horizon, bond_type)
+# =============================================================================
 
         # Initate crack
         self._set_connectivity(initial_crack)
@@ -1306,7 +1309,7 @@ class OpenCLProbabilistic(OpenCL):
         # Multiply by the vertical scale to get covariance matrix, K
         self.K = np.multiply (pow(nu, 2), K)
 
-        # Create C matrix for samping perturbations
+        # Create C matrix for sampling perturbations
 
         # add epsilon before scaling by a vertical variance scale, nu
         I = np.identity(self.nnodes)
@@ -1350,8 +1353,6 @@ class OpenCLProbabilistic(OpenCL):
 
         # Container for plotting data
         damage_data = []
-        tip_displacement_data = []
-        tip_shear_force_data = []
 
         #Progress bar
         toolbar_width = 40
@@ -1360,31 +1361,25 @@ class OpenCLProbabilistic(OpenCL):
             sys.stdout.flush()
             sys.stdout.write("\b" * (toolbar_width+1)) # return to start of line, after '['
         st = time.time()
-        for step in range(1, steps+1):
+        for step in range(0, steps):
             # Conduct one integration step
-            integrator.runtime(model)
+            integrator.runtime(model, step)
             if write:
                 if step % write == 0:
-                    damage_data, tip_displacement, tip_shear_force = integrator.write(model, step, sample)
-                    tip_displacement_data.append(tip_displacement)
-                    tip_shear_force_data.append(tip_shear_force)
+                    damage_data = integrator.write(model, step, sample)
                     if toolbar == 0:
                         print('Print number {}/{} complete in {} s '.format(int(step/write), int(steps/write), time.time() - st))
                         st = time.time()
 
-            # Increase load in linear increments
-            load_scale = min(1.0, model.load_scale_rate * step)
-            if load_scale != 1.0:
-                integrator.incrementLoad(model, load_scale)
             # Loading bar update
             if step%(steps/toolbar_width)<1 & toolbar:
                 sys.stdout.write("\u2588")
                 sys.stdout.flush()
-        
+
         if toolbar:
             sys.stdout.write("]\n")
 
-        return damage_data, tip_displacement_data, tip_shear_force_data
+        return damage_data
 
 class OpenCLFEM(OpenCL):
     """
@@ -1602,7 +1597,7 @@ class OpenCLFEM(OpenCL):
         st = time.time()
         for step in range(1, steps+1):
             # Conduct one integration step
-            integrator.runtime(model)
+            integrator.runtime(model, step)
             if write:
                 if step % write == 0:
                     damage_sum, tip_displacement = integrator.write(model, step)
