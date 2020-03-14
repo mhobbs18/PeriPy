@@ -18,9 +18,9 @@ def gamma_prior_pdf(x, alpha =1., beta=100.0):
     return(NUM1*NUM2*pow(np.e, EXP))
 
 
-def get_fast_likelihood(Y, U_VALUES):
+def get_fast_likelihood(damage_data, model_sample):
     # Since cov = identity, then
-    l2 = np.dot(Y, U_VALUES)
+    l2 = np.dot(damage_data, model_sample)
     
     nll = 1./2 * l2
     print(nll)

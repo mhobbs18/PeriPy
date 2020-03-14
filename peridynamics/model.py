@@ -197,10 +197,10 @@ class Model:
             self.nnodes = self.coords.shape[0]
 
             # Get connectivity, mesh triangle cells
-            self.mesh_connectivity = mesh.cells[self.mesh_elements.connectivity]
+            self.mesh_connectivity = mesh.cells_dict[self.mesh_elements.connectivity]
 
             # Get boundary connectivity, mesh lines
-            self.mesh_boundary = mesh.cells[self.mesh_elements.boundary]
+            self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
 
             # Get number elements on boundary?
             self.nelem_bnd = self.mesh_boundary.shape[0]
@@ -1306,7 +1306,7 @@ class OpenCLProbabilistic(OpenCL):
         # Multiply by the vertical scale to get covariance matrix, K
         self.K = np.multiply (pow(nu, 2), K)
 
-        # Create C matrix for samping perturbations
+        # Create C matrix for sampling perturbations
 
         # add epsilon before scaling by a vertical variance scale, nu
         I = np.identity(self.nnodes)
@@ -1350,8 +1350,6 @@ class OpenCLProbabilistic(OpenCL):
 
         # Container for plotting data
         damage_data = []
-        tip_displacement_data = []
-        tip_shear_force_data = []
 
         #Progress bar
         toolbar_width = 40
@@ -1360,31 +1358,25 @@ class OpenCLProbabilistic(OpenCL):
             sys.stdout.flush()
             sys.stdout.write("\b" * (toolbar_width+1)) # return to start of line, after '['
         st = time.time()
-        for step in range(1, steps+1):
+        for step in range(0, steps):
             # Conduct one integration step
-            integrator.runtime(model)
+            integrator.runtime(model, step)
             if write:
                 if step % write == 0:
-                    damage_data, tip_displacement, tip_shear_force = integrator.write(model, step, sample)
-                    tip_displacement_data.append(tip_displacement)
-                    tip_shear_force_data.append(tip_shear_force)
+                    damage_data = integrator.write(model, step, sample)
                     if toolbar == 0:
                         print('Print number {}/{} complete in {} s '.format(int(step/write), int(steps/write), time.time() - st))
                         st = time.time()
 
-            # Increase load in linear increments
-            load_scale = min(1.0, model.load_scale_rate * step)
-            if load_scale != 1.0:
-                integrator.incrementLoad(model, load_scale)
             # Loading bar update
             if step%(steps/toolbar_width)<1 & toolbar:
                 sys.stdout.write("\u2588")
                 sys.stdout.flush()
-        
+
         if toolbar:
             sys.stdout.write("]\n")
 
-        return damage_data, tip_displacement_data, tip_shear_force_data
+        return damage_data
 
 class OpenCLFEM(OpenCL):
     """
@@ -1602,7 +1594,7 @@ class OpenCLFEM(OpenCL):
         st = time.time()
         for step in range(1, steps+1):
             # Conduct one integration step
-            integrator.runtime(model)
+            integrator.runtime(model, step)
             if write:
                 if step % write == 0:
                     damage_sum, tip_displacement = integrator.write(model, step)

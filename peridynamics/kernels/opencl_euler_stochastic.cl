@@ -27,14 +27,15 @@ __kernel void
         __global double *Un,
 		__global double *Pn,
 		__global int const *BCTypes,
-		__global double const *BCValues
+		__global double const *BCValues,
+		int step
 	)
 {
 	const int i = get_global_id(0);
 
 	if (i < PD_DPN_NODE_NO)
 	{
-		Un[i] = BCTypes[i] == 2 ? Un[i] + Pn[i] + PD_DT * (Udn1[i]) : Un[i] + BCValues[i] ;
+		Un[i] = BCTypes[i] == 2 ? Un[i] + Pn[step * PD_DPN_NODE_NO + i] + PD_DT * (Udn1[i]) : Un[i] + BCValues[i];
 	}
 }
 

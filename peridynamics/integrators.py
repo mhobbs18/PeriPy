@@ -7,7 +7,6 @@ import sys
 import pathlib
 from peridynamics.post_processing import vtk
 sys.path.insert(1, pathlib.Path(__file__).parent.absolute() / 'peridynamics/kernels')
-import pathlib
 
 class Integrator(ABC):
     """
@@ -2664,7 +2663,7 @@ class EulerStochastic(Integrator):
         self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_damage.nbytes)
         # Initialize kernel parameters
         self.cl_kernel_time_marching_1.set_scalar_arg_dtypes(
-            [None, None, None, None, None])
+            [None, None, None, None, None, None])
         self.cl_kernel_time_marching_2.set_scalar_arg_dtypes(
             [None, None, None, None, None, None, None, None])
         self.cl_kernel_check_bonds.set_scalar_arg_dtypes([None, None, None, None])
@@ -2683,7 +2682,7 @@ class EulerStochastic(Integrator):
         :returns: The new displacements after integration.
         :rtype: :class:`numpy.ndarray`
         """
-    def reset(self, model):
+    def reset(self, model, steps):
         # Displacements
         self.h_un = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
         self.h_pn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
@@ -2695,39 +2694,47 @@ class EulerStochastic(Integrator):
         # Damage vector
         self.h_damage = np.empty(model.nnodes).astype(np.float64)
 
+        # Sample random noise vector
+        self.h_pn = noise(model.C, model.K, model.nnodes, steps)
+
         # Covariance matrix
         self.h_K = model.K
 
         # Build OpenCL data structures
 
         # Read only
-        self.d_coords = cl.Buffer(self.context,
+# =============================================================================
+#         self.d_coords = cl.Buffer(self.context,
+#                              cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+#                              hostbuf=self.h_coords)
+#         self.d_bc_types = cl.Buffer(self.context,
+#                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+#                               hostbuf=self.h_bc_types)
+#         self.d_bc_values = cl.Buffer(self.context,
+#                                cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+#                                hostbuf=self.h_bc_values)
+#         self.d_force_bc_types = cl.Buffer(self.context,
+#                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+#                               hostbuf=self.h_force_bc_types)
+#         self.d_force_bc_values = cl.Buffer(self.context,
+#                                cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+#                                hostbuf=self.h_force_bc_values)
+#         self.d_vols = cl.Buffer(self.context,
+#                            cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+#                            hostbuf=self.h_vols)
+#         self.d_bond_stiffness = cl.Buffer(self.context,
+#                            cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+#                            hostbuf=self.h_bond_stiffness)
+#         self.d_bond_critical_stretch = cl.Buffer(self.context,
+#                            cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+#                            hostbuf=self.h_bond_critical_stretch)
+#         self.d_horizons_lengths = cl.Buffer(
+#                 self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+#                 hostbuf=self.h_horizons_lengths)
+# =============================================================================
+        self.d_pn = cl.Buffer(self.context,
                              cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                             hostbuf=self.h_coords)
-        self.d_bc_types = cl.Buffer(self.context,
-                              cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                              hostbuf=self.h_bc_types)
-        self.d_bc_values = cl.Buffer(self.context,
-                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                               hostbuf=self.h_bc_values)
-        self.d_force_bc_types = cl.Buffer(self.context,
-                              cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                              hostbuf=self.h_force_bc_types)
-        self.d_force_bc_values = cl.Buffer(self.context,
-                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                               hostbuf=self.h_force_bc_values)
-        self.d_vols = cl.Buffer(self.context,
-                           cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                           hostbuf=self.h_vols)
-        self.d_bond_stiffness = cl.Buffer(self.context,
-                           cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                           hostbuf=self.h_bond_stiffness)
-        self.d_bond_critical_stretch = cl.Buffer(self.context,
-                           cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                           hostbuf=self.h_bond_critical_stretch)
-        self.d_horizons_lengths = cl.Buffer(
-                self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                hostbuf=self.h_horizons_lengths)
+                             hostbuf=self.h_pn)
         self.d_K = cl.Buffer(
                 self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
                 hostbuf=self.h_K)
@@ -2742,16 +2749,11 @@ class EulerStochastic(Integrator):
         # Write only
         self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_damage.nbytes)
         # Initialize kernel parameters
-    def runtime(self, model):
-        # Sample random noise vector
-        self.h_pn = noise(model.C, model.K, model.nnodes)
-        self.d_pn = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_pn)
-        #cl.enqueue_copy(self.queue, self.h_pn, self.d_pn)
-        #print(self.h_pn, 'noise')
+    def runtime(self, model, step):
         # Time marching Part 1
         self.cl_kernel_time_marching_1(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_un, self.d_pn, self.d_bc_types,
-                                  self.d_bc_values)
+                                  self.d_bc_values, np.intc(step))
         # Time marching Part 2: Calc forces
         self.cl_kernel_time_marching_2(self.queue, (model.nnodes,), None, self.d_udn,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
@@ -2772,25 +2774,10 @@ class EulerStochastic(Integrator):
                                            self.d_damage, self.d_horizons,
                                            self.d_horizons_lengths)
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
-        cl.enqueue_copy(self.queue, self.h_un, self.d_un)
-        cl.enqueue_copy(self.queue, self.h_udn, self.d_udn)
-        # TODO define a failure criterion, idea: rate of change of damage goes to 0 after it has started increasing
-        tip_displacement = 0
-        tip_shear_force = 0
-        tmp = 0
-        for i in range(model.nnodes):
-            if self.h_tip_types[i] == 1:
-                tmp +=1
-                tip_displacement += self.h_un[i][2]
-                tip_shear_force += self.h_udn[i][2]
-        if tmp != 0:
-            tip_displacement /= tmp
-        else:
-            tip_displacement = None
         #vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   #model.coords, self.h_damage, self.h_un)
         #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
-        return self.h_damage, tip_displacement, tip_shear_force
+        return self.h_damage
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:

@@ -18,18 +18,18 @@ def multivar_normal(L, num_nodes):
     w_tild = np.dot(L, zeta) #vector
     return w_tild
 
-def noise(C, K, num_nodes, degrees_freedom = 3):
+def noise(C, K, num_nodes, num_steps, degrees_freedom = 3):
     """Takes sample from multivariate normal distribution 
     with covariance matrix whith Cholesky factor, L
     :arg L: Cholesky factor, C
     :arg C: Covariance matrix, K
     :arg samples: The number of degrees of freedom (read: dimensions) the
     noise is generated in, degault 3 i.e. x,y and z directions.
-    :returns: num_nodes * 3 array of noise
+    :returns: num_nodes * 3 * num_steps array of noise
     :rtype: np.array dtype=float64
     """
     noise = []
-    for i in range(degrees_freedom):
+    for i in range(degrees_freedom * num_steps):
         noise.append(multivar_normal(C, num_nodes))
     #brownian_motion = np.transpose(noise)
     #M = np.sqrt(np.multiply(K, 2))
