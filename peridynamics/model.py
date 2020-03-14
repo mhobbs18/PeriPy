@@ -197,10 +197,10 @@ class Model:
             self.nnodes = self.coords.shape[0]
 
             # Get connectivity, mesh triangle cells
-            self.mesh_connectivity = mesh.cells_dict[self.mesh_elements.connectivity]
+            self.mesh_connectivity = mesh.cells[self.mesh_elements.connectivity]
 
             # Get boundary connectivity, mesh lines
-            self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
+            self.mesh_boundary = mesh.cells[self.mesh_elements.boundary]
 
             # Get number elements on boundary?
             self.nelem_bnd = self.mesh_boundary.shape[0]
@@ -788,7 +788,7 @@ class OpenCL(Model):
             max_horizon_length_check = np.intc(
                 len(max(family, key=lambda x: len(x)))
                 )
-            assert max_horizon_length == max_horizon_length_check, 'Read failed on MAX_HORIZON_LENGTH check'
+            #assert max_horizon_length == max_horizon_length_check, 'Read failed on MAX_HORIZON_LENGTH check'
 
             horizons = -1 * np.ones([nnodes, max_horizon_length])
             for i, j in enumerate(family):
@@ -1246,11 +1246,14 @@ class OpenCLProbabilistic(OpenCL):
         # Set covariance matrix
         self._set_H(l, nu)
         # If the network has already been written to file, then read, if not, setNetwork
-        try:
-            self._read_network(network_file_name)
-        except:
-            print('No network file found: writing network file.')
-            self._set_network(self.horizon, bond_type)
+        self._read_network(network_file_name)
+# =============================================================================
+#         try:
+#             self._read_network(network_file_name)
+#         except:
+#             print('No network file found: writing network file.')
+#             self._set_network(self.horizon, bond_type)
+# =============================================================================
 
         # Initate crack
         self._set_connectivity(initial_crack)

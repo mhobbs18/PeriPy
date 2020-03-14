@@ -352,17 +352,19 @@ def main():
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
-    # MCMC wrapper function
+    # NLML optimiser wrapper function
     # read the data
     damage_data = read_data(model)
-    samples = 0
+    # define meshgrid over which to search for optimised model parameters
+    
+    samples = 1000
     realisations = 10
     
     # Define start point of the Metropolis Hastings sampler w[1] is lambda, w[0] is sigma
     w_prev = [-7.01, -4.605]
     
     # Define proposal density of the MCMC sampler
-    w_cov = [[0.050, 0.0],[0.0, 0.050]]
+    w_cov = [[0.001, 0.0],[0.0, 0.001]]
     
     # Get the intial likelihood
     # update (l, sigma)
@@ -370,9 +372,10 @@ def main():
     integrator = EulerStochastic(model)
     likelihood_prev = 0
     for realisation in range(realisations):
-        integrator.reset(model, steps=350)
-        sample_data = model.simulate(model, sample=1, steps=350, integrator=integrator, write=350, toolbar=0)
+        integrator.reset(model)
+        sample_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=350, integrator=integrator, write=350, toolbar=0)
         likelihood_prev += mcmc.get_fast_likelihood(damage_data, sample_data)
+    
     assert likelihood_prev != 0, 'Floating point error on first likelihood value: likelihood must be more than 0'
 
     # Evaluate the pdf of the distribution we want to sample from
@@ -394,8 +397,8 @@ def main():
             # Get the likelihood
             likelihood = 0
             for realisation in range(realisations):
-                #integrator.reset(model, steps=350)
-                sample_data = model.simulate(model, sample, steps=350, integrator=integrator, write=350, toolbar=0)
+                integrator.reset(model)
+                sample_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample, steps=350, integrator=integrator, write=350, toolbar=0)
                 
                 likelihood += mcmc.get_fast_likelihood(damage_data, sample_data)
             # unnecessary to divide by realisations since we are doing a sum.
@@ -432,7 +435,7 @@ def main():
 #     yedges = np.linspace(ystart, yfinish, NO_BINS)
 #     H, xedges, yedges = np.histogram2d(data[0], data[1], bins=(xedges, yedges))
 # =============================================================================
-    #print('The percentage of accepted samples was {}%'.format(len(data[0])*100/(total_samples)))
+    print('The percentage of accepted samples was {}%'.format(len(data[0])*100/(total_samples)))
     
 # =============================================================================
 #     plt.figure()
