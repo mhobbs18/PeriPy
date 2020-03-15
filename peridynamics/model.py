@@ -1361,9 +1361,9 @@ class OpenCLProbabilistic(OpenCL):
             sys.stdout.flush()
             sys.stdout.write("\b" * (toolbar_width+1)) # return to start of line, after '['
         st = time.time()
-        for step in range(0, steps):
+        for step in range(1, steps+1):
             # Conduct one integration step
-            integrator.runtime(model, step)
+            integrator.runtime(model, step-1)
             if write:
                 if step % write == 0:
                     damage_data = integrator.write(model, step, sample)

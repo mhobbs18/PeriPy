@@ -2947,7 +2947,7 @@ class EulerStochastic(Integrator):
         self.cl_kernel_time_marching_2(self.queue, (model.nnodes,), None, self.d_udn,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
         # Matrix multiplication of forces
-        self.cl_kernel_mmul(self.queue, (model.nnodes, model.degrees_freedom), None, self.d_K, self.d_udn, self.d_udn1)
+        #self.cl_kernel_mmul(self.queue, (model.nnodes, model.degrees_freedom), None, self.d_K, self.d_udn, self.d_udn1)
         #cl.enqueue_copy(self.queue, self.h_udn, self.d_udn)
         #cl.enqueue_copy(self.queue, self.h_udn1, self.d_udn1)
         #print(self.h_udn1, 'udn1')
