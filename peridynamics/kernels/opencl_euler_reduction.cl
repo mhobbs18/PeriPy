@@ -158,7 +158,7 @@ __kernel void
             //Wait for all threads to catch up before processing anything
             barrier(CLK_LOCAL_MEM_FENCE); 
 
-            for (int k = local_size/2; i > 0; i /= 2){
+            for (int k = local_size/2; k > 0; k /= 2){
                 if(j < k){
                 Forces_x[j] += Forces_x[j + k];
                 Forces_y[j] += Forces_y[j + k];
@@ -168,12 +168,10 @@ __kernel void
                 barrier(CLK_LOCAL_MEM_FENCE);
             }
 
-            if (!j) {
-                // Update accelerations
-                Udn[DPN * i + 0] = (FCTypes[DPN*i + 0] == 2 ? Forces_x[j] : Forces_x[j]);
-		        Udn[DPN * i + 1] = (FCTypes[DPN*i + 1] == 2 ? Forces_y[j] : Forces_y[j]);
-		        Udn[DPN * i + 2] = (FCTypes[DPN*i + 2] == 2 ? Forces_z[j] : Forces_z[j]);// + FCValues[DPN * i + 2]);
-            }
+            // Update accelerations
+            Udn[DPN * i + 0] = Forces_x[j];
+            Udn[DPN * i + 1] = Forces_y[j];
+            Udn[DPN * i + 2] = Forces_z[j];
         }
     }
 }

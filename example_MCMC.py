@@ -355,11 +355,11 @@ def main():
     # MCMC wrapper function
     # read the data
     damage_data = read_data(model)
-    samples = 0
+    samples = 3000
     realisations = 10
     
     # Define start point of the Metropolis Hastings sampler w[1] is lambda, w[0] is sigma
-    w_prev = [-7.01, -4.605]
+    w_prev = [-6.51, -5.05]
     
     # Define proposal density of the MCMC sampler
     w_cov = [[0.050, 0.0],[0.0, 0.050]]
@@ -371,7 +371,7 @@ def main():
     likelihood_prev = 0
     for realisation in range(realisations):
         integrator.reset(model, steps=350)
-        sample_data = model.simulate(model, sample=1, steps=350, integrator=integrator, write=350, toolbar=0)
+        sample_data = model.simulate(model, sample=1, steps=350, integrator=integrator, write=349, toolbar=0)
         likelihood_prev += mcmc.get_fast_likelihood(damage_data, sample_data)
     assert likelihood_prev != 0, 'Floating point error on first likelihood value: likelihood must be more than 0'
 
@@ -394,7 +394,7 @@ def main():
             # Get the likelihood
             likelihood = 0
             for realisation in range(realisations):
-                #integrator.reset(model, steps=350)
+                integrator.reset(model, steps=350)
                 sample_data = model.simulate(model, sample, steps=350, integrator=integrator, write=350, toolbar=0)
                 
                 likelihood += mcmc.get_fast_likelihood(damage_data, sample_data)

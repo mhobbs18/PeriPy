@@ -395,20 +395,6 @@ class EulerOpenCL(Integrator):
         # Damage vector
         self.h_damage = np.empty(model.nnodes).astype(np.float64)
 
-        if model.v == True:
-            # Print the dtypes
-            print("horizons", self.h_horizons.dtype)
-            print("horizons_length", self.h_horizons_lengths.dtype)
-            print("force_bc_types", self.h_bc_types.dtype)
-            print("force_bc_values", self.h_bc_values.dtype)
-            print("bc_types", self.h_bc_types.dtype)
-            print("bc_values", self.h_bc_values.dtype)
-            print("coords", self.h_coords.dtype)
-            print("vols", self.h_vols.dtype)
-            print("un", self.h_un.dtype)
-            print("udn1", self.h_udn1.dtype)
-            print("damage", self.h_damage.dtype)
-
         # Build OpenCL data structures
 
         # Read only
@@ -493,13 +479,16 @@ class EulerOpenCL(Integrator):
                                            self.d_horizons_lengths)
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
+        cl.enqueue_copy(self.queue, self.h_udn1, self.d_udn1)
         # TODO define a failure criterion, idea: rate of change of damage goes to 0 after it has started increasing
         tip_displacement = 0
+        tip_shear_force = 0
         tmp = 0
         for i in range(model.nnodes):
             if self.h_tip_types[i] == 1:
                 tmp +=1
                 tip_displacement += self.h_un[i][2]
+                tip_shear_force += self.h_udn1[i][2]
         if tmp != 0:
             tip_displacement /= tmp
         else:
@@ -507,7 +496,7 @@ class EulerOpenCL(Integrator):
         vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
         #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
-        return self.h_damage, tip_displacement
+        return self.h_damage, tip_displacement, tip_shear_force
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
@@ -520,7 +509,7 @@ class EulerOpenCL(Integrator):
                                cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
                                hostbuf=self.h_force_bc_values)
 
-class EulerCromerOpenCLOptimised(Integrator):
+class EulerOpenCLReductionDouble(Integrator):
     r"""
     Static Euler integrator for quasi-static loading, using OpenCL kernels.
 
@@ -533,13 +522,10 @@ class EulerCromerOpenCLOptimised(Integrator):
     where :math:`u(t)` is the displacement at time :math:`t`, :math:`f(t)` is
     the force at time :math:`t`, :math:`\delta t` is the time step and
     :math:`d` is a dampening factor.
-    
-    These kernels are optimised over the naive kernels in EulerOpenCL
     """
     def __init__(self, model):
         """ Initialise the integration scheme
         """
-
         def output_device_info(device_id):
             sys.stdout.write("Device is ")
             sys.stdout.write(device_id.name)
@@ -563,22 +549,24 @@ class EulerCromerOpenCLOptimised(Integrator):
         output_device_info(self.context.devices[0])
 
         # Build the OpenCL program from file
-        kernelsource = open(pathlib.Path(__file__).parent.absolute() / "kernels/opencl_euler_cromer_lumped_reduction.cl").read()
+        kernelsource = open(pathlib.Path(__file__).parent.absolute() / "kernels/opencl_euler_reduction_double.cl").read()
         SEP = " "
 
         options_string = (
             "-cl-fast-relaxed-math" + SEP
-            + "-DPD_DPN_NODE_NO=" + str(model.nnodes * model.degrees_freedom) + SEP
+            + "-DPD_DPN_NODE_NO=" + str(model.degrees_freedom * model.nnodes) + SEP
             + "-DPD_NODE_NO=" + str(model.nnodes) + SEP
             + "-DMAX_HORIZON_LENGTH=" + str(model.max_horizon_length) + SEP
-            + "-DPD_DT=" + str(model.dt) + SEP
-            + "-DPD_RHO=" + str(model.density) + SEP
-            + "-DPD_ETA=" + str(model.damping) + SEP)
+            + "-DPD_DT=" + str(model.dt) + SEP)
 
+        from pathlib import Path
+        print(Path.cwd())
         program = cl.Program(self.context, kernelsource).build([options_string])
         self.cl_kernel_time_marching_1 = program.TimeMarching1
         self.cl_kernel_time_marching_2 = program.TimeMarching2
+        self.cl_kernel_time_marching_2old = program.TimeMarching3
         self.cl_kernel_reduce = program.reduce
+        self.cl_kernel_check_bonds = program.CheckBonds
         self.cl_kernel_calculate_damage = program.CalculateDamage
 
         # Set initial values in host memory
@@ -599,12 +587,11 @@ class EulerCromerOpenCLOptimised(Integrator):
         self.h_bc_types = model.bc_types
         self.h_bc_values = model.bc_values
 
+        self.h_tip_types = model.tip_types
+
         # Force boundary conditions types and values
         self.h_force_bc_types = model.force_bc_types
         self.h_force_bc_values = model.force_bc_values
-
-        # For measuring tip displacemens (host memory only)
-        self.h_tip_types = model.tip_types
 
         # Nodal volumes
         self.h_vols = model.V
@@ -616,31 +603,16 @@ class EulerCromerOpenCLOptimised(Integrator):
         # Displacements
         self.h_un = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
-        # Velocity
+        # Forces
         self.h_udn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_udn1 = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
-        # Acceleration
-        self.h_uddn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        # Bond forces
+        self.h_forces =  np.empty((model.nnodes, model.degrees_freedom, model.max_horizon_length), dtype=np.float64)
+        self.h_local_cache = np.zeros(model.max_horizon_length, dtype=np.float64)
 
         # Damage vector
         self.h_damage = np.empty(model.nnodes).astype(np.float64)
-
-        # Bond forces
-        self.h_forces = np.empty((model.nnodes, model.degrees_freedom, model.max_horizon_length), dtype = np.float64)
-
-        if model.v == True:
-            # Print the dtypes
-            print("horizons", self.h_horizons.dtype)
-            print("horizons_length", self.h_horizons_lengths.dtype)
-            print("force_bc_types", self.h_bc_types.dtype)
-            print("force_bc_values", self.h_bc_values.dtype)
-            print("bc_types", self.h_bc_types.dtype)
-            print("bc_values", self.h_bc_values.dtype)
-            print("coords", self.h_coords.dtype)
-            print("vols", self.h_vols.dtype)
-            print("un", self.h_un.dtype)
-            print("udn1", self.h_udn.dtype)
-            print("damage", self.h_damage.dtype)
 
         # Build OpenCL data structures
 
@@ -678,18 +650,23 @@ class EulerCromerOpenCLOptimised(Integrator):
                 self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
                 hostbuf=self.h_horizons)
         self.d_un = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_un.nbytes)
-        self.d_udn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn.nbytes)
-        self.d_uddn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_uddn.nbytes)
         self.d_forces = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_forces.nbytes)
+        self.d_local_cache = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_local_cache.nbytes)
+        self.d_udn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn.nbytes)
+        self.d_udn1 = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn.nbytes)
+
         # Write only
         self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_damage.nbytes)
         # Initialize kernel parameters
         self.cl_kernel_time_marching_1.set_scalar_arg_dtypes(
             [None, None, None, None])
         self.cl_kernel_time_marching_2.set_scalar_arg_dtypes(
-            [None, None, None, None, None, None, None])
+            [None, None, None, None, None, None])
+        self.cl_kernel_time_marching_2old.set_scalar_arg_dtypes(
+            [None, None, None, None, None, None, None, None])
         self.cl_kernel_reduce.set_scalar_arg_dtypes(
             [None, None, None, None, None])
+        self.cl_kernel_check_bonds.set_scalar_arg_dtypes([None, None, None, None])
         self.cl_kernel_calculate_damage.set_scalar_arg_dtypes([None, None, None])
     def __call__(self):
         """
@@ -709,14 +686,27 @@ class EulerCromerOpenCLOptimised(Integrator):
     def runtime(self, model):
         # Time marching Part 1
         self.cl_kernel_time_marching_1(self.queue, (model.degrees_freedom * model.nnodes,),
-                                  None, self.d_udn, self.d_un, self.d_bc_types, self.d_bc_values)
+                                  None, self.d_udn1, self.d_un, self.d_bc_types,
+                                  self.d_bc_values)
         # Time marching Part 2
-        self.cl_kernel_time_marching_2(self.queue, (model.nnodes, model.max_horizon_length),
-                                          None, self.d_un, self.d_forces, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
-         # Reduce
-        self.cl_kernel_reduce(self.queue, (model.degrees_freedom * model.nnodes,),
-                                  None, self.d_forces, self.d_udn, self.d_uddn, self.d_force_bc_types, self.d_force_bc_values)
-
+        self.cl_kernel_time_marching_2old(self.queue, (model.nnodes,), None, self.d_udn1,
+                                  self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+        # Time marching Part 2: Calc forces
+        self.cl_kernel_time_marching_2(self.queue, (model.nnodes,), None, self.d_forces,
+                                  self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness)
+        cl.enqueue_copy(self.queue, self.h_forces, self.d_forces)
+        print(np.sum(np.sum(self.h_forces, axis = 2)), 'sum bond forces')
+        # Reduction of forces onto nodal forces
+        self.cl_kernel_reduce(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
+                                  (model.max_horizon_length,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.d_local_cache)
+        cl.enqueue_copy(self.queue, self.h_udn, self.d_udn)
+        cl.enqueue_copy(self.queue, self.h_udn1, self.d_udn1)
+        print(np.sum(self.h_udn), 'sum node forces')
+        print(np.sum(self.h_udn1), 'sum node forces old')
+        # Check for broken bonds
+        self.cl_kernel_check_bonds(self.queue,
+                              (model.nnodes, model.max_horizon_length),
+                              None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -725,13 +715,16 @@ class EulerCromerOpenCLOptimised(Integrator):
                                            self.d_horizons_lengths)
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
+        cl.enqueue_copy(self.queue, self.h_udn, self.d_udn)
         # TODO define a failure criterion, idea: rate of change of damage goes to 0 after it has started increasing
         tip_displacement = 0
+        tip_shear_force = 0
         tmp = 0
         for i in range(model.nnodes):
             if self.h_tip_types[i] == 1:
                 tmp +=1
                 tip_displacement += self.h_un[i][2]
+                tip_shear_force += self.h_udn[i][2]
         if tmp != 0:
             tip_displacement /= tmp
         else:
@@ -739,7 +732,230 @@ class EulerCromerOpenCLOptimised(Integrator):
         vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
         #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
-        return self.h_damage, tip_displacement
+        return self.h_damage, tip_displacement, tip_shear_force
+
+    def incrementLoad(self, model, load_scale):
+        if model.num_force_bc_nodes != 0:
+            tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
+            # update the host force_bc_values
+            self.h_force_bc_values = tmp * np.ones((model.nnodes, model.degrees_freedom), dtype=np.float64)
+            #print(h_force_bc_values)
+            # update the GPU force_bc_values
+            self.d_force_bc_values = cl.Buffer(self.context,
+                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                               hostbuf=self.h_force_bc_values)
+
+class EulerOpenCLReduction(Integrator):
+    r"""
+    Static Euler integrator for quasi-static loading, using OpenCL kernels.
+
+    The Euler method is a first-order numerical integration method. The
+    integration is given by,
+
+    .. math::
+        u(t + \delta t) = u(t) + \delta t f(t) d
+
+    where :math:`u(t)` is the displacement at time :math:`t`, :math:`f(t)` is
+    the force at time :math:`t`, :math:`\delta t` is the time step and
+    :math:`d` is a dampening factor.
+    """
+    def __init__(self, model):
+        """ Initialise the integration scheme
+        """
+        def output_device_info(device_id):
+            sys.stdout.write("Device is ")
+            sys.stdout.write(device_id.name)
+            if device_id.type == cl.device_type.GPU:
+                sys.stdout.write("GPU from ")
+            elif device_id.type == cl.device_type.CPU:
+                sys.stdout.write("CPU from ")
+            else:
+                sys.stdout.write("non CPU of GPU processor from ")
+            sys.stdout.write(device_id.vendor)
+            sys.stdout.write(" with a max of ")
+            sys.stdout.write(str(device_id.max_compute_units))
+            sys.stdout.write(" compute units\n")
+            sys.stdout.flush()
+
+        # Initializing OpenCL
+        self.context = cl.create_some_context()
+        self.queue = cl.CommandQueue(self.context)   
+
+        # Print out device info
+        output_device_info(self.context.devices[0])
+
+        # Build the OpenCL program from file
+        kernelsource = open(pathlib.Path(__file__).parent.absolute() / "kernels/opencl_euler_reduction.cl").read()
+        SEP = " "
+
+        options_string = (
+            "-cl-fast-relaxed-math" + SEP
+            + "-DPD_DPN_NODE_NO=" + str(model.degrees_freedom * model.nnodes) + SEP
+            + "-DPD_NODE_NO=" + str(model.nnodes) + SEP
+            + "-DMAX_HORIZON_LENGTH=" + str(model.max_horizon_length) + SEP
+            + "-DPD_DT=" + str(model.dt) + SEP)
+
+        program = cl.Program(self.context, kernelsource).build([options_string])
+        self.cl_kernel_time_marching_1 = program.TimeMarching1
+        self.cl_kernel_time_marching_2 = program.TimeMarching2
+        self.cl_kernel_time_marching_2old = program.TimeMarching3
+        self.cl_kernel_check_bonds = program.CheckBonds
+        self.cl_kernel_calculate_damage = program.CalculateDamage
+
+        # Set initial values in host memory
+
+        # horizons and horizons lengths
+        self.h_horizons = model.horizons
+        self.h_horizons_lengths = model.horizons_lengths
+
+        # Nodal coordinates
+        self.h_coords = np.ascontiguousarray(model.coords, dtype=np.float64)
+
+        # Displacement boundary conditions types and delta values
+        self.h_bc_types = model.bc_types
+        self.h_bc_values = model.bc_values
+
+        self.h_tip_types = model.tip_types
+
+        # Force boundary conditions types and values
+        self.h_force_bc_types = model.force_bc_types
+        self.h_force_bc_values = model.force_bc_values
+
+        # Nodal volumes
+        self.h_vols = model.V
+
+        # Bond stiffnesses
+        self.h_bond_stiffness =  np.ascontiguousarray(model.bond_stiffness, dtype=np.float64)
+        self.h_bond_critical_stretch = np.ascontiguousarray(model.bond_critical_stretch, dtype=np.float64)
+
+        # Displacements
+        self.h_un = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
+
+        # Forces
+        self.h_udn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_udn1 = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
+
+        # Bond forces
+        self.h_forces_cache_x = np.zeros(model.max_horizon_length, dtype=np.float64)
+        self.h_forces_cache_y = np.zeros(model.max_horizon_length, dtype=np.float64)
+        self.h_forces_cache_z = np.zeros(model.max_horizon_length, dtype=np.float64)
+
+        # Damage vector
+        self.h_damage = np.empty(model.nnodes).astype(np.float64)
+
+        # Build OpenCL data structures
+
+        # Read only
+        self.d_coords = cl.Buffer(self.context,
+                             cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                             hostbuf=self.h_coords)
+        self.d_bc_types = cl.Buffer(self.context,
+                              cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                              hostbuf=self.h_bc_types)
+        self.d_bc_values = cl.Buffer(self.context,
+                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                               hostbuf=self.h_bc_values)
+        self.d_force_bc_types = cl.Buffer(self.context,
+                              cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                              hostbuf=self.h_force_bc_types)
+        self.d_force_bc_values = cl.Buffer(self.context,
+                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                               hostbuf=self.h_force_bc_values)
+        self.d_vols = cl.Buffer(self.context,
+                           cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                           hostbuf=self.h_vols)
+        self.d_bond_stiffness = cl.Buffer(self.context,
+                           cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                           hostbuf=self.h_bond_stiffness)
+        self.d_bond_critical_stretch = cl.Buffer(self.context,
+                           cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                           hostbuf=self.h_bond_critical_stretch)
+        self.d_horizons_lengths = cl.Buffer(
+                self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                hostbuf=self.h_horizons_lengths)
+
+        # Read and write
+        self.d_horizons = cl.Buffer(
+                self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
+                hostbuf=self.h_horizons)
+        self.d_un = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_un.nbytes)
+        self.d_forces_cache_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_forces_cache_x.nbytes)
+        self.d_forces_cache_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_forces_cache_y.nbytes)
+        self.d_forces_cache_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_forces_cache_z.nbytes)
+        self.d_udn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn.nbytes)
+        self.d_udn1 = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn.nbytes)
+
+        # Write only
+        self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_damage.nbytes)
+        # Initialize kernel parameters
+        self.cl_kernel_time_marching_1.set_scalar_arg_dtypes(
+            [None, None, None, None])
+        self.cl_kernel_time_marching_2.set_scalar_arg_dtypes(
+            [None, None, None, None, None, None, None, None, None])
+        self.cl_kernel_time_marching_2old.set_scalar_arg_dtypes(
+            [None, None, None, None, None, None, None, None])
+        self.cl_kernel_check_bonds.set_scalar_arg_dtypes([None, None, None, None])
+        self.cl_kernel_calculate_damage.set_scalar_arg_dtypes([None, None, None])
+    def __call__(self):
+        """
+        Conduct one iteration of the integrator.
+
+        :arg u: A (`nnodes`, 3) array containing the displacements of all
+            nodes.
+        :type u: :class:`numpy.ndarray`
+        :arg f: A (`nnodes`, 3) array containing the components of the force
+            acting on each node.
+        :type f: :class:`numpy.ndarray`
+
+        :returns: The new displacements after integration.
+        :rtype: :class:`numpy.ndarray`
+        """
+
+    def runtime(self, model):
+        # Time marching Part 1
+        self.cl_kernel_time_marching_1(self.queue, (model.degrees_freedom * model.nnodes,),
+                                  None, self.d_udn, self.d_un, self.d_bc_types,
+                                  self.d_bc_values)
+        # Time marching Part 2
+        self.cl_kernel_time_marching_2old(self.queue, (model.nnodes,), None, self.d_udn1,
+                                  self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+        # Time marching Part 2: Calc forces
+        self.cl_kernel_time_marching_2(self.queue, (model.nnodes,), None,
+                                  self.d_udn, self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_forces_cache_x, self.d_forces_cache_y, self.d_forces_cache_z)
+        cl.enqueue_copy(self.queue, self.h_udn, self.d_udn)
+        cl.enqueue_copy(self.queue, self.h_udn1, self.d_udn1)
+        print(np.sum(self.h_udn), 'sum node forces')
+        print(np.sum(self.h_udn1), 'sum node forces old')
+        # Check for broken bonds
+        self.cl_kernel_check_bonds(self.queue,
+                              (model.nnodes, model.max_horizon_length),
+                              None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
+    def write(self, model, t, sample):
+        """ Write a mesh file for the current timestep
+        """
+        self.cl_kernel_calculate_damage(self.queue, (model.nnodes,), None, 
+                                           self.d_damage, self.d_horizons,
+                                           self.d_horizons_lengths)
+        cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
+        cl.enqueue_copy(self.queue, self.h_un, self.d_un)
+        cl.enqueue_copy(self.queue, self.h_udn, self.d_udn)
+        # TODO define a failure criterion, idea: rate of change of damage goes to 0 after it has started increasing
+        tip_displacement = 0
+        tip_shear_force = 0
+        tmp = 0
+        for i in range(model.nnodes):
+            if self.h_tip_types[i] == 1:
+                tmp +=1
+                tip_displacement += self.h_un[i][2]
+                tip_shear_force += self.h_udn[i][2]
+        if tmp != 0:
+            tip_displacement /= tmp
+        else:
+            tip_displacement = None
+        vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
+                  model.coords, self.h_damage, self.h_un)
+        #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
+        return self.h_damage, tip_displacement, tip_shear_force
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
