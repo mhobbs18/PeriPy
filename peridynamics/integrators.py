@@ -692,15 +692,17 @@ class EulerOpenCLReductionDouble(Integrator):
         # Time marching Part 2: Calc forces
         self.cl_kernel_time_marching_2(self.queue, (model.nnodes,), None, self.d_forces,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness)
-        cl.enqueue_copy(self.queue, self.h_forces, self.d_forces)
-        print(np.sum(np.sum(self.h_forces, axis = 2)), 'sum bond forces')
+# =============================================================================
+#         cl.enqueue_copy(self.queue, self.h_forces, self.d_forces)
+#         print(np.sum(np.sum(self.h_forces, axis = 2)), 'sum bond forces')
+# =============================================================================
         # Reduction of forces onto nodal forces
         self.cl_kernel_reduce(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
                                   (model.max_horizon_length,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.d_local_cache)
         cl.enqueue_copy(self.queue, self.h_udn, self.d_udn)
         cl.enqueue_copy(self.queue, self.h_udn1, self.d_udn1)
-        print(np.sum(self.h_udn), 'sum node forces')
-        print(np.sum(self.h_udn1), 'sum node forces old')
+        print(self.h_udn[0])
+        print(self.h_udn1[0])
         # Check for broken bonds
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
