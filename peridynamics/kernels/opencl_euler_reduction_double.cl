@@ -49,49 +49,49 @@ __kernel void
 	)
 {
 	const int i = get_global_id(0);
-	//const int j = get_global_id(1);
+	const int j = get_global_id(1);
 
-	if (i < PD_NODE_NO)
+	if ((i < PD_NODE_NO) && (j >= 0) && (j < MAX_HORIZON_LENGTH))
     {
-		for (int j = 1; j < MAX_HORIZON_LENGTH; j++)
-		{
-			const int n = Horizons[MAX_HORIZON_LENGTH * i + j];
+		const int n = Horizons[MAX_HORIZON_LENGTH * i + j];
 
-			if (n != -1)
-				{
-				const double xi_x = Nodes[DPN * n + 0] - Nodes[DPN * i + 0];  // Optimize later, doesn't need to be done every time
-				const double xi_y = Nodes[DPN * n + 1] - Nodes[DPN * i + 1];
-				const double xi_z = Nodes[DPN * n + 2] - Nodes[DPN * i + 2];
-
-				const double xi_eta_x = Un[DPN * n + 0] - Un[DPN * i + 0] + xi_x;
-				const double xi_eta_y = Un[DPN * n + 1] - Un[DPN * i + 1] + xi_y;
-				const double xi_eta_z = Un[DPN * n + 2] - Un[DPN * i + 2] + xi_z;
-
-				const double xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
-				const double y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
-				const double y_xi = (y - xi);
-
-				const double cx = xi_eta_x / y;
-				const double cy = xi_eta_y / y;
-				const double cz = xi_eta_z / y;
-
-				const double _E = Stiffnesses[MAX_HORIZON_LENGTH * i + j];
-				const double _A = Vols[i];
-				const double _L = xi;
-
-				const double _EAL = _E * _A / _L;
-
-				Forces[MAX_HORIZON_LENGTH * (i + 0) + j] = _EAL * cx * y_xi;
-				Forces[MAX_HORIZON_LENGTH * (i + 1) + j] = _EAL * cy * y_xi;
-				Forces[MAX_HORIZON_LENGTH * (i + 2) + j] = _EAL * cz * y_xi;
-			}
-			else 
+		if (n != -1)
 			{
-				Forces[MAX_HORIZON_LENGTH * (i + 0) + j] = 0.00;
-				Forces[MAX_HORIZON_LENGTH * (i + 1) + j] = 0.00;
-				Forces[MAX_HORIZON_LENGTH * (i + 2) + j] = 0.00;
-			}
-    	}
+			const double xi_x = Nodes[DPN * n + 0] - Nodes[DPN * i + 0];  // Optimize later, doesn't need to be done every time
+			const double xi_y = Nodes[DPN * n + 1] - Nodes[DPN * i + 1];
+			const double xi_z = Nodes[DPN * n + 2] - Nodes[DPN * i + 2];
+
+			const double xi_eta_x = Un[DPN * n + 0] - Un[DPN * i + 0] + xi_x;
+			const double xi_eta_y = Un[DPN * n + 1] - Un[DPN * i + 1] + xi_y;
+			const double xi_eta_z = Un[DPN * n + 2] - Un[DPN * i + 2] + xi_z;
+
+			const double xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
+			const double y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
+			const double y_xi = (y - xi);
+
+			const double cx = xi_eta_x / y;
+			const double cy = xi_eta_y / y;
+			const double cz = xi_eta_z / y;
+
+			const double _E = Stiffnesses[MAX_HORIZON_LENGTH * i + j];
+			const double _A = Vols[i];
+			const double _L = xi;
+
+			const double _EAL = _E * _A / _L;
+
+			//Forces[MAX_HORIZON_LENGTH * (DPN * i + 0) + j] = _EAL * cx * y_xi;
+			//Forces[MAX_HORIZON_LENGTH * (DPN * i + 1) + j] = _EAL * cy * y_xi;
+			//Forces[MAX_HORIZON_LENGTH * (DPN * i + 2) + j] = _EAL * cz * y_xi;
+			Forces[MAX_HORIZON_LENGTH * (DPN * i + 0) + j] = 1.00;
+			Forces[MAX_HORIZON_LENGTH * (DPN * i + 1) + j] = 2.00;
+			Forces[MAX_HORIZON_LENGTH * (DPN * i + 2) + j] = 3.00;
+		}
+		else 
+		{
+			Forces[MAX_HORIZON_LENGTH * (DPN * i + 0) + j] = 0.00;
+			Forces[MAX_HORIZON_LENGTH * (DPN * i + 1) + j] = 0.00;
+			Forces[MAX_HORIZON_LENGTH * (DPN * i + 2) + j] = 0.00;
+		}
 	}
 }
 
@@ -116,7 +116,7 @@ __kernel void
 
 	if (i < PD_NODE_NO)
 	{
-		for (int j = 1; j < MAX_HORIZON_LENGTH; j++)
+		for (int j = 0; j < MAX_HORIZON_LENGTH; j++)
 		{
 			const int n = Horizons[MAX_HORIZON_LENGTH * i + j];
 
@@ -145,9 +145,12 @@ __kernel void
 
 				const double _EAL = _E * _A / _L;
 
-                f0 += _EAL * cx * y_xi;
-                f1 += _EAL * cy * y_xi;
-                f2 += _EAL * cz * y_xi;
+                //f0 += _EAL * cx * y_xi;
+                //f1 += _EAL * cy * y_xi;
+                //f2 += _EAL * cz * y_xi;
+				f0 += 1.00;
+                f1 += 2.00;
+                f2 += 3.00;
 			}
 		}
 
@@ -209,7 +212,7 @@ __kernel void
 	const int i = get_global_id(0);
 	const int j = get_global_id(1);
 
-	if ((i < PD_NODE_NO) && (j > 0) && (j < MAX_HORIZON_LENGTH))
+	if ((i < PD_NODE_NO) && (j >= 0) && (j < MAX_HORIZON_LENGTH))
 	{
 		const int n = Horizons[i * MAX_HORIZON_LENGTH + j];
 

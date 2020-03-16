@@ -396,10 +396,9 @@ def main():
             for realisation in range(realisations):
                 integrator.reset(model, steps=350)
                 sample_data = model.simulate(model, sample, steps=350, integrator=integrator, write=350, toolbar=0)
-                
                 likelihood += mcmc.get_fast_likelihood(damage_data, sample_data)
             # unnecessary to divide by realisations since we are doing a sum.
-            
+
             # compute acceptance ratio
             r = (prior * likelihood)/ (prior_prev * likelihood_prev)
             
