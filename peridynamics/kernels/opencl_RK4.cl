@@ -43,7 +43,7 @@ __kernel void
 
 	if (i < PD_NODE_NO)
 	{
-		for (int j = 1; j < MAX_HORIZON_LENGTH; j++)
+		for (int j = 0; j < MAX_HORIZON_LENGTH; j++)
 		{
 			const int n = Horizons[MAX_HORIZON_LENGTH * i + j];
 
@@ -153,7 +153,7 @@ __kernel void
 	const int i = get_global_id(0);
 	const int j = get_global_id(1);
 
-	if ((i < PD_NODE_NO) && (j > 0) && (j < MAX_HORIZON_LENGTH))
+	if ((i < PD_NODE_NO) && (j >= 0) && (j < MAX_HORIZON_LENGTH))
 	{
 		const int n = Horizons[i * MAX_HORIZON_LENGTH + j];
 
@@ -197,7 +197,7 @@ __kernel void
 	{
 		int active_bonds = 0;
 
-		for (int j = 1; j < MAX_HORIZON_LENGTH; j++)
+		for (int j = 0; j < MAX_HORIZON_LENGTH; j++)
 		{
 			if (Horizons[MAX_HORIZON_LENGTH * i + j] != -1)
 			{

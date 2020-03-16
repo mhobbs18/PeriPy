@@ -197,10 +197,10 @@ class Model:
             self.nnodes = self.coords.shape[0]
 
             # Get connectivity, mesh triangle cells
-            self.mesh_connectivity = mesh.cells[self.mesh_elements.connectivity]
+            self.mesh_connectivity = mesh.cells_dict[self.mesh_elements.connectivity]
 
             # Get boundary connectivity, mesh lines
-            self.mesh_boundary = mesh.cells[self.mesh_elements.boundary]
+            self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
 
             # Get number elements on boundary?
             self.nelem_bnd = self.mesh_boundary.shape[0]
@@ -786,9 +786,9 @@ class OpenCL(Model):
 
             # Maximum number of nodes that any one of the nodes is connected to
             max_horizon_length_check = np.intc(
-                len(max(family, key=lambda x: len(x)))
+                    1<<(len(max(family, key=lambda x: len(x)))-1).bit_length()
                 )
-            #assert max_horizon_length == max_horizon_length_check, 'Read failed on MAX_HORIZON_LENGTH check'
+            assert max_horizon_length == max_horizon_length_check, 'Read failed on MAX_HORIZON_LENGTH check'
 
             horizons = -1 * np.ones([nnodes, max_horizon_length])
             for i, j in enumerate(family):
@@ -992,10 +992,10 @@ class OpenCL(Model):
                     
                     bond_stiffness_family[i][j] *= stiffening_factor
 
-        # Maximum number of nodes that any one of the nodes is connected to
+        # Maximum number of nodes that any one of the nodes is connected to, must be a power of 2 (for OpenCL reduction)
         self.max_horizon_length = np.intc(
-            len(max(self.family, key=lambda x: len(x)))
-            )
+                    1<<(len(max(family, key=lambda x: len(x)))-1).bit_length()
+                )
 
         self.horizons = -1 * np.ones([self.nnodes, self.max_horizon_length])
         for i, j in enumerate(self.family):

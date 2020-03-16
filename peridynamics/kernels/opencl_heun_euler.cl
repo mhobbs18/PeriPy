@@ -43,7 +43,7 @@ __kernel void
 
 	if (i < PD_NODE_NO)
 	{
-		for (int j = 1; j < MAX_HORIZON_LENGTH; j++)
+		for (int j = 0; j < MAX_HORIZON_LENGTH; j++)
 		{
 			const int n = Horizons[MAX_HORIZON_LENGTH * i + j];
 
@@ -93,10 +93,9 @@ __kernel void
 // Update displacements using k1 through k4
 __kernel void
 	UpdateDisplacement(
-        __global double const *k1dn,
-        __global double const *k2dn,
         __global int const *ICTypes,
 		__global double const *ICValues,
+		__global double const *Un2_1,
         __global double *Un2,
 		double PD_DT
 	)
@@ -105,7 +104,7 @@ __kernel void
 
 	if (i < PD_DPN_NODE_NO)
 	{
-        Un2[i] = ICTypes[i] == 2 ? Un2[i] + (1.00 / 2.00) * PD_DT * (k1dn[i] + k2dn[i]) : Un2[i] + ICValues[i];
+        Un2[i] = ICTypes[i] == 2 ? Un2_1[i]  : Un2[i] + ICValues[i];
 	}
 }
 
@@ -129,16 +128,26 @@ __kernel void
 // Check error size
 __kernel void
 	CheckError(
+		__global double const *k1dn,
+        __global double const *k2dn,
         __global double const *Un1,
 		__global double const *Un2,
-        __global double *En
+		__global double *Un2_1,
+        __global double *En,
+		double PD_DT
 	)
 {
 	const int i = get_global_id(0);
-
+	double U2_1;
+	double U_1;
 	if (i < PD_DPN_NODE_NO)
 	{
-		En[i] = Un2[i] - Un1[i];
+		// 2nd order accurate displacement
+		U2_1 = Un2[i] + (1.00 / 2.00) * PD_DT * (k1dn[i] + k2dn[i]);
+		// error
+		En[i] = U2_1 - Un1[i];
+		// store 2nd order displacements
+		Un2_1[i] = U2_1;
 	}
 }
 
@@ -153,7 +162,7 @@ __kernel void
 	const int i = get_global_id(0);
 	const int j = get_global_id(1);
 
-	if ((i < PD_NODE_NO) && (j > 0) && (j < MAX_HORIZON_LENGTH))
+	if ((i < PD_NODE_NO) && (j >= 0) && (j < MAX_HORIZON_LENGTH))
 	{
 		const int n = Horizons[i * MAX_HORIZON_LENGTH + j];
 
@@ -197,7 +206,7 @@ __kernel void
 	{
 		int active_bonds = 0;
 
-		for (int j = 1; j < MAX_HORIZON_LENGTH; j++)
+		for (int j = 0; j < MAX_HORIZON_LENGTH; j++)
 		{
 			if (Horizons[MAX_HORIZON_LENGTH * i + j] != -1)
 			{

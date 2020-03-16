@@ -22,7 +22,7 @@
 
 // Update displacements
 __kernel void
-	TimeMarching1(
+	UpdateDisplacement(
         __global double const *Udn,
         __global double *Un,
 		__global int const *BCTypes,
@@ -40,7 +40,7 @@ __kernel void
 
 // Calculate force using Un, force BC applied at end here
 __kernel void
-	TimeMarching2(
+	CalcBondForce(
         __global double *Uddn,
         __global double *Udn,
         __global double const *Un,
@@ -60,7 +60,7 @@ __kernel void
 
 	if (i < PD_NODE_NO)
 	{
-		for (int j = 1; j < MAX_HORIZON_LENGTH; j++)
+		for (int j = 0; j < MAX_HORIZON_LENGTH; j++)
 		{
 			const int n = Horizons[MAX_HORIZON_LENGTH * i + j];
 
@@ -110,7 +110,7 @@ __kernel void
 
 // Update velocities
 __kernel void
-	TimeMarching3(
+	UpdateVelocity(
         __global double *Udn,
         __global double *Uddn
 	)
@@ -135,7 +135,7 @@ __kernel void
 	const int i = get_global_id(0);
 	const int j = get_global_id(1);
 
-	if ((i < PD_NODE_NO) && (j > 0) && (j < MAX_HORIZON_LENGTH))
+	if ((i < PD_NODE_NO) && (j >= 0) && (j < MAX_HORIZON_LENGTH))
 	{
 		const int n = Horizons[i * MAX_HORIZON_LENGTH + j];
 
@@ -179,7 +179,7 @@ __kernel void
 	{
 		int active_bonds = 0;
 
-		for (int j = 1; j < MAX_HORIZON_LENGTH; j++)
+		for (int j = 0; j < MAX_HORIZON_LENGTH; j++)
 		{
 			if (Horizons[MAX_HORIZON_LENGTH * i + j] != -1)
 			{

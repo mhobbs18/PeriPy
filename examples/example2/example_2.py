@@ -10,7 +10,7 @@ import numpy as np
 import pathlib
 from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
-from peridynamics.integrators import EulerOpenCL
+from peridynamics.integrators import DormandPrinceOptimised
 from pstats import SortKey, Stats
 # TODO: add argument on command line that gives option to plot results or not,
 # as some systems won't have matplotlib installed.
@@ -276,7 +276,6 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--profile', action='store_const', const=True)
     args = parser.parse_args()
-
     if args.profile:
         profile = cProfile.Profile()
         profile.enable()
@@ -313,7 +312,7 @@ def main():
             )
     model.critical_strain_concrete = 0.005
     model.crackLength = np.double(0.3)
-    model.dt = np.double(1e-3)
+    model.dt = np.double(0.5e-3)
     model.max_reaction = 1.* self_weight # in newtons, about 85 * self weight
     model.load_scale_rate = 1/1000
     # Set force and displacement boundary conditions
@@ -322,8 +321,9 @@ def main():
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
-    integrator = EulerOpenCL(model)
-    damage_data, damage_sum_data, tip_displacement_data = model.simulate(model, sample=1, steps=1, integrator=integrator, write=1, toolbar=0)
+    integrator = DormandPrinceOptimised(model)
+    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=350, integrator=integrator, write=350, toolbar=0)
+    print('damage_sum_data', damage_sum_data)
 # =============================================================================
 #     plt.figure(1)
 #     plt.title('damage over time')
