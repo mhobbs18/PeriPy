@@ -23,7 +23,7 @@
 // Update un
 __kernel void
 	TimeMarching1(
-        __global double const *Udn,
+        __global float const *Udn,
         __global double *Un,
 		__global int const *BCTypes,
 		__global double const *BCValues
@@ -79,12 +79,9 @@ __kernel void
 
 			const double _EAL = _E * _A / _L;
 
-			//Forces[MAX_HORIZON_LENGTH * (DPN * i + 0) + j] = _EAL * cx * y_xi;
-			//Forces[MAX_HORIZON_LENGTH * (DPN * i + 1) + j] = _EAL * cy * y_xi;
-			//Forces[MAX_HORIZON_LENGTH * (DPN * i + 2) + j] = _EAL * cz * y_xi;
-			Forces[MAX_HORIZON_LENGTH * (DPN * i + 0) + j] = 1.00;
-			Forces[MAX_HORIZON_LENGTH * (DPN * i + 1) + j] = 2.00;
-			Forces[MAX_HORIZON_LENGTH * (DPN * i + 2) + j] = 3.00;
+			Forces[MAX_HORIZON_LENGTH * (DPN * i + 0) + j] = _EAL * cx * y_xi;
+			Forces[MAX_HORIZON_LENGTH * (DPN * i + 1) + j] = _EAL * cy * y_xi;
+			Forces[MAX_HORIZON_LENGTH * (DPN * i + 2) + j] = _EAL * cz * y_xi;
 		}
 		else 
 		{
@@ -145,12 +142,9 @@ __kernel void
 
 				const double _EAL = _E * _A / _L;
 
-                //f0 += _EAL * cx * y_xi;
-                //f1 += _EAL * cy * y_xi;
-                //f2 += _EAL * cz * y_xi;
-				f0 += 1.0;
-                f1 += 2.0;
-                f2 += 3.0;
+                f0 += _EAL * cx * y_xi;
+                f1 += _EAL * cy * y_xi;
+                f2 += _EAL * cz * y_xi;
 			}
 		}
 
@@ -197,13 +191,14 @@ __kernel void
 		//Get the value to add
     	//int index = global_id/local_size;
     	// will this work?
-    	int index = global_id/128;
+    	int index = global_id/MAX_HORIZON_LENGTH;
 		float add_val = local_cache[local_id];
+		Udn[index] = 0.0f;
 		while (add_val != 0.0) {
 			/*Using atomics avoids threads accessing memory at the same time */
 			//Atmomic_xchg lets floats be used in atomic functions
-			float old_val = atomic_xchg(&Udn[index], 0.0); //return the value in output [0] and change it for 0.0
-			add_val = atomic_xchg(&Udn[index], old_val + add_val); //change the value in output[0] for the original output[0] summed with the local value
+			float old_val = atomic_xchg(&Udn[index], 0.0); //return the value in Udn[index] and change it for 0.0
+			add_val = atomic_xchg(&Udn[index], old_val + add_val); //change the value in Udn[index] for the original Udn[index] summed with the local value
 		}
   	}
 }

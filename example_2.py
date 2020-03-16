@@ -10,7 +10,7 @@ import numpy as np
 import pathlib
 from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
-from peridynamics.integrators import EulerOpenCLReductionDouble
+from peridynamics.integrators import EulerOpenCLReductionFloat
 from pstats import SortKey, Stats
 # TODO: add argument on command line that gives option to plot results or not,
 # as some systems won't have matplotlib installed.
@@ -321,9 +321,9 @@ def main():
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
-    integrator = EulerOpenCLReductionDouble(model)
-    damage_data, damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=3, integrator=integrator, write=1, toolbar=0)
-    print('damage_sum_data', damage_sum_data[0])
+    integrator = EulerOpenCLReductionFloat(model)
+    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=350, integrator=integrator, write=350, toolbar=0)
+    print('damage_sum_data', damage_sum_data)
 # =============================================================================
 #     plt.figure(1)
 #     plt.title('damage over time')

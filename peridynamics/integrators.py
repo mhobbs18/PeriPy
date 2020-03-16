@@ -559,6 +559,8 @@ class EulerOpenCLReductionDouble(Integrator):
             + "-DMAX_HORIZON_LENGTH=" + str(model.max_horizon_length) + SEP
             + "-DPD_DT=" + str(model.dt) + SEP)
 
+        from pathlib import Path
+        print(Path.cwd())
         program = cl.Program(self.context, kernelsource).build([options_string])
         self.cl_kernel_time_marching_1 = program.TimeMarching1
         self.cl_kernel_time_marching_2 = program.TimeMarching2
@@ -574,9 +576,8 @@ class EulerOpenCLReductionDouble(Integrator):
         self.h_horizons_lengths = model.horizons_lengths
         print(self.h_horizons_lengths)
         print(self.h_horizons)
-        print("shape horizons lengths", self.h_horizons_lengths.shape)
-        print("shape horizons lengths", self.h_horizons.shape)
-        print(self.h_horizons_lengths.dtype, "dtype")
+        print("shape horizons_lengths", self.h_horizons_lengths.shape)
+        print("shape horizons", self.h_horizons.shape)
 
         # Nodal coordinates
         self.h_coords = np.ascontiguousarray(model.coords, dtype=np.float64)
@@ -684,25 +685,25 @@ class EulerOpenCLReductionDouble(Integrator):
     def runtime(self, model):
         # Time marching Part 1
         self.cl_kernel_time_marching_1(self.queue, (model.degrees_freedom * model.nnodes,),
-                                  None, self.d_udn1, self.d_un, self.d_bc_types,
+                                  None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values)
         # Time marching Part 2
         self.cl_kernel_time_marching_2old(self.queue, (model.nnodes,), None, self.d_udn1,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
         # Time marching Part 2: Calc forces
-        self.cl_kernel_time_marching_2(self.queue, (model.nnodes,), None, self.d_forces,
+        self.cl_kernel_time_marching_2(self.queue, (model.nnodes, model.max_horizon_length), None, self.d_forces,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness)
-# =============================================================================
-#         cl.enqueue_copy(self.queue, self.h_forces, self.d_forces)
-#         print(np.sum(np.sum(self.h_forces, axis = 2)), 'sum bond forces')
-# =============================================================================
         # Reduction of forces onto nodal forces
         self.cl_kernel_reduce(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
                                   (model.max_horizon_length,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.d_local_cache)
+        #cl.enqueue_copy(self.queue, self.h_forces, self.d_forces)
         cl.enqueue_copy(self.queue, self.h_udn, self.d_udn)
         cl.enqueue_copy(self.queue, self.h_udn1, self.d_udn1)
-        print(self.h_udn[0])
-        print(self.h_udn1[0])
+        print(self.h_udn[210], 'newline')
+        print(self.h_udn1[210])
+        #print(np.sum(self.h_forces), 'newline')
+        #print(np.sum(self.h_udn))
+        #print(np.sum(self.h_udn1))
         # Check for broken bonds
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
@@ -785,7 +786,7 @@ class EulerOpenCLReductionFloat(Integrator):
         output_device_info(self.context.devices[0])
 
         # Build the OpenCL program from file
-        kernelsource = open(pathlib.Path(__file__).parent.absolute() / "kernels/opencl_euler_reduction_double.cl").read()
+        kernelsource = open(pathlib.Path(__file__).parent.absolute() / "kernels/opencl_euler_reduction_float.cl").read()
         SEP = " "
 
         options_string = (
@@ -795,8 +796,6 @@ class EulerOpenCLReductionFloat(Integrator):
             + "-DMAX_HORIZON_LENGTH=" + str(model.max_horizon_length) + SEP
             + "-DPD_DT=" + str(model.dt) + SEP)
 
-        from pathlib import Path
-        print(Path.cwd())
         program = cl.Program(self.context, kernelsource).build([options_string])
         self.cl_kernel_time_marching_1 = program.TimeMarching1
         self.cl_kernel_time_marching_2 = program.TimeMarching2
@@ -812,9 +811,8 @@ class EulerOpenCLReductionFloat(Integrator):
         self.h_horizons_lengths = model.horizons_lengths
         print(self.h_horizons_lengths)
         print(self.h_horizons)
-        print("shape horizons lengths", self.h_horizons_lengths.shape)
-        print("shape horizons lengths", self.h_horizons.shape)
-        print(self.h_horizons_lengths.dtype, "dtype")
+        print("shape horizons_lengths", self.h_horizons_lengths.shape)
+        print("shape horizons", self.h_horizons.shape)
 
         # Nodal coordinates
         self.h_coords = np.ascontiguousarray(model.coords, dtype=np.float64)
@@ -844,9 +842,9 @@ class EulerOpenCLReductionFloat(Integrator):
         self.h_udn1 = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
         # Bond forces
-        self.local_size = np.intc(16)
+        self.local_size = np.intc(2)
         self.h_forces =  np.empty((model.nnodes, model.degrees_freedom, model.max_horizon_length), dtype=np.float64)
-        self.h_local_cache = np.zeros(model.max_horizon_length, dtype=np.float64)
+        self.h_local_cache = np.zeros(self.local_size, dtype=np.float64)
 
         # Damage vector
         self.h_damage = np.empty(model.nnodes).astype(np.float64)
@@ -923,20 +921,24 @@ class EulerOpenCLReductionFloat(Integrator):
     def runtime(self, model):
         # Time marching Part 1
         self.cl_kernel_time_marching_1(self.queue, (model.degrees_freedom * model.nnodes,),
-                                  None, self.d_udn1, self.d_un, self.d_bc_types,
+                                  None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values)
         # Time marching Part 2
-        self.cl_kernel_time_marching_2old(self.queue, (model.nnodes,), None, self.d_udn1,
-                                  self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+        #self.cl_kernel_time_marching_2old(self.queue, (model.nnodes,), None, self.d_udn1,
+                                  #self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
         # Time marching Part 2: Calc forces
-        self.cl_kernel_time_marching_2(self.queue, (model.nnodes,), None, self.d_forces,
+        self.cl_kernel_time_marching_2(self.queue, (model.nnodes, model.max_horizon_length), None, self.d_forces,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness)
-        cl.enqueue_copy(self.queue, self.h_forces, self.d_forces)
         # Reduction of forces onto nodal forces
         self.cl_kernel_reduce(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
                                   (self.local_size,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.d_local_cache)
-        cl.enqueue_copy(self.queue, self.h_udn, self.d_udn)
-        cl.enqueue_copy(self.queue, self.h_udn1, self.d_udn1)
+# =============================================================================
+#         print(self.h_udn[210], 'newline')
+#         print(self.h_udn1[210])
+#         print(np.sum(self.h_forces), 'newline')
+#         print(np.sum(self.h_udn))
+#         print(np.sum(self.h_udn1))
+# =============================================================================
         # Check for broken bonds
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
@@ -2834,7 +2836,6 @@ class EulerStochastic(Integrator):
 
         # Displacements
         self.h_un = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
-        self.h_pn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
         # Forces
         self.h_udn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
@@ -2914,7 +2915,6 @@ class EulerStochastic(Integrator):
     def reset(self, model, steps):
         # Displacements
         self.h_un = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
-        self.h_pn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
         # Forces
         self.h_udn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)

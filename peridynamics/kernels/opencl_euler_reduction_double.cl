@@ -79,12 +79,9 @@ __kernel void
 
 			const double _EAL = _E * _A / _L;
 
-			//Forces[MAX_HORIZON_LENGTH * (DPN * i + 0) + j] = _EAL * cx * y_xi;
-			//Forces[MAX_HORIZON_LENGTH * (DPN * i + 1) + j] = _EAL * cy * y_xi;
-			//Forces[MAX_HORIZON_LENGTH * (DPN * i + 2) + j] = _EAL * cz * y_xi;
-			Forces[MAX_HORIZON_LENGTH * (DPN * i + 0) + j] = 1.00;
-			Forces[MAX_HORIZON_LENGTH * (DPN * i + 1) + j] = 2.00;
-			Forces[MAX_HORIZON_LENGTH * (DPN * i + 2) + j] = 3.00;
+			Forces[MAX_HORIZON_LENGTH * (DPN * i + 0) + j] = _EAL * cx * y_xi;
+			Forces[MAX_HORIZON_LENGTH * (DPN * i + 1) + j] = _EAL * cy * y_xi;
+			Forces[MAX_HORIZON_LENGTH * (DPN * i + 2) + j] = _EAL * cz * y_xi;
 		}
 		else 
 		{
@@ -145,12 +142,9 @@ __kernel void
 
 				const double _EAL = _E * _A / _L;
 
-                //f0 += _EAL * cx * y_xi;
-                //f1 += _EAL * cy * y_xi;
-                //f2 += _EAL * cz * y_xi;
-				f0 += 1.00;
-                f1 += 2.00;
-                f2 += 3.00;
+                f0 += _EAL * cx * y_xi;
+                f1 += _EAL * cy * y_xi;
+                f2 += _EAL * cz * y_xi;
 			}
 		}
 
