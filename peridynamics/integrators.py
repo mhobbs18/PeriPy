@@ -608,7 +608,7 @@ class EulerOpenCLReductionDouble(Integrator):
 
         # Bond forces
         self.h_forces =  np.empty((model.nnodes, model.degrees_freedom, model.max_horizon_length), dtype=np.float64)
-        self.h_local_cache = np.zeros(model.max_horizon_length, dtype=np.float64)
+        self.local_mem = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
 
         # Damage vector
         self.h_damage = np.empty(model.nnodes).astype(np.float64)
@@ -650,7 +650,6 @@ class EulerOpenCLReductionDouble(Integrator):
                 hostbuf=self.h_horizons)
         self.d_un = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_un.nbytes)
         self.d_forces = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_forces.nbytes)
-        self.d_local_cache = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_local_cache.nbytes)
         self.d_udn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn.nbytes)
         self.d_udn1 = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn.nbytes)
 
@@ -688,19 +687,19 @@ class EulerOpenCLReductionDouble(Integrator):
                                   None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values)
         # Time marching Part 2
-        self.cl_kernel_time_marching_2old(self.queue, (model.nnodes,), None, self.d_udn1,
-                                  self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+        #self.cl_kernel_time_marching_2old(self.queue, (model.nnodes,), None, self.d_udn1,
+                                  #self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
         # Time marching Part 2: Calc forces
         self.cl_kernel_time_marching_2(self.queue, (model.nnodes, model.max_horizon_length), None, self.d_forces,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness)
         # Reduction of forces onto nodal forces
         self.cl_kernel_reduce(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
-                                  (model.max_horizon_length,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.d_local_cache)
+                                  (model.max_horizon_length,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem)
         #cl.enqueue_copy(self.queue, self.h_forces, self.d_forces)
-        cl.enqueue_copy(self.queue, self.h_udn, self.d_udn)
-        cl.enqueue_copy(self.queue, self.h_udn1, self.d_udn1)
-        print(self.h_udn[210], 'newline')
-        print(self.h_udn1[210])
+        #cl.enqueue_copy(self.queue, self.h_udn, self.d_udn)
+        #cl.enqueue_copy(self.queue, self.h_udn1, self.d_udn1)
+        #print(self.h_udn[210], 'newline')
+        #print(self.h_udn1[210])
         #print(np.sum(self.h_forces), 'newline')
         #print(np.sum(self.h_udn))
         #print(np.sum(self.h_udn1))
@@ -842,9 +841,9 @@ class EulerOpenCLReductionFloat(Integrator):
         self.h_udn1 = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
         # Bond forces
-        self.local_size = np.intc(2)
+        self.local_size = np.intc(128)
         self.h_forces =  np.empty((model.nnodes, model.degrees_freedom, model.max_horizon_length), dtype=np.float64)
-        self.h_local_cache = np.zeros(self.local_size, dtype=np.float64)
+        self.local_mem = cl.LocalMemory(np.dtype(np.float64).itemsize * self.local_size)
 
         # Damage vector
         self.h_damage = np.empty(model.nnodes).astype(np.float64)
@@ -886,7 +885,6 @@ class EulerOpenCLReductionFloat(Integrator):
                 hostbuf=self.h_horizons)
         self.d_un = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_un.nbytes)
         self.d_forces = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_forces.nbytes)
-        self.d_local_cache = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_local_cache.nbytes)
         self.d_udn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn.nbytes)
         self.d_udn1 = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn.nbytes)
 
@@ -931,7 +929,7 @@ class EulerOpenCLReductionFloat(Integrator):
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness)
         # Reduction of forces onto nodal forces
         self.cl_kernel_reduce(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
-                                  (self.local_size,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.d_local_cache)
+                                  (self.local_size,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem)
 # =============================================================================
 #         print(self.h_udn[210], 'newline')
 #         print(self.h_udn1[210])

@@ -162,7 +162,7 @@ __kernel void
         __global float *Udn,
         __global int const *FCTypes,
         __global double const *FCValues,
-        __local double* local_cache
+        __local double *local_cache
    )
 {
     
