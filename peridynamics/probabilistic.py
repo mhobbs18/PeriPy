@@ -7,7 +7,6 @@ Created on Mon Mar  2 10:44:27 2020
 Probabilstic functions for probabilistic peridynamics
 """
 import numpy as np
-from scipy.special import gamma
 import scipy.stats as sp
 
 def multivar_normal(L, num_nodes):

@@ -1323,7 +1323,7 @@ class OpenCLProbabilistic(OpenCL):
         #self.C = self.K
         #self.L_0 = np.sqrt(norms_matrix)
 
-    def simulate(self, model, sample, steps, integrator, write=None, toolbar=0):
+    def simulate(self, model, sample, realisation, steps, integrator, write=None, toolbar=0):
         """
         Simulate the peridynamics model.
 
@@ -1366,7 +1366,7 @@ class OpenCLProbabilistic(OpenCL):
             integrator.runtime(model, step-1)
             if write:
                 if step % write == 0:
-                    damage_data = integrator.write(model, step, sample)
+                    damage_data = integrator.write(model, step, sample, realisation)
                     if toolbar == 0:
                         print('Print number {}/{} complete in {} s '.format(int(step/write), int(steps/write), time.time() - st))
                         st = time.time()

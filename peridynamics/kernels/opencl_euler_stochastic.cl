@@ -23,26 +23,28 @@
 // Update un
 __kernel void
 	UpdateDisplacement(
-    __global double const *Udn,
-    __global double *Un,
+        __global double const *Udn1,
+        __global double *Un,
+		__global double *Pn,
 		__global int const *BCTypes,
-		__global double const *BCValues
+		__global double const *BCValues,
+		int step
 	)
 {
 	const int i = get_global_id(0);
 
 	if (i < PD_DPN_NODE_NO)
 	{
-		Un[i] = BCTypes[i] == 2 ? Un[i] + PD_DT * (Udn[i]) : Un[i] + BCValues[i] ;
+		Un[i] = BCTypes[i] == 2 ? Un[i] + Pn[step * PD_DPN_NODE_NO + i] + PD_DT * (Udn1[i]) : Un[i] + BCValues[i];
 	}
 }
 
 // Calculate force using un
 __kernel void
 	CalcBondForce(
-    __global double *Forces,
-    __global double const *Un,
-    __global double const *Vols,
+    	__global double *Forces,
+    	__global double const *Un,
+    	__global double const *Vols,
 		__global int *Horizons,
 		__global double const *Nodes,
 		__global double const *Stiffnesses,
@@ -179,4 +181,22 @@ __kernel void
     // Update damage
     Phi[index] = 1.00 - (double) local_cache[local_id] / (double) (HorizonLengths[index]);
 }
+}
+
+__kernel void mmul(
+    __global double* C,
+    __global double* Udn,
+    __global double* Udn1)
+{
+    int k;
+    int i = get_global_id(0);
+    int j = get_global_id(1);
+    double tmp;
+    if ((i < PD_NODE_NO) && (j < DPN))
+    {
+        tmp = 0.0;
+        for (k = 0; k < PD_NODE_NO; k++)
+            tmp += C[i*PD_NODE_NO+k] * Udn[k*DPN+j];
+        Udn1[i*DPN+j] = tmp;
+    }
 }
