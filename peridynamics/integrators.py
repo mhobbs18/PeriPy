@@ -2837,7 +2837,7 @@ class EulerStochastic(Integrator):
         # Initialize kernel parameters
     def runtime(self, model, step):
         # Time marching Part 1
-        self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
+        self.cl_kernel_update_displacement(self.queue, (model.nnodes* model.degrees_freedom,),
                                   None, self.d_udn, self.d_un, self.d_pn, self.d_bc_types,
                                   self.d_bc_values, np.intc(step))
         # Time marching Part 2: Calc forces

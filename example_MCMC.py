@@ -246,8 +246,8 @@ def main():
     # MCMC wrapper function
     # read the data
     damage_data = read_data(model)
-    samples = 10000
-    realisations = 4
+    samples = 10
+    realisations = 3
     
     # Define start point of the Metropolis Hastings sampler w[1] is lambda, w[0] is sigma
     w_prev = [-6.51, -5.05]
@@ -325,7 +325,7 @@ def main():
 #     yedges = np.linspace(ystart, yfinish, NO_BINS)
 #     H, xedges, yedges = np.histogram2d(data[0], data[1], bins=(xedges, yedges))
 # =============================================================================
-    print('The percentage of accepted samples was {}%'.format(len(data[0])*100/(total_samples)))
+    #print('The percentage of accepted samples was {}%'.format(len(data[0])*100/(total_samples)))
     
 # =============================================================================
 #     plt.figure()
