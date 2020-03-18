@@ -33,7 +33,7 @@ __kernel void
 {
 	const int i = get_global_id(0);
 
-	if (i < PD_NODE_NO)
+	if (i < PD_DPN_NODE_NO)
 	{
 		Un[i] = BCTypes[i] == 2 ? Un[i] + Pn[step * PD_DPN_NODE_NO + i] + PD_DT * (Udn1[i]) : Un[i] + BCValues[i];
 	}
