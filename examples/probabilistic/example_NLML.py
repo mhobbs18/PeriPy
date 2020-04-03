@@ -12,19 +12,13 @@ from peridynamics import OpenCLProbabilistic
 from peridynamics.model import initial_crack_helper
 from peridynamics.integrators import EulerStochastic
 from pstats import SortKey, Stats
-import scipy.stats as sp
 #import matplotlib.pyplot as plt
 import shutil
 import os
 import mcmc
-import csv
 
 mesh_file_name = 'test.msh'
 mesh_file = pathlib.Path(__file__).parent.absolute() / mesh_file_name
-
-token_problems = ['test.msh', 'debug3D.msh', 'debug3D2.msh']
-verification_problems = ['1000beam2D.msh', '1000beam3D.msh', '1000beam3DT.msh']
-benchmark_problems = ['3300beam.msh']
 
 @initial_crack_helper
 def is_crack(x, y):
@@ -49,81 +43,12 @@ def is_crack(x, y):
 
 def is_tip(horizon, x):
     output = 0
-    if mesh_file_name in verification_problems:
-        if x[0] > 1.0 - 1./3 * horizon:
-            output = 1
-    elif mesh_file_name in benchmark_problems:
-        if x[0] > 3.3 - 0.5 * horizon:
-            output = 1
-    elif mesh_file_name in token_problems:
-        if x[0] > 1.0 - 1. * horizon:
-            output = 1
     return output
 
 def is_rebar(p):
     """ Function to determine whether the node coordinate is rebar
     """
-    p = p[1:] # y and z coordinates for this node
-    if mesh_file_name == '3300beam.msh':
-        bar_centers = [
-            # Compressive bars 25mm of cover
-            np.array((0.031, 0.031)),
-            np.array((0.219, 0.031)),
-
-            # Tensile bars 25mm of cover
-            np.array((0.03825, 0.569)),
-            np.array((0.21175, 0.569))]
-
-        rad_c = 0.006
-        rad_t = 0.01325
-
-        radii = [
-            rad_c,
-            rad_c,
-            rad_t,
-            rad_t]
-
-        costs = [ np.sum(np.square(cent - p) - (np.square(rad))) for cent, rad in zip(bar_centers, radii) ]
-        if any( c <= 0 for c in costs ):
-            return True
-        else:
-            return False
-    elif mesh_file_name == '1000beam3DT.msh':
-        # Beam type 1 for flexural failure beam
-        # Beam type 2 for shear failure beam
-        beam_type = 2
-        if beam_type == 1:
-            bar_centers = [
-                    # Tensile bars 25mm of cover, WARNING: only gives 21.8mm inner spacing of bars
-                    np.array((0.0321, 0.185)),
-                    np.array((0.0679, 0.185))]
-            rad_t = 0.00705236
-            
-            radii = [
-                    rad_t,
-                    rad_t]
-            costs = [ np.sum(np.square(cent - p) - (np.square(rad))) for cent, rad in zip(bar_centers, radii) ]
-            if any( c <= 0 for c in costs ):
-                return True
-            else:
-                return False
-        elif beam_type ==2:
-            bar_centers = [
-                    # Tensile bars 25mm of cover, WARNING: only gives 7.6mm inner spacing of bars
-                    np.array((0.0356, 0.185)),
-                    np.array((0.0644, 0.185))]
-            rad_t = 0.0105786
-            
-            radii = [
-                    rad_t,
-                    rad_t]
-            costs = [ np.sum(np.square(cent - p) - (np.square(rad))) for cent, rad in zip(bar_centers, radii) ]
-            if any( c <= 0 for c in costs ):
-                return True
-            else:
-                return False
-    else:
-        return False
+    return False
 
 def bond_type(x, y):
     """ 
@@ -134,7 +59,7 @@ def bond_type(x, y):
         'plain = 0' will return a concrete beam with some rebar as specified
         in "is_rebar()"
     """
-    plain = 0
+    plain = 1
     output = 0 # default to concrete
     bool1 = is_rebar(x)
     bool2 = is_rebar(y)
@@ -156,30 +81,13 @@ def is_boundary(horizon, x):
     1 is displacement loaded IN +ve direction
     0 is clamped boundary
     """
-    if mesh_file_name in token_problems:
-        # Does not live on a boundary
-        bnd = 2
-        # Does live on boundary
-        if x[0] < 1.5 * horizon:
-            bnd = -1
-        elif x[0] > 1.0 - 1.5 * horizon:
-            bnd = 1
-    elif mesh_file_name in verification_problems:
-        # Does not live on a boundary
-        bnd = 2
-        # Does live on boundary
-        if x[0] < 1.5* horizon:
-            bnd = 0
-        if x[0] > 1.0 - 1.* horizon:
-            if x[2] > 0.2 - 1.* horizon:
-                bnd = 1
-    elif mesh_file_name == '3300beam.msh':
-        bnd = 2
-        if x[0] < 1.5 * horizon:
-            bnd = 0
-        if x[0] > 3.3 - 0.3* horizon:
-            if x[2] > 0.6 - 0.3*horizon:
-                bnd = 1
+    # Does not live on a boundary
+    bnd = 2
+    # Does live on boundary
+    if x[0] < 1.5 * horizon:
+        bnd = -1
+    elif x[0] > 1.0 - 1.5 * horizon:
+        bnd = 1
     return bnd
 
 def is_forces_boundary(horizon, x):
@@ -189,26 +97,7 @@ def is_forces_boundary(horizon, x):
     -1 is force loaded IN -ve direction
     1 is force loaded IN +ve direction
     """
-    if mesh_file_name in token_problems:
-        bnd = 2
-        if x[0] > 1.0 - 1.5 * horizon:
-            bnd = 2
-    elif mesh_file_name == '1000beam2D.msh':
-        bnd = 2
-        if x[1] > 0.2 - 1./3 * horizon:
-            bnd = 2
-    elif mesh_file_name == '1000beam3DT.msh':
-        bnd = 2
-        if x[2] > 0.2 - 1. * horizon:
-            bnd = -1
-    elif mesh_file_name in verification_problems:
-        bnd = 2
-        if x[0] > 1.0 - 1. * horizon:
-            bnd = -1
-    elif mesh_file_name == '3300beam.msh':
-        bnd = 2
-        if x[2] > 0.6 - 1. * horizon:
-            bnd = 2
+    bnd = 2
     return bnd
 
 def boundary_function(model):
@@ -304,160 +193,92 @@ def read_data(model):
     damage_data= np.array(damage_data)
     return damage_data
 
-def main():
-    """
-    3D canteliver beam peridynamics simulation
-    """
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--profile', action='store_const', const=True)
-    args = parser.parse_args()
 
-    if args.profile:
-        profile = cProfile.Profile()
-        profile.enable()
 
-    volume_total = 1.0
-    density_concrete = 1
-    self_weight = 1.*density_concrete * volume_total * 9.81
-    # Sength scale for covariance matrix
-    l = 1e-2
-    # Vertical scale of the covariance matrix
-    nu = 9e-4
-    model = OpenCLProbabilistic(mesh_file_name, volume_total, nu, l, bond_type=bond_type, initial_crack=is_crack)
-    #dx = np.power(1.*volume_total/model.nnodes,1./(model.dimensions))
-    # Set simulation parameters
-    # not a transfinite mesh
-    model.transfinite = 0
-    # do precise stiffness correction factors
-    model.precise_stiffness_correction = 1
-    # Only one material in this example, that is 'concrete'
-    model.density = density_concrete
-    #self.horizon = dx * np.pi 
-    model.horizon = 0.1
-    model.family_volume = np.pi * np.power(model.horizon, 2)
-    model.damping = 1 # damping term
-    # Peridynamic bond stiffness, c
-    model.bond_stiffness_concrete = (
-            np.double((18.00 * 0.05) /
-            (np.pi * np.power(model.horizon, 4)))
-            )
-    model.critical_strain_concrete = 0.005
-    model.crackLength = np.double(0.3)
-    model.dt = np.double(1e-3)
-    model.max_reaction = 1.* self_weight # in newtons, about 85 * self weight
-    model.load_scale_rate = 1/1000
-    # Set force and displacement boundary conditions
-    boundary_function(model)
-    boundary_forces_function(model)
-    # delete output directory contents, this is probably unsafe?
-    shutil.rmtree('./output', ignore_errors=False)
-    os.mkdir('./output')
-    # NLML optimiser wrapper function
-    # read the data
-    damage_data = read_data(model)
-    # define meshgrid over which to search for optimised model parameters
-    
-    samples = 1000
-    realisations = 10
-    
-    # Define start point of the Metropolis Hastings sampler w[1] is lambda, w[0] is sigma
-    w_prev = [-7.01, -4.605]
-    
-    # Define proposal density of the MCMC sampler
-    w_cov = [[0.001, 0.0],[0.0, 0.001]]
-    
-    # Get the intial likelihood
-    # update (l, sigma)
-    model._set_H(np.exp(w_prev[1]), np.exp(w_prev[0]))
-    integrator = EulerStochastic(model)
-    likelihood_prev = 0
-    for realisation in range(realisations):
-        integrator.reset(model)
-        sample_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=350, integrator=integrator, write=350, toolbar=0)
-        likelihood_prev += mcmc.get_fast_likelihood(damage_data, sample_data)
-    
-    assert likelihood_prev != 0, 'Floating point error on first likelihood value: likelihood must be more than 0'
+from GwFlow import GwFlowSolver
+from random_process import RandomProcess
 
-    # Evaluate the pdf of the distribution we want to sample from
-    prior_prev = mcmc.gamma_prior_pdf(w_prev[0])*mcmc.gamma_prior_pdf(w_prev[1])
-    data = [[],[]]
-    total_samples = 0
-    
-    for sample in range(samples):
-        total_samples += 1
-        # Get proposal parameters
-        w = sp.multivariate_normal.rvs(w_prev, w_cov, 1)
+class Model:
+    def __init__(self, resolution, field_mean, mkl, field_stdev, lamb):
+        '''
+        This class is basically a wrapper around OpenCLProbabilistic and RandomProcess.
+        It has some functions that makes it simple to access important features.
+        '''
+        
+        # Set up all the parameters needed for the solver and the ransom field.
+        self.resolution = resolution
+        self.field_mean = field_mean
+        self.field_stdev = field_stdev
+        self.mkl = mkl
+        self.lamb = lamb
+        
+        # Initialise a solver.
+        volume_total = 1.0
+        density_concrete = 1
+        self_weight = 1.*density_concrete * volume_total * 9.81
+
+        self.solver = OpenCLProbabilistic(mesh_file_name, volume_total, field_stdev, lamb, bond_type=bond_type, initial_crack=is_crack)
+        # Set simulation parameters
+        # not a transfinite mesh
+        self.solver.transfinite = 0
+        # do precise stiffness correction factors
+        self.solver.precise_stiffness_correction = 1
+        # Only one material in this example, that is 'concrete'
+        self.solver.density = density_concrete
+        #dx = np.power(1.*volume_total/model.nnodes,1./(model.dimensions))
+        #self.horizon = dx * np.pi 
+        self.solver.horizon = 0.1
+        self.solver.family_volume = np.pi * np.power(self.solver.horizon, 2)
+        self.solver.damping = 1 # damping term
+        # Peridynamic bond stiffness, c
+        self.solver.bond_stiffness_concrete = (
+                np.double((18.00 * 0.05) /
+                (np.pi * np.power(self.solver.horizon, 4)))
+                )
+        self.solver.critical_strain_concrete = 0.005
+        self.solver.crackLength = np.double(0.3)
+        self.solver.dt = np.double(1e-3)
+        self.solver.max_reaction = 1.* self_weight
+        self.solver.load_scale_rate = 1
+        # Set force and displacement boundary conditions
+        boundary_function(self.solver)
+        boundary_forces_function(self.solver)
+        # delete output directory contents, this is probably unsafe?
+        shutil.rmtree('./output', ignore_errors=False)
+        os.mkdir('./output')
+        
+        # initialise a random process given the solver mesh.
+        self.random_process = RandomProcess(self.solver.mesh, self.mkl, self.lamb)
+        
+        # Compute the eigenpairs of the covariance matrix in the random process.
+        self.random_process.compute_eigenpairs()
+        
+        
+        
+    def solve(self, parameters = None):
+        """
+        Solves the problem, given random field parameters.
+            Input:
+            Output:
+        """
+        
+        damage_data = read_data(self.solver)
+        realisations = 3       
+        # Get the intial likelihood
         # update (l, sigma)
-        model._set_H(np.exp(w_prev[1]), np.exp(w_prev[0]))
-        # Multiply two single variate prior distributions
-        prior = mcmc.gamma_prior_pdf(w[0])*mcmc.gamma_prior_pdf(w[1])
-        if prior ==0:
-            None
-        else:
-            # Get the likelihood
-            likelihood = 0
-            for realisation in range(realisations):
-                integrator.reset(model)
-                sample_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample, steps=350, integrator=integrator, write=350, toolbar=0)
-                
-                likelihood += mcmc.get_fast_likelihood(damage_data, sample_data)
-            # unnecessary to divide by realisations since we are doing a sum.
-            
-            # compute acceptance ratio
-            r = (prior * likelihood)/ (prior_prev * likelihood_prev)
-            
-            # Generate u from a unifrom distribution
-            u = np.random.uniform()
-            if u <= r:
-                # accept the sample
-                data[0].append(w[0])
-                data[1].append(w[1])
-                w_prev = w
-                prior_prev = prior
-                likelihood_prev = likelihood
-            else:
-                None
-    
-    # Perform the burn on the first 100 values
-    burn = 1
-    
-    data[0] = data[0][burn:]
-    data[1] = data[1][burn:]
-    
-    print(data)
-# =============================================================================
-#     NO_BINS = 10
-#     xstart = -1.5
-#     xfinish = 1.5
-#     ystart = -6.0
-#     yfinish = -3.0
-#     xedges = np.linspace(xstart, xfinish, NO_BINS)
-#     yedges = np.linspace(ystart, yfinish, NO_BINS)
-#     H, xedges, yedges = np.histogram2d(data[0], data[1], bins=(xedges, yedges))
-# =============================================================================
-    print('The percentage of accepted samples was {}%'.format(len(data[0])*100/(total_samples)))
-    
-# =============================================================================
-#     plt.figure()
-#     plt.hist2d(data[0], data[1], bins=100)
-#     plt.xlabel('$\sigma$')
-#     plt.ylabel('$\zeta$')
-#     plt.show()
-# =============================================================================
-    
-    # Write data to a file
-    with open(pathlib.Path(__file__).parent.absolute() / "mcmc.csv", 'w', newline='') as myfile:
-        wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
-        data_zipped = zip(*data)
-        wr.writerow(data_zipped)
-    
-    if args.profile:
-        profile.disable()
-        s = StringIO()
-        stats = Stats(profile, stream=s).sort_stats(SortKey.CUMULATIVE)
-        stats.print_stats()
-        print(s.getvalue())
-
-
-if __name__ == "__main__":
-    main()
+        #self.solver._set_H(lamb, field_stdev)
+        integrator = EulerStochastic(self.solver)
+        likelihood_prev = 0
+        sample = 0
+        for realisation in range(realisations):
+            integrator.reset(self.solver, steps=350)
+            sample_data = self.solver.simulate(self.solver, sample, realisation, steps=350, integrator=integrator, write=350, toolbar=0)
+            print(np.sum(sample_data), 'sum of damage, realisation #', realisation)
+            likelihood_prev += mcmc.get_fast_likelihood(damage_data, sample_data)
+        assert likelihood_prev != 0, 'Floating point error on first likelihood value: likelihood must be more than 0'
+        # Solve the problem, given a vector of modes.
+        #self.random_process.generate(parameters)
+        #self.parameters = self.random_process.parameters
+        #self.solver.set_conductivity(self.random_process.random_field)
+        #self.solver.solve()
+        return likelihood_prev

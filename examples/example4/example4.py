@@ -303,7 +303,7 @@ def main():
     #model.dt = 1.25e-8
     model.dt = 5.7e-14
     model.max_reaction = 1.* self_weight # in newtons, about 85 times self weight
-    model.load_scale_rate = 1/1000
+    model.load_scale_rate = 1
 
     # Set force and displacement boundary conditions
     boundary_function(model)

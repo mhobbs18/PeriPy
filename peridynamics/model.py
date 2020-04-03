@@ -197,10 +197,10 @@ class Model:
             self.nnodes = self.coords.shape[0]
 
             # Get connectivity, mesh triangle cells
-            self.mesh_connectivity = mesh.cells_dict[self.mesh_elements.connectivity]
+            self.mesh_connectivity = mesh.cells[self.mesh_elements.connectivity]
 
             # Get boundary connectivity, mesh lines
-            self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
+            self.mesh_boundary = mesh.cells[self.mesh_elements.boundary]
 
             # Get number elements on boundary?
             self.nelem_bnd = self.mesh_boundary.shape[0]
@@ -646,6 +646,15 @@ class OpenCL(Model):
         # cuboidal (not tetra) elements, look up "gmsh transfinite") (default 0)
         # I'm only planning on using this for validation against literature
         self.transfinite = 0
+        # There is a restriction that, in OpenCL, the local size
+        # (which is the number of work items per work group) must
+        # be easily divisible, such as a power of 2.
+        # In this way, it is easy to implement fast matrix-
+        # multiplication, UpdateDisplacement etc.
+        # Rounding up number of nodes to next power of 2
+        self.nnodes_power_of_two = np.intc(
+                    1<<(self.nnodes-1).bit_length()
+                )
         # Peridynamics parameters. These parameters will be passed to openCL
         # kernels by command line argument Bond-based peridynamics, known in
         # PDLAMMPS as Prototype Microelastic Brittle (PMB) Model requires a

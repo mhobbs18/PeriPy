@@ -19,14 +19,16 @@ def gamma_prior_pdf(x, alpha =1., beta=100.0):
 
 
 def get_fast_likelihood(damage_data, model_sample):
-    # Since cov = identity, then
+    # Assume idependent, identically distributed with a variance of 1
     l2 = np.dot(damage_data, model_sample)
-    
     nll = 1./2 * l2
     print(nll)
     likelihood = np.exp(-1.*nll)
     print(likelihood)
     return likelihood
+
+def get_KL_divergence(damage_data, model_sample):
+    # Taking the damage_data as ground truth
 
 def beta_likelihood(damage_data, model_sample):
     mode = model_sample
