@@ -3456,10 +3456,16 @@ class EulerOpenCLOptimisedNew(Integrator):
         kernelsource = open(pathlib.Path(__file__).parent.absolute() / "kernels/opencl_euler_optimised_1.1.cl").read()
         SEP = " "
 
+        # Define a rounded value
+        work_groups = 1
+        self.global_dimension = np.intc(model.degrees_freedom * np.intc(1<<(model.nnodes-1).bit_length()) / work_groups)
+        self.local_dimension = np.intc(work_groups)
         options_string = (
             "-cl-fast-relaxed-math" + SEP
             + "-DPD_DPN_NODE_NO=" + str(model.degrees_freedom * model.nnodes) + SEP
             + "-DPD_NODE_NO=" + str(model.nnodes) + SEP
+            + "-DGLOBAL_DIMENSION=" + str(self.global_dimension) + SEP
+            + "-DLOCAL_DIMENSION=" + str(self.local_dimension) + SEP
             + "-DMAX_HORIZON_LENGTH=" + str(model.max_horizon_length) + SEP
             + "-DPD_DT=" + str(model.dt) + SEP)
 
@@ -3581,8 +3587,8 @@ class EulerOpenCLOptimisedNew(Integrator):
 
     def runtime(self, model):
         # Update displacements
-        self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
-                                  None, self.d_udn, self.d_un, self.d_bc_types,
+        self.cl_kernel_update_displacement(self.queue, (self.global_dimension,),
+                                  (self.local_dimension,), self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values)
         # Calc bond forces
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes, model.max_horizon_length), None, self.d_forces,

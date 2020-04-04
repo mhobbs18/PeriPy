@@ -15,7 +15,7 @@
 // Macros
 
 #define DPN 3
-// MAX_HORIZON_LENGTH, PD_DT, PD_E, PD_S0, PD_NODE_NO, PD_DPN_NODE_NO will be defined on JIT compiler's command line
+// MAX_HORIZON_LENGTH, GLOBAL_DIMENSION, LOCAL_DIMENSION, PD_DT, PD_E, PD_S0, PD_NODE_NO, PD_DPN_NODE_NO, PD_DPN_NODE_NO_ROUNDED will be defined on JIT compiler's command line
 
 // A horizon by horizon approach is chosen to proceed with the solution, in which
 // no assembly of the system of equations is required.
@@ -29,12 +29,16 @@ __kernel void
 		__global double const *BCValues
 	)
 {
+  int j;
 	const int i = get_global_id(0);
 
-	if (i < PD_DPN_NODE_NO)
+  if (i < GLOBAL_DIMENSION)
 	{
-		Un[i] = BCTypes[i] == 2 ? Un[i] + PD_DT * (Udn[i]) : Un[i] + BCValues[i] ;
-	}
+    for (j = 0; j < LOCAL_DIMENSION; j++)
+    {
+      Un[i*LOCAL_DIMENSION + j] = BCTypes[i*LOCAL_DIMENSION + j] == 2 ? Un[i*LOCAL_DIMENSION + j] + PD_DT * (Udn[i*LOCAL_DIMENSION + j]) : Un[i*LOCAL_DIMENSION + j] + BCValues[i*LOCAL_DIMENSION + j];
+    }
+  }
 }
 
 // Calculate force using un

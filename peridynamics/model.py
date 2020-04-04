@@ -20,12 +20,9 @@ _mesh_elements_3d = _MeshElements(connectivity="tetra",
 class Model:
     """
     A peridynamics model.
-
     This class allows users to define a peridynamics system from parameters and
     a set of initial conditions (coordinates and connectivity).
-
     :Example: ::
-
         >>> from peridynamics import Model
         >>>
         >>> model = Model(
@@ -34,27 +31,21 @@ class Model:
         >>>     critical_strain=0.005,
         >>>     elastic_modulus=0.05
         >>>     )
-
     To define a crack in the inital configuration, you may supply a list of
     pairs of particles between which the crack is.
-
     :Example: ::
-
         >>> from peridynamics import Model, initial_crack_helper
         >>>
         >>> initial_crack = [(1,2), (5,7), (3,9)]
         >>> model = Model(mesh_file, horizon=0.1, critical_strain=0.005,
         >>>               elastic_modulus=0.05, initial_crack=initial_crack)
-
     If it is more convenient to define the crack as a function you may also
     pass a function to the constructor which takes the array of coordinates as
     its only argument and returns a list of tuples as described above. The
     :func:`peridynamics.model.initial_crack_helper` decorator has been provided
     to easily create a function of the correct form from one which tests a
     single pair of node coordinates and returns `True` or `False`.
-
     :Example: ::
-
         >>> from peridynamics import Model, initial_crack_helper
         >>>
         >>> @initial_crack_helper
@@ -67,13 +58,10 @@ class Model:
         >>>
         >>> model = Model(mesh_file, horizon=0.1, critical_strain=0.005,
         >>>               elastic_modulus=0.05, initial_crack=initial_crack)
-
     The :meth:`Model.simulate` method can be used to conduct a peridynamics
     simulation. For this an :class:`peridynamics.integrators.Integrator` is
     required, and optionally a function implementing the boundary conditions.
-
     :Example: ::
-
         >>> from peridynamics import Model, initial_crack_helper
         >>> from peridynamics.integrators import Euler
         >>>
@@ -101,7 +89,6 @@ class Model:
                  initial_crack=[], dimensions=2):
         """
         Construct a :class:`Model` object.
-
         :arg str mesh_file: Path of the mesh file defining the systems nodes
             and connectivity.
         :arg float horizon: The horizon radius. Nodes within `horizon` of
@@ -120,10 +107,8 @@ class Model:
         :type initial_crack: list(tuple(int, int)) or function
         :arg int dimensions: The dimensionality of the model. The
             default is 2.
-
         :returns: A new :class:`Model` object.
         :rtype: Model
-
         :raises DimensionalityError: when an invalid `dimensions` argument is
             provided.
         """
@@ -178,9 +163,7 @@ class Model:
     def _read_mesh(self, filename):
         """
         Read the model's nodes, connectivity and boundary from a mesh file.
-
         :arg str filename: Path of the mesh file to read
-
         :returns: None
         :rtype: NoneType
         """
@@ -208,7 +191,6 @@ class Model:
                    file_format=None):
         """
         Write the model's nodes, connectivity and boundary to a mesh file.
-
         :arg str filename: Path of the file to write the mesh to.
         :arg damage: The damage of each node. Default is None.
         :type damage: :class:`numpy.ndarray`
@@ -217,7 +199,6 @@ class Model:
         :type displacements: :class:`numpy.ndarray`
         :arg str file_format: The file format of the mesh file to
             write. Inferred from `filename` if None. Default is None.
-
         :returns: None
         :rtype: NoneType
         """
@@ -238,7 +219,6 @@ class Model:
     def _volume(self):
         """
         Calculate the value of each node.
-
         :returns: None
         :rtype: NoneType
         """
@@ -262,7 +242,6 @@ class Model:
     def _neighbourhood(self):
         """
         Determine the neighbourhood of all nodes.
-
         :returns: The sparse neighbourhood matrix.  Element [i, j] of this
             martrix is True if i is within `horizon` of j and False otherwise.
         :rtype: :class:`scipy.sparse.csr_matrix`
@@ -282,7 +261,6 @@ class Model:
     def _connectivity(self, neighbourhood, initial_crack):
         """
         Initialise the connectivity.
-
         :arg neighbourhood: The sparse neighbourhood matrix.
         :type neighbourhood: :class:`scipy.sparse.csr_matrix`
         :arg initial_crack: The initial crack of the system. The argument may
@@ -292,7 +270,6 @@ class Model:
             :class:`numpy.ndarray` of coordinates as an argument, and returns a
             list of tuples defining the initial crack.
         :type initial_crack: list(tuple(int, int)) or function
-
         :returns: The sparse connectivity matrix. Element [i, j] of this matrix
             is True if i and j are bonded and False otherwise.
         :rtype: :class:`scipy.sparse.csr_matrix`
@@ -320,10 +297,8 @@ class Model:
     def _displacements(r):
         """
         Determine displacements, in each dimension, between vectors.
-
         :arg r: A (n,3) array of coordinates.
         :type r: :class:`numpy.ndarray`
-
         :returns: A tuple of three arrays giving the displacements between
             each pair of parities in the first, second and third dimensions
             respectively. m[i, j] is the distance from j to i (i.e. i - j).
@@ -343,17 +318,14 @@ class Model:
     def _H_and_L(self, r, connectivity):
         """
         Construct the displacement and distance matrices.
-
         The H matrices  are sparse matrices containing displacements in
         a particular dimension and the L matrix isa sparse matrix containing
         the Euclidean distance. Elements for particles which are not connected
         are 0.
-
         :arg r: The positions of all nodes.
         :type r: :class:`numpy.ndarray`
         :arg connectivity: The sparse connectivity matrix.
         :type connectivity: :class:`scipy.sparse.csr_matrix`
-
         :returns: (H_x, H_y, H_z, L) A tuple of sparse matrix. H_x, H_y and H_z
             are the matrices of displacements between pairs of particles in the
             x, y and z dimensions respectively. L is the Euclidean distance
@@ -377,12 +349,10 @@ class Model:
     def _strain(self, u, L):
         """
         Calculate the strain of all bonds for a given displacement.
-
         :arg u: The displacement array with shape (`nnodes`, `dimension`).
         :type u: :class:`numpy.ndarray`
         :arg L: The euclidean distance between each pair of nodes.
         :type L: :class:`scipy.sparse.csr_matrix`
-
         :returns: The strain between each pair of nodes.
         :rtype: :class:`scipy.sparse.lil_matrix`
         """
@@ -400,12 +370,10 @@ class Model:
     def _break_bonds(self, strain, connectivity):
         """
         Break bonds which have exceeded the critical strain.
-
         :arg strain: The strain of each bond.
         :type strain: :class:`scipy.sparse.lil_matrix`
         :arg connectivity: The sparse connectivity matrix.
         :type connectivity: :class:`scipy.sparse.csr_matrix`
-
         :returns: The updated connectivity.
         :rtype: :class:`scipy.sparse.csr_matrix`
         """
@@ -426,10 +394,8 @@ class Model:
     def _damage(self, connectivity):
         """
         Calculate bond damage.
-
         :arg connectivity: The sparse connectivity matrix.
         :type connectivity: :class:`scipy.sparse.csr_matrix`
-
         :returns: A (`nnodes`, ) array containing the damage for each node.
         :rtype: :class:`numpy.ndarray`
         """
@@ -447,7 +413,6 @@ class Model:
     def _bond_force(self, strain, connectivity, L, H_x, H_y, H_z):
         """
         Calculate the force due to bonds acting on each node.
-
         :arg strain: The strain of each bond.
         :type strain: :class:`scipy.sparse.lil_matrix`
         :arg connectivity: The sparse connectivity matrix.
@@ -463,7 +428,6 @@ class Model:
         :arg H_z: The displacement in the z dimension between each pair of
             nodes.
         :type H_z: :class:`scipy.sparse.csr_matrix`
-
         :returns: A (`nnodes`, 3) array of the component of the force in each
             dimension for each node.
         :rtype: :class:`numpy.ndarray`
@@ -498,7 +462,6 @@ class Model:
                  connectivity=None, first_step=1, write=None, write_path=None):
         """
         Simulate the peridynamics model.
-
         :arg int steps: The number of simulation steps to conduct.
         :arg  integrator: The integrator to use, see
             :mod:`peridynamics.integrators` for options.
@@ -529,7 +492,6 @@ class Model:
         :arg write_path: The path where the periodic mesh files should be
             written.
         :type write_path: path-like or str
-
         :returns: A tuple of the final displacements (`u`), damage and
             connectivity.
         :rtype: tuple(:class:`numpy.ndarray`, :class:`numpy.ndarray`,
@@ -591,11 +553,10 @@ class Model:
 class OpenCL(Model):
     """
     A peridynamics model using OpenCL.
-
     This class allows users to define a peridynamics system from parameters and
     a set of initial conditions (coordinates and connectivity).
     """
-    def __init__(self, mesh_file_name, horizon, family_volume, volume_total, bond_type, network_file_name = 'Network.vtk', initial_crack=[], dimensions=2):
+    def __init__(self, mesh_file_name, volume_total, bond_type, network_file_name = 'Network.vtk', initial_crack=[], dimensions=2):
         """
         Construct a :class:`OpenCL` object, which inherits Model class.
         
@@ -617,10 +578,8 @@ class OpenCL(Model):
         :type initial_crack: list(tuple(int, int)) or function
         :arg int dimensions: The dimensionality of the model. The
             default is 2.
-
         :returns: A new :class:`Model` object.
         :rtype: Model
-
         :raises DimensionalityError: when an invalid `dimensions` argument is
             provided.
         """
@@ -654,8 +613,8 @@ class OpenCL(Model):
         self.poisson_ratio = 0.25
         # These are the parameters that the user needs to define
         self.density = None
-        self.horizon = horizon
-        self.family_volume = family_volume
+        self.horizon = None
+        self.family_volume = None
         self.damping = None
         self.bond_stiffness_concrete = None
         self.bond_stiffness_steel = None
@@ -673,7 +632,6 @@ class OpenCL(Model):
         self._set_volume(volume_total)
 
         # If the network has already been written to file, then read, if not, setNetwork
-        #self._read_network(network_file_name)
         try:
             self._read_network(network_file_name)
         except:
@@ -696,47 +654,6 @@ class OpenCL(Model):
             print("sum total volume", self.sum_total_volume)
             print("user input volume total", volume_total)
 
-    def _read_mesh(self, filename):
-        """
-        Read the model's nodes, connectivity and boundary from a mesh file.
-
-        :arg str filename: Path of the mesh file to read
-
-        :returns: None
-        :rtype: NoneType
-        """
-        mesh = meshio.read(filename)
-
-        if self.transfinite == 1:
-            # In this case, only need coordinates, encoded as mesh points
-            self.coords = mesh.points
-            self.nnodes_unrounded = self.coords.shape[0]
-            self.nnodes = np.intc(
-                    1<<(self.nnodes_unrounded-1).bit_length()
-                )
-        else:
-            # Get coordinates, encoded as mesh points
-            self.coords = mesh.points
-            # There is a restriction that, in OpenCL, the local size
-            # (which is the number of work items per work group) must
-            # be easily divisible, such as a power of 2.
-            # In this way, it is easy to implement fast matrix-
-            # multiplication, UpdateDisplacement etc.
-            # First store the unrounded number
-            self.nnodes_unrounded = self.coords.shape[0]
-            # Rounding up number of nodes to next power of 2
-            self.nnodes = np.intc(
-                    1<<(self.nnodes_unrounded-1).bit_length()
-                )
-            # Get connectivity, mesh triangle cells
-            self.mesh_connectivity = mesh.cells[self.mesh_elements.connectivity]
-
-            # Get boundary connectivity, mesh lines
-            self.mesh_boundary = mesh.cells[self.mesh_elements.boundary]
-
-            # Get number elements on boundary?
-            self.nelem_bnd = self.mesh_boundary.shape[0]
-
     def _read_network(self, network_file):
         """ For reading a network file if it has been written to file yet.
         Significantly quicker than building horizons from scratch, however
@@ -753,7 +670,6 @@ class OpenCL(Model):
             :arg string: The string in the vtk to be found.
             :arg iline: The current count of the line no. in the read of
             'network_file'
-
             :returns: list of strings of row of the chosen line
             :rtype: list
             """
@@ -779,10 +695,6 @@ class OpenCL(Model):
             row_as_list, iline = find_string('NNODES', iline)
             nnodes = int(row_as_list[1])
             print('nnodes', nnodes)
-            # Rounding up number of nodes to next power of 2
-            nnodes_power_of_two = np.intc(
-                    1<<(nnodes-1).bit_length()
-                )
             # Read horizons lengths
             row_as_list, iline = find_string('HORIZONS_LENGTHS', iline)
             horizons_lengths = np.zeros(nnodes, dtype=int)
@@ -836,15 +748,15 @@ class OpenCL(Model):
                 )
             assert max_horizon_length == max_horizon_length_check, 'Read failed on MAX_HORIZON_LENGTH check'
 
-            horizons = -1 * np.ones([nnodes_power_of_two, max_horizon_length])
+            horizons = -1 * np.ones([nnodes, max_horizon_length])
             for i, j in enumerate(family):
                 horizons[i][0:len(j)] = j
 
-            bond_stiffness = -1. * np.ones([nnodes_power_of_two, max_horizon_length])
+            bond_stiffness = -1. * np.ones([nnodes, max_horizon_length])
             for i, j in enumerate(bond_stiffness_family):
                 bond_stiffness[i][0:len(j)] = j
 
-            bond_critical_stretch = -1. * np.ones([nnodes_power_of_two, max_horizon_length])
+            bond_critical_stretch = -1. * np.ones([nnodes, max_horizon_length])
             for i, j in enumerate(bond_critical_stretch_family):
                 bond_critical_stretch[i][0:len(j)] = j
 
@@ -855,7 +767,7 @@ class OpenCL(Model):
             self.horizons_lengths = horizons_lengths.astype(np.intc)
             self.family = family
             self.max_horizon_length = max_horizon_length
-            self.nnodes = nnodes_power_of_two
+            self.nnodes = nnodes
             f.close()
 
     def _set_volume(self, volume_total):
@@ -864,7 +776,6 @@ class OpenCL(Model):
         
         :arg volume_total: User input for the total volume of the mesh, for checking sum total of elemental volumes is equal to user input volume for simple prismatic problems.
         In the case of non-prismatic problems when the user does not know what the volume is, we should do something else as an assertion
-
         :returns: None
         :rtype: NoneType
         """
@@ -883,8 +794,8 @@ class OpenCL(Model):
             The transfinite grid (search on youtube for "transfinite mesh gmsh") is not
             neccessarily made up of tetrahedra, but may be made up of cuboids.
             """
-            tmp = volume_total / self.nnodes_unrounded
-            for i in range(0, self.nnodes_unrounded):
+            tmp = volume_total / self.nnodes
+            for i in range(0, self.nnodes):
                 self.V[i] = tmp
                 self.sum_total_volume += tmp
         else:
@@ -960,11 +871,11 @@ class OpenCL(Model):
         bond_stiffness_family = []
         bond_critical_stretch_family = []
 
-        # Container for number of nodes (not including self) that each of the nodes
+        # Container for number of nodes (including self) that each of the nodes
         # is connected to
-        self.horizons_lengths = np.zeros(self.nnodes_unrounded, dtype=np.intc)
+        self.horizons_lengths = np.zeros(self.nnodes, dtype=np.intc)
 
-        for i in range(0, self.nnodes_unrounded):
+        for i in range(0, self.nnodes):
             print('node', i, 'networking...')
             # Container for family nodes
             tmp = []
@@ -972,7 +883,7 @@ class OpenCL(Model):
             tmp2 = []
             # Container for bond critical stretches
             tmp3 = []
-            for j in range(0, self.nnodes_unrounded):
+            for j in range(0, self.nnodes):
                 if i != j:
                     distance = l2(self.coords[i, :], self.coords[j, :])
                     if distance < horizon:
@@ -999,7 +910,7 @@ class OpenCL(Model):
                 bond_stiffness_family[i][j] = np.float64(tmp2[j])
                 bond_critical_stretch_family[i][j] = np.float64(tmp3[j])
 
-        assert len(family) == self.nnodes_unrounded
+        assert len(family) == self.nnodes
         # As numpy array
         self.family = np.array(family)
 
@@ -1008,7 +919,7 @@ class OpenCL(Model):
         self.bond_stiffness_family = np.array(bond_stiffness_family)
 
         self.family_v = np.zeros(self.nnodes)
-        for i in range(0, self.nnodes_unrounded):
+        for i in range(0, self.nnodes):
             tmp = 0 # tmp family volume
             family_list = family[i]
             for j in range(0, len(family_list)):
@@ -1016,8 +927,8 @@ class OpenCL(Model):
             self.family_v[i] = tmp
 
         if self.precise_stiffness_correction == 1:
-            # Calculate stiffening factor more accurately using actual nodal volumes
-            for i in range(0, self.nnodes_unrounded):
+            # Calculate stiffening factor nore accurately using actual nodal volumes
+            for i in range(0, self.nnodes):
                 family_list = family[i]
                 nodei_family_volume = self.family_v[i] # Possible to calculate more exactly, we have the volumes for free
                 for j in range(len(family_list)):
@@ -1027,7 +938,7 @@ class OpenCL(Model):
                     bond_stiffness_family[i][j] *= stiffening_factor
         elif self.precise_stiffness_correction == 0:
             # Calculate stiffening factor - surface corrections for 3D problem, for this we need family matrix
-            for i in range(0, self.nnodes_unrounded):
+            for i in range(0, self.nnodes):
                 nnodes_i_family = len(family[i])
                 nodei_family_volume = nnodes_i_family * self.average_node_volume # Possible to calculate more exactly, we have the volumes for free
                 for j in range(len(family[i])):
@@ -1065,7 +976,6 @@ class OpenCL(Model):
     def _set_connectivity(self, initial_crack):
         """
         Sets the intial crack.
-
         :arg initial_crack: The initial crack of the system. The argument may
             be a list of tuples where each tuple is a pair of integers
             representing nodes between which to create a crack. Alternatively,
@@ -1073,7 +983,6 @@ class OpenCL(Model):
             :class:`numpy.ndarray` of coordinates as an argument, and returns a
             list of tuples defining the initial crack.
         :type initial_crack: list(tuple(int, int)) or function
-
         :returns: None
         :rtype: NoneType
         
@@ -1109,9 +1018,8 @@ class OpenCL(Model):
         for i in range(0, self.nnodes):
             for k in range(0, self.max_horizon_length):
                 j = self.horizons[i][k]
-                if j != -1: # Don't include 'pseudo-nodes'
-                    if is_crack(self.coords[i, :], self.coords[j, :]):
-                        self.horizons[i][k] = np.intc(-1)
+                if is_crack(self.coords[i, :], self.coords[j, :]):
+                    self.horizons[i][k] = np.intc(-1)
 # =============================================================================
 #         # bb515 this code is really slow due to the non symmetry of
 #         # self.horizons
@@ -1142,7 +1050,6 @@ class OpenCL(Model):
     def simulate(self, model, sample, steps, integrator, write=None, toolbar=0):
         """
         Simulate the peridynamics model.
-
         :arg int steps: The number of simulation steps to conduct.
         :arg  integrator: The integrator to use, see
             :mod:`peridynamics.integrators` for options.
@@ -1211,7 +1118,6 @@ class OpenCL(Model):
 class OpenCLProbabilistic(OpenCL):
     """
     A peridynamics model using OpenCL.
-
     This class allows users to define a peridynamics system from parameters and
     a set of initial conditions (coordinates and connectivity).
     """
@@ -1237,10 +1143,8 @@ class OpenCLProbabilistic(OpenCL):
         :type initial_crack: list(tuple(int, int)) or function
         :arg int dimensions: The dimensionality of the model. The
             default is 2.
-
         :returns: A new :class:`Model` object.
         :rtype: Model
-
         :raises DimensionalityError: when an invalid `dimensions` argument is
             provided.
         """
@@ -1321,7 +1225,6 @@ class OpenCLProbabilistic(OpenCL):
         """
         Constructs the failure strains matrix and H matrix, which is a sparse
         matrix containing distances.
-
         :returns: None
         :rtype: NoneType
         """
@@ -1373,7 +1276,6 @@ class OpenCLProbabilistic(OpenCL):
     def simulate(self, model, sample, realisation, steps, integrator, write=None, toolbar=0):
         """
         Simulate the peridynamics model.
-
         :arg int steps: The number of simulation steps to conduct.
         :arg  integrator: The integrator to use, see
             :mod:`peridynamics.integrators` for options.
@@ -1431,20 +1333,16 @@ class OpenCLProbabilistic(OpenCL):
 def initial_crack_helper(crack_function):
     """
     Help the construction of an initial crack function.
-
     `crack_function` has the form `crack_function(icoord, jcoord)` where
     `icoord` and `jcoord` are :class:`numpy.ndarray` s representing two node
     coordinates.  crack_function returns a truthy value if there is a crack
     between the two nodes and a falsy value otherwise.
-
     This decorator returns a function which takes all node coordinates and
     returns a list of tuples of the indices pair of nodes which define the
     crack. This function can therefore be used as the `initial_crack` argument
     of the :class:`Model`
-
     :arg function crack_function: The function which determine whether there is
         a crack between a pair of node coordinates.
-
     :returns: A function which determines all pairs of nodes with a crack
         between them.
     :rtype: function
@@ -1467,10 +1365,8 @@ class DimensionalityError(Exception):
     def __init__(self, dimensions):
         """
         Construct the exception.
-
         :arg int dimensions: The number of dimensions passed as an argument to
             :meth:`Model`.
-
         :rtype: :class:`DimensionalityError`
         """
         message = (
@@ -1487,10 +1383,8 @@ class InvalidIntegrator(Exception):
     def __init__(self, integrator):
         """
         Construct the exception.
-
         :arg integrator: The object passed to :meth:`Model.simulate` as the
             integrator argument.
-
         :rtype: :class:`InvalidIntegrator`
         """
         message = (

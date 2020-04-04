@@ -9,8 +9,8 @@ from io import StringIO
 import numpy as np
 import pathlib
 from peridynamics import OpenCL
-from peridynamics.model_old import initial_crack_helper
-from peridynamics.integrators import EulerOpenCLOptimised
+from peridynamics.model import initial_crack_helper
+from peridynamics.integrators import EulerOpenCLOptimisedNew
 from pstats import SortKey, Stats
 # TODO: add argument on command line that gives option to plot results or not,
 # as some systems won't have matplotlib installed.
@@ -226,10 +226,7 @@ def boundary_function(model):
     # Find the boundary nodes and apply the displacement values
     for i in range(0, model.nnodes):
         # Define boundary types and values
-        try:
-            bnd = is_boundary(model.horizon, model.coords[i][:])
-        except:
-            bnd = 2
+        bnd = is_boundary(model.horizon, model.coords[i][:])
         model.bc_types[i, 0] = np.intc((bnd))
         model.bc_types[i, 1] = np.intc((bnd))
         model.bc_types[i, 2] = np.intc((bnd))
@@ -237,10 +234,7 @@ def boundary_function(model):
         #model.bc_values[i, 0] = np.float64(bnd * -0.5/theta * load_rate)
 
         # Define tip here
-        try:
-            tip = is_tip(model.horizon, model.coords[i][:])
-        except:
-            tip = 0
+        tip = is_tip(model.horizon, model.coords[i][:])
         model.tip_types[i] = np.intc(tip)
     print(np.max(model.tip_types), 'max_tip_types')
 
@@ -254,10 +248,7 @@ def boundary_forces_function(model):
     # Find the force boundary nodes and find amount of boundary nodes
     num_force_bc_nodes = 0
     for i in range(0, model.nnodes):
-        try:
-            bnd = is_forces_boundary(model.horizon, model.coords[i][:])
-        except:
-            bnd = 2
+        bnd = is_forces_boundary(model.horizon, model.coords[i][:])
         if bnd == -1:
             num_force_bc_nodes += 1
         elif bnd == 1:
@@ -272,10 +263,7 @@ def boundary_forces_function(model):
     model.force_bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
     load_scale = 0.0
     for i in range(0, model.nnodes):
-        try:
-            bnd = is_forces_boundary(model.horizon, model.coords[i][:])
-        except:
-            bnd = 2
+        bnd = is_forces_boundary(model.horizon, model.coords[i][:])
         if bnd == 1:
             pass
         elif bnd == -1:
@@ -304,11 +292,7 @@ def main():
 #     nu = 9e-4
 #     model = OpenCLProbabilistic(mesh_file_name, volume_total, nu, l, bond_type=bond_type, initial_crack=is_crack)
 # =============================================================================
-    # horizon = dx * np.pi 
-    horizon = 0.1
-    family_volume = np.pi * np.power(horizon, 2)
-    model = OpenCL(mesh_file_name, horizon=horizon, family_volume=family_volume, 
-                   volume_total=volume_total, bond_type=bond_type, initial_crack=is_crack)
+    model = OpenCL(mesh_file_name, volume_total, bond_type=bond_type, initial_crack=is_crack)
     #dx = np.power(1.*volume_total/model.nnodes,1./(model.dimensions))
     # Set simulation parameters
     # not a transfinite mesh
@@ -317,6 +301,9 @@ def main():
     model.precise_stiffness_correction = 1
     # Only one material in this example, that is 'concrete'
     model.density = density_concrete
+    #self.horizon = dx * np.pi 
+    model.horizon = 0.1
+    model.family_volume = np.pi * np.power(model.horizon, 2)
     model.damping = 1 # damping term
     # Peridynamic bond stiffness, c
     model.bond_stiffness_concrete = (
@@ -334,7 +321,7 @@ def main():
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
-    integrator = EulerOpenCLOptimised(model)
+    integrator = EulerOpenCLOptimisedNew(model)
     damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=350, integrator=integrator, write=350, toolbar=0)
     print('damage_sum_data', damage_sum_data)
 # =============================================================================
