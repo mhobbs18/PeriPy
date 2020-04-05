@@ -113,7 +113,7 @@ class Model:
             provided.
         """
         # Is the mesh transfinite mesh (support regular grid spacing with
-        #cuboidal (not tetra) elements (default 0)
+        #cuboidal (not tetra) elements (default 0))
         self.transfinite = 0
         # Are the stiffness correction factors calculated using mesh
         # element volumes (default 'precise', 1) or average nodal 
@@ -556,7 +556,11 @@ class OpenCL(Model):
     This class allows users to define a peridynamics system from parameters and
     a set of initial conditions (coordinates and connectivity).
     """
-    def __init__(self, mesh_file_name, volume_total, bond_type, network_file_name = 'Network.vtk', initial_crack=[], dimensions=2):
+    def __init__(self, mesh_file_name, density = None, horizon = None, family_volume = None, 
+                 damping = None, bond_stiffness_concrete = None, bond_stiffness_steel = None, 
+                 critical_strain_concrete = None, critical_strain_steel = None, crack_length = None,
+                 volume_total=None, bond_type=None, network_file_name = 'Network.vtk', initial_crack=[], dimensions=2,
+                 transfinite= None, precise_stiffness_correction = None):
         """
         Construct a :class:`OpenCL` object, which inherits Model class.
         
@@ -600,11 +604,11 @@ class OpenCL(Model):
         # bb515 Are the stiffness correction factors calculated using mesh element
         # volumes (default 'precise', 1) or average nodal volume of a transfinite
         # mesh (0)      
-        self.precise_stiffness_correction = 1
+        self.precise_stiffness_correction = precise_stiffness_correction
         # bb515 Is the mesh transfinite mesh (support regular grid spacing with 
         # cuboidal (not tetra) elements, look up "gmsh transfinite") (default 0)
         # I'm only planning on using this for validation against literature
-        self.transfinite = 0
+        self.transfinite = transfinite
         # Peridynamics parameters. These parameters will be passed to openCL
         # kernels by command line argument Bond-based peridynamics, known in
         # PDLAMMPS as Prototype Microelastic Brittle (PMB) Model requires a
@@ -612,15 +616,15 @@ class OpenCL(Model):
         # in quasi-brittle materials
         self.poisson_ratio = 0.25
         # These are the parameters that the user needs to define
-        self.density = None
-        self.horizon = None
-        self.family_volume = None
-        self.damping = None
-        self.bond_stiffness_concrete = None
-        self.bond_stiffness_steel = None
-        self.critical_strain_concrete = None
-        self.critical_strain_steel = None
-        self.crackLength = None
+        self.density = density
+        self.horizon = horizon
+        self.family_volume = family_volume
+        self.damping = damping
+        self.bond_stiffness_concrete = bond_stiffness_concrete
+        self.bond_stiffness_steel = bond_stiffness_steel
+        self.critical_strain_concrete = critical_strain_concrete
+        self.critical_strain_steel = critical_strain_steel
+        self.crack_length = crack_length
         self.dt = None
         self.max_reaction = None
         self.load_scale_rate = None
