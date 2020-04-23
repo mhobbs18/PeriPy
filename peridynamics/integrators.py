@@ -160,7 +160,9 @@ class EulerCromer(Integrator):
 
         # For measuring tip displacemens (host memory only)
         self.h_tip_types = model.tip_types
-        print(np.max(self.h_tip_types), 'max tiptypes')
+
+        # For applying force in incriments
+        self.h_force_load_scale = np.float64(0.0)
 
         if model.v == True:
 
@@ -222,7 +224,7 @@ class EulerCromer(Integrator):
         self.cl_kernel_update_displacement.set_scalar_arg_dtypes(
             [None, None, None, None])
         self.cl_kernel_calc_bond_force.set_scalar_arg_dtypes(
-            [None, None, None, None, None, None, None, None, None])
+            [None, None, None, None, None, None, None, None, None, None])
         self.cl_kernel_update_velocity.set_scalar_arg_dtypes([None, None])
         self.cl_kernel_check_bonds.set_scalar_arg_dtypes([None, None, None, None])
         self.cl_kernel_calculate_damage.set_scalar_arg_dtypes([None, None, None])
@@ -252,9 +254,18 @@ class EulerCromer(Integrator):
                                   self.d_bc_values)
 
         # Time marching Part 2
-        self.cl_kernel_calc_bond_force(self.queue, (model.nnodes,), None, self.d_uddn, self.d_udn,
-                                  self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
-
+        # Scalars like self.h_force_load_scale can live on the host memory
+        self.cl_kernel_calc_bond_force(self.queue, (model.nnodes,), None,
+                                       self.d_uddn,
+                                       self.d_udn,
+                                       self.d_un,
+                                       self.d_vols,
+                                       self.d_horizons,
+                                       self.d_coords,
+                                       self.d_bond_stiffness,
+                                       self.d_force_bc_types,
+                                       self.d_force_bc_values,
+                                       self.h_force_load_scale)
         # Time marching Part 3
         self.cl_kernel_update_velocity(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_uddn)
@@ -292,14 +303,8 @@ class EulerCromer(Integrator):
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
-            tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
-            # update the host force_bc_values
-            self.h_force_bc_values = tmp * np.ones((model.nnodes, model.degrees_freedom), dtype=np.float64)
-            #print(h_force_bc_values)
-            # update the GPU force_bc_values
-            self.d_force_bc_values = cl.Buffer(self.context,
-                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                               hostbuf=self.h_force_bc_values)
+            # update the host force load scale
+            self.h_force_load_scale = np.float64(load_scale)
 class EulerCromerOptimised(Integrator):
     r"""
     Dynamic Euler integrator using OpenCL kernels.
@@ -398,10 +403,11 @@ class EulerCromerOptimised(Integrator):
 
         # For measuring tip displacemens (host memory only)
         self.h_tip_types = model.tip_types
-        print(np.max(self.h_tip_types), 'max tiptypes')
+
+        # For applying force incrementally
+        self.h_force_load_scale = np.float64(0.0)
 
         if model.v == True:
-
             # Print the dtypes
             print("horizons", self.h_horizons.dtype)
             print("horizons_length", self.h_horizons_lengths.dtype)
@@ -464,7 +470,7 @@ class EulerCromerOptimised(Integrator):
             [None, None, None, None, None, None, None])
         self.cl_kernel_update_velocity.set_scalar_arg_dtypes([None, None])
         self.cl_kernel_reduce_damage.set_scalar_arg_dtypes([None, None, None, None])
-        self.cl_kernel_reduce_force.set_scalar_arg_dtypes([None, None, None, None, None, None])
+        self.cl_kernel_reduce_force.set_scalar_arg_dtypes([None, None, None, None, None, None, None])
         return None
 
     def __call__(self):
@@ -494,7 +500,7 @@ class EulerCromerOptimised(Integrator):
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
-                                  (model.max_horizon_length,), self.d_forces, self.d_uddn, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem)
+                                  (model.max_horizon_length,), self.d_forces, self.d_uddn, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
         # Update velocity
         self.cl_kernel_update_velocity(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_uddn)
@@ -527,14 +533,8 @@ class EulerCromerOptimised(Integrator):
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
-            tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
-            # update the host force_bc_values
-            self.h_force_bc_values = tmp * np.ones((model.nnodes, model.degrees_freedom), dtype=np.float64)
-            #print(h_force_bc_values)
-            # update the GPU force_bc_values
-            self.d_force_bc_values = cl.Buffer(self.context,
-                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                               hostbuf=self.h_force_bc_values)
+            # update the host force load scale
+            self.h_force_load_scale = np.float64(load_scale)
 
 class EulerOpenCL(Integrator):
     r"""
@@ -634,6 +634,9 @@ class EulerOpenCL(Integrator):
         # Damage vector
         self.h_damage = np.empty(model.nnodes).astype(np.float64)
 
+        # For applying force in incriments
+        self.h_force_load_scale = np.float64(0.0)
+
         # Build OpenCL data structures
 
         # Read only
@@ -678,7 +681,7 @@ class EulerOpenCL(Integrator):
         self.cl_kernel_time_marching_1.set_scalar_arg_dtypes(
             [None, None, None, None])
         self.cl_kernel_time_marching_2.set_scalar_arg_dtypes(
-            [None, None, None, None, None, None, None, None])
+            [None, None, None, None, None, None, None, None, None])
         self.cl_kernel_check_bonds.set_scalar_arg_dtypes([None, None, None, None])
         self.cl_kernel_calculate_damage.set_scalar_arg_dtypes([None, None, None])
     def __call__(self):
@@ -704,7 +707,7 @@ class EulerOpenCL(Integrator):
 
         # Time marching Part 2
         self.cl_kernel_time_marching_2(self.queue, (model.nnodes,), None, self.d_udn1,
-                                  self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                  self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
 
         # Check for broken bonds
         self.cl_kernel_check_bonds(self.queue,
@@ -739,14 +742,8 @@ class EulerOpenCL(Integrator):
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
-            tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
-            # update the host force_bc_values
-            self.h_force_bc_values = tmp * np.ones((model.nnodes, model.degrees_freedom), dtype=np.float64)
-            #print(h_force_bc_values)
-            # update the GPU force_bc_values
-            self.d_force_bc_values = cl.Buffer(self.context,
-                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                               hostbuf=self.h_force_bc_values)
+            # update the host force load scale
+            self.h_force_load_scale = np.float64(load_scale)
 
 class EulerOpenCLOptimised(Integrator):
     r"""
@@ -848,6 +845,9 @@ class EulerOpenCLOptimised(Integrator):
         # Damage vector
         self.h_damage = np.empty(model.nnodes).astype(np.float64)
 
+        # For applying force in incriments
+        self.h_force_load_scale = np.float64(0.0)
+
         # Build OpenCL data structures
 
         # Read only
@@ -896,7 +896,7 @@ class EulerOpenCLOptimised(Integrator):
         self.cl_kernel_calc_bond_force.set_scalar_arg_dtypes(
             [None, None, None, None, None, None, None])
         self.cl_kernel_reduce_force.set_scalar_arg_dtypes(
-            [None, None, None, None, None])
+            [None, None, None, None, None, None])
         self.cl_kernel_reduce_damage.set_scalar_arg_dtypes(
             [None, None, None, None])
     def __call__(self):
@@ -924,7 +924,7 @@ class EulerOpenCLOptimised(Integrator):
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
-                                  (model.max_horizon_length,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem)
+                                  (model.max_horizon_length,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -954,14 +954,8 @@ class EulerOpenCLOptimised(Integrator):
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
-            tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
-            # update the host force_bc_values
-            self.h_force_bc_values = tmp * np.ones((model.nnodes, model.degrees_freedom), dtype=np.float64)
-            #print(h_force_bc_values)
-            # update the GPU force_bc_values
-            self.d_force_bc_values = cl.Buffer(self.context,
-                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                               hostbuf=self.h_force_bc_values)
+            # update the host force load scale
+            self.h_force_load_scale = np.float64(load_scale)
 
 class VelocityVerletOpenCL(Integrator):
     """ TODO: check implementation is correct, is unstable as is
@@ -1046,6 +1040,8 @@ class VelocityVerletOpenCL(Integrator):
         # Damage vector
         self.h_damage = np.empty(model.nnodes).astype(np.float64)
 
+        # For applying force in incriments
+        self.h_force_load_scale = np.float64(0.0)
 
         # Build OpenCL data structures
         # Read only
@@ -1093,7 +1089,7 @@ class VelocityVerletOpenCL(Integrator):
         self.cl_kernel_time_marching_1.set_scalar_arg_dtypes(
             [None, None, None])
         self.cl_kernel_time_marching_2.set_scalar_arg_dtypes(
-            [None, None, None, None, None, None, None, None, None])
+            [None, None, None, None, None, None, None, None, None, None])
         self.cl_kernel_time_marching_3.set_scalar_arg_dtypes(
             [None, None, None, None, None])
         self.cl_kernel_check_bonds.set_scalar_arg_dtypes([None, None, None, None])
@@ -1122,7 +1118,7 @@ class VelocityVerletOpenCL(Integrator):
                                   None, self.d_un, self.d_udn, self.d_uddn)
         # Time marching Part 2
         self.cl_kernel_time_marching_2(self.queue, (model.nnodes,), 
-                                          None, self.d_uddn1, self.d_un, self.d_udn, self.d_horizons, self.d_coords, self.d_vols, self.d_bond_stiffness, self.d_force_bctypes, self.d_force_bcvalues)
+                                          None, self.d_uddn1, self.d_un, self.d_udn, self.d_horizons, self.d_coords, self.d_vols, self.d_bond_stiffness, self.d_force_bctypes, self.d_force_bcvalues, self.h_force_load_scale)
         # Time marching Part 3
         self.cl_kernel_time_marching_3(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_uddn, self.d_uddn1, self.d_bctypes, self.d_bcvalues)
@@ -1157,14 +1153,8 @@ class VelocityVerletOpenCL(Integrator):
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
-            tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
-            # update the host force_bc_values
-            self.h_force_bc_values = tmp * np.ones((model.nnodes, model.degrees_freedom), dtype=np.float64)
-            #print(h_force_bc_values)
-            # update the GPU force_bc_values
-            self.d_force_bc_values = cl.Buffer(self.context,
-                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                               hostbuf=self.h_force_bc_values)
+            # update the host force load scale
+            self.h_force_load_scale = np.float64(load_scale)
             
 class RK4(Integrator):
     r"""
@@ -1273,6 +1263,9 @@ class RK4(Integrator):
         # Damage vector
         self.h_damage = np.empty(model.nnodes).astype(np.float64)
 
+        # For applying force in incriments
+        self.h_force_load_scale = np.float64(0.0)
+
         if model.v == True:
             # Print the dtypes
             print("horizons", self.h_horizons.dtype)
@@ -1333,7 +1326,7 @@ class RK4(Integrator):
         self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_damage.nbytes)
         # Initialize kernel parameters
         self.cl_kernel_calc_bond_force.set_scalar_arg_dtypes(
-            [None, None, None, None, None, None, None, None])
+            [None, None, None, None, None, None, None, None, None])
         self.cl_kernel_displacement_update.set_scalar_arg_dtypes(
             [None, None, None, None, None, None, None])
         self.cl_kernel_partial_displacement_update.set_scalar_arg_dtypes(
@@ -1361,21 +1354,21 @@ class RK4(Integrator):
         # Find k1dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,), 
-                                          None, self.d_k1dn, self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                          None, self.d_k1dn, self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
         # Partial update of displacements
         self.cl_kernel_partial_displacement_update(self.queue, (model.nnodes * model.degrees_freedom,),
                                                      None, self.d_k1dn, self.d_un, self.d_un1)
         # Find k2dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,), 
-                                          None, self.d_k2dn, self.d_un1, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                          None, self.d_k2dn, self.d_un1, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
         # Partial update of displacements
         self.cl_kernel_partial_displacement_update(self.queue, (model.nnodes * model.degrees_freedom,),
                                                       None, self.d_k2dn, self.d_un, self.d_un2)
         # Find k3dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,),
-                                          None, self.d_k3dn, self.d_un2, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                          None, self.d_k3dn, self.d_un2, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
         # Partial update of displacements
         self.cl_kernel_partial_displacement_update2(self.queue, 
                                                    (model.nnodes * model.degrees_freedom,),
@@ -1383,7 +1376,7 @@ class RK4(Integrator):
         # Find k3dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,),
-                                          None, self.d_k4dn, self.d_un3, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                          None, self.d_k4dn, self.d_un3, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
         # Finally update the displacements using weighted average of 4 incriments
         self.cl_kernel_displacement_update(self.queue, 
                                               (model.nnodes * model.degrees_freedom,), 
@@ -1421,15 +1414,8 @@ class RK4(Integrator):
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
-            tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
-            # update the host force_bc_values
-            self.h_force_bc_values = tmp * np.ones((model.nnodes, model.degrees_freedom), dtype=np.float64)
-            #print(h_force_bc_values)
-            # update the GPU force_bc_values
-            self.d_force_bc_values = cl.Buffer(self.context,
-                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                               hostbuf=self.h_force_bc_values)
-
+            # update the host force load scale
+            self.h_force_load_scale = np.float64(load_scale)
 class RK4Optimised(Integrator):
     r"""
     Static Euler integrator for quasi-static loading, using OpenCL kernels.
@@ -1542,6 +1528,9 @@ class RK4Optimised(Integrator):
         self.h_forces =  np.empty((model.nnodes, model.degrees_freedom, model.max_horizon_length), dtype=np.float64)
         self.local_mem = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
 
+        # For applying force in incriments
+        self.h_force_load_scale = np.float64(0.0)
+
         if model.v == True:
             # Print the dtypes
             print("horizons", self.h_horizons.dtype)
@@ -1614,7 +1603,7 @@ class RK4Optimised(Integrator):
         self.cl_kernel_calc_bond_force.set_scalar_arg_dtypes(
             [None, None, None, None, None, None, None])
         self.cl_kernel_reduce_force.set_scalar_arg_dtypes(
-            [None, None, None, None, None])
+            [None, None, None, None, None, None])
         self.cl_kernel_reduce_damage.set_scalar_arg_dtypes(
             [None, None, None, None])
     def __call__(self):
@@ -1638,7 +1627,7 @@ class RK4Optimised(Integrator):
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
-                                  (model.max_horizon_length,), self.d_forces, self.d_k1dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem)
+                                  (model.max_horizon_length,), self.d_forces, self.d_k1dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
         # Partial update of displacements
         self.cl_kernel_partial_displacement_update(self.queue, (model.nnodes * model.degrees_freedom,),
                                                      None, self.d_k1dn, self.d_un, self.d_un1)
@@ -1647,7 +1636,7 @@ class RK4Optimised(Integrator):
                                   self.d_un1, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
-                                  (model.max_horizon_length,), self.d_forces, self.d_k2dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem)
+                                  (model.max_horizon_length,), self.d_forces, self.d_k2dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
         # Partial update of displacements
         self.cl_kernel_partial_displacement_update(self.queue, (model.nnodes * model.degrees_freedom,),
                                                       None, self.d_k2dn, self.d_un, self.d_un2)
@@ -1656,7 +1645,7 @@ class RK4Optimised(Integrator):
                                   self.d_un2, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
-                                  (model.max_horizon_length,), self.d_forces, self.d_k3dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem)
+                                  (model.max_horizon_length,), self.d_forces, self.d_k3dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
         # Partial update of displacements
         self.cl_kernel_partial_displacement_update2(self.queue, 
                                                    (model.nnodes * model.degrees_freedom,),
@@ -1666,7 +1655,7 @@ class RK4Optimised(Integrator):
                                   self.d_un3, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
-                                  (model.max_horizon_length,), self.d_forces, self.d_k4dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem)
+                                  (model.max_horizon_length,), self.d_forces, self.d_k4dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
         # Finally update the displacements using weighted average of 4 incriments
         self.cl_kernel_displacement_update(self.queue, 
                                               (model.nnodes * model.degrees_freedom,), 
@@ -1704,14 +1693,8 @@ class RK4Optimised(Integrator):
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
-            tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
-            # update the host force_bc_values
-            self.h_force_bc_values = tmp * np.ones((model.nnodes, model.degrees_freedom), dtype=np.float64)
-            #print(h_force_bc_values)
-            # update the GPU force_bc_values
-            self.d_force_bc_values = cl.Buffer(self.context,
-                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                               hostbuf=self.h_force_bc_values)
+            # update the host force load scale
+            self.h_force_load_scale = np.float64(load_scale)
 
 class RK4AT(Integrator):
     r"""
@@ -1819,6 +1802,9 @@ class RK4AT(Integrator):
         # Time step size
         self.h_dt = np.float64(model.dt)
 
+        # For applying force in incriments
+        self.h_force_load_scale = np.float64(0.0)
+
         # Build OpenCL data structures
 
         # Read only
@@ -1867,7 +1853,7 @@ class RK4AT(Integrator):
         self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_damage.nbytes)
         # Initialize kernel parameters
         self.cl_kernel_calc_bond_force.set_scalar_arg_dtypes(
-            [None, None, None, None, None, None, None, None])
+            [None, None, None, None, None, None, None, None, None])
         self.cl_kernel_displacement_update.set_scalar_arg_dtypes(
             [None, None, None, None, None, None, None, None])
         self.cl_kernel_partial_displacement_update.set_scalar_arg_dtypes(
@@ -1895,21 +1881,21 @@ class RK4AT(Integrator):
         # Find k1dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,), 
-                                          None, self.d_k1dn, self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                          None, self.d_k1dn, self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
         # Partial update of displacements
         self.cl_kernel_partial_displacement_update(self.queue, (model.nnodes * model.degrees_freedom,),
                                                      None, self.d_k1dn, self.d_un, self.d_un1, self.h_dt)
         # Find k2dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,), 
-                                          None, self.d_k2dn, self.d_un1, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                          None, self.d_k2dn, self.d_un1, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
         # Partial update of displacements
         self.cl_kernel_partial_displacement_update(self.queue, (model.nnodes * model.degrees_freedom,),
                                                       None, self.d_k2dn, self.d_un, self.d_un2, self.h_dt)
         # Find k3dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,),
-                                          None, self.d_k3dn, self.d_un2, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                          None, self.d_k3dn, self.d_un2, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
         # Partial update of displacements
         self.cl_kernel_partial_displacement_update2(self.queue, 
                                                    (model.nnodes * model.degrees_freedom,),
@@ -1917,7 +1903,7 @@ class RK4AT(Integrator):
         # Find k3dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,),
-                                          None, self.d_k4dn, self.d_un3, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                          None, self.d_k4dn, self.d_un3, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
         # Finally update the displacements using weighted average of 4 incriments
         self.cl_kernel_displacement_update(self.queue, 
                                               (model.nnodes * model.degrees_freedom,), 
@@ -1949,16 +1935,11 @@ class RK4AT(Integrator):
                   model.coords, self.h_damage, self.h_un)
         #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
         return self.h_damage, tip_displacement
+
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
-            tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
-            # update the host force_bc_values
-            self.h_force_bc_values = tmp * np.ones((model.nnodes, model.degrees_freedom), dtype=np.float64)
-            #print(h_force_bc_values)
-            # update the GPU force_bc_values
-            self.d_force_bc_values = cl.Buffer(self.context,
-                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                               hostbuf=self.h_force_bc_values)
+            # update the host force load scale
+            self.h_force_load_scale = np.float64(load_scale)
 
 class DormandPrince(Integrator):
     r"""
@@ -2082,6 +2063,9 @@ class DormandPrince(Integrator):
         # Errors
         self.h_errorn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
+        # For applying force in incriments
+        self.h_force_load_scale = np.float64(0.0)
+
         # Build OpenCL data structures
 
         # Read only
@@ -2133,7 +2117,7 @@ class DormandPrince(Integrator):
         self.d_errorn = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_errorn.nbytes)
         # Initialize kernel parameters
         self.cl_kernel_calc_bond_force.set_scalar_arg_dtypes(
-            [None, None, None, None, None, None, None, None])
+            [None, None, None, None, None, None, None, None, None])
         self.cl_kernel_displacement_update.set_scalar_arg_dtypes(
             [None, None, None, None, None])
         self.cl_kernel_partial_displacement_update.set_scalar_arg_dtypes(
@@ -2171,49 +2155,49 @@ class DormandPrince(Integrator):
         # Find k1dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,), 
-                                          None, self.d_k1dn, self.d_un5, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                          None, self.d_k1dn, self.d_un5, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
         # Partial update of displacements
         self.cl_kernel_partial_displacement_update(self.queue, (model.nnodes * model.degrees_freedom,),
                                                      None, self.d_k1dn, self.d_un5, self.d_un_temp, self.h_dt)
         # Find k2dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,), 
-                                          None, self.d_k2dn, self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                          None, self.d_k2dn, self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
         # Partial update of displacements 2
         self.cl_kernel_partial_displacement_update2(self.queue, (model.nnodes * model.degrees_freedom,),
                                                      None, self.d_k1dn, self.d_k2dn, self.d_un5, self.d_un_temp, self.h_dt)
         # Find k3dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,),
-                                          None, self.d_k3dn, self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                          None, self.d_k3dn, self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
         # Partial update of displacements 3
         self.cl_kernel_partial_displacement_update3(self.queue, (model.nnodes * model.degrees_freedom,),
                                                      None, self.d_k1dn, self.d_k2dn, self.d_k3dn, self.d_un5, self.d_un_temp, self.h_dt)
         # Find k4dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,),
-                                          None, self.d_k4dn, self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                          None, self.d_k4dn, self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
         # Partial update of displacements 4
         self.cl_kernel_partial_displacement_update4(self.queue, (model.nnodes * model.degrees_freedom,),
                                                      None, self.d_k1dn, self.d_k2dn, self.d_k3dn, self.d_k4dn, self.d_un5, self.d_un_temp, self.h_dt)
         # Find k5dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,),
-                                          None, self.d_k5dn, self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                          None, self.d_k5dn, self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
         # Partial update of displacements 5
         self.cl_kernel_partial_displacement_update5(self.queue, (model.nnodes * model.degrees_freedom,),
                                                      None, self.d_k1dn, self.d_k2dn, self.d_k3dn, self.d_k4dn, self.d_k5dn, self.d_un5, self.d_un_temp, self.h_dt)
         # Find k6dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,),
-                                          None, self.d_k6dn, self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                          None, self.d_k6dn, self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
         # Partial update of displacements 6
         self.cl_kernel_partial_displacement_update6(self.queue, (model.nnodes * model.degrees_freedom,),
                                                      None, self.d_k1dn, self.d_k3dn, self.d_k4dn, self.d_k5dn, self.d_k6dn, self.d_un5, self.d_un_temp, self.h_dt)
         # Find k7dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,),
-                                          None, self.d_k7dn, self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                          None, self.d_k7dn, self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
         if self.adapt_time_step(model) == 1:
             pass
         else:
@@ -2270,16 +2254,11 @@ class DormandPrince(Integrator):
             print('Time step size increased')
             print('time step is {}s, error size is {}'.format(self.h_dt, error))
         return adapt
+
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
-            tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
-            # update the host force_bc_values
-            self.h_force_bc_values = tmp * np.ones((model.nnodes, model.degrees_freedom), dtype=np.float64)
-            #print(h_force_bc_values)
-            # update the GPU force_bc_values
-            self.d_force_bc_values = cl.Buffer(self.context,
-                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                               hostbuf=self.h_force_bc_values)
+            # update the host force load scale
+            self.h_force_load_scale = np.float64(load_scale)
 
 class DormandPrinceOptimised(Integrator):
     r"""
@@ -2406,6 +2385,9 @@ class DormandPrinceOptimised(Integrator):
         # Errors
         self.h_errorn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
+        # For applying force in incriments
+        self.h_force_load_scale = np.float64(0.0)
+
         # Build OpenCL data structures
 
         # Read only
@@ -2476,7 +2458,7 @@ class DormandPrinceOptimised(Integrator):
         self.cl_kernel_check_error.set_scalar_arg_dtypes([None, None, None, None, None, None, None, None, None, None])
         self.cl_kernel_check_bonds.set_scalar_arg_dtypes([None, None, None, None])
         self.cl_kernel_reduce_force.set_scalar_arg_dtypes(
-            [None, None, None, None, None])
+            [None, None, None, None, None, None])
         self.cl_kernel_reduce_damage.set_scalar_arg_dtypes(
             [None, None, None, None])
 
@@ -2501,7 +2483,7 @@ class DormandPrinceOptimised(Integrator):
                                   self.d_un5, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
-                                  (model.max_horizon_length,), self.d_forces, self.d_k1dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem)
+                                  (model.max_horizon_length,), self.d_forces, self.d_k1dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
         # Partial update of displacements
         self.cl_kernel_partial_displacement_update(self.queue, (model.nnodes * model.degrees_freedom,),
                                                      None, self.d_k1dn, self.d_un5, self.d_un_temp, self.h_dt)
@@ -2510,7 +2492,7 @@ class DormandPrinceOptimised(Integrator):
                                   self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
-                                  (model.max_horizon_length,), self.d_forces, self.d_k2dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem)
+                                  (model.max_horizon_length,), self.d_forces, self.d_k2dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
         # Partial update of displacements 2
         self.cl_kernel_partial_displacement_update2(self.queue, (model.nnodes * model.degrees_freedom,),
                                                      None, self.d_k1dn, self.d_k2dn, self.d_un5, self.d_un_temp, self.h_dt)
@@ -2519,7 +2501,7 @@ class DormandPrinceOptimised(Integrator):
                                   self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
-                                  (model.max_horizon_length,), self.d_forces, self.d_k3dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem)
+                                  (model.max_horizon_length,), self.d_forces, self.d_k3dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
         # Partial update of displacements 3
         self.cl_kernel_partial_displacement_update3(self.queue, (model.nnodes * model.degrees_freedom,),
                                                      None, self.d_k1dn, self.d_k2dn, self.d_k3dn, self.d_un5, self.d_un_temp, self.h_dt)
@@ -2528,7 +2510,7 @@ class DormandPrinceOptimised(Integrator):
                                   self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
-                                  (model.max_horizon_length,), self.d_forces, self.d_k4dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem)
+                                  (model.max_horizon_length,), self.d_forces, self.d_k4dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
         # Partial update of displacements 4
         self.cl_kernel_partial_displacement_update4(self.queue, (model.nnodes * model.degrees_freedom,),
                                                      None, self.d_k1dn, self.d_k2dn, self.d_k3dn, self.d_k4dn, self.d_un5, self.d_un_temp, self.h_dt)
@@ -2537,7 +2519,7 @@ class DormandPrinceOptimised(Integrator):
                                   self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
-                                  (model.max_horizon_length,), self.d_forces, self.d_k5dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem)
+                                  (model.max_horizon_length,), self.d_forces, self.d_k5dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
         # Partial update of displacements 5
         self.cl_kernel_partial_displacement_update5(self.queue, (model.nnodes * model.degrees_freedom,),
                                                      None, self.d_k1dn, self.d_k2dn, self.d_k3dn, self.d_k4dn, self.d_k5dn, self.d_un5, self.d_un_temp, self.h_dt)
@@ -2546,7 +2528,7 @@ class DormandPrinceOptimised(Integrator):
                                   self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
-                                  (model.max_horizon_length,), self.d_forces, self.d_k6dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem)
+                                  (model.max_horizon_length,), self.d_forces, self.d_k6dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
         # Partial update of displacements 6
         self.cl_kernel_partial_displacement_update6(self.queue, (model.nnodes * model.degrees_freedom,),
                                                      None, self.d_k1dn, self.d_k3dn, self.d_k4dn, self.d_k5dn, self.d_k6dn, self.d_un5, self.d_un_temp, self.h_dt)
@@ -2555,7 +2537,7 @@ class DormandPrinceOptimised(Integrator):
                                   self.d_un_temp, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
-                                  (model.max_horizon_length,), self.d_forces, self.d_k7dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem)
+                                  (model.max_horizon_length,), self.d_forces, self.d_k7dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
         if self.adapt_time_step(model) == 1:
             pass
         else:
@@ -2612,16 +2594,11 @@ class DormandPrinceOptimised(Integrator):
             print('Time step size increased')
             print('time step is {}s, error size is {}'.format(self.h_dt, error))
         return adapt
+    
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
-            tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
-            # update the host force_bc_values
-            self.h_force_bc_values = tmp * np.ones((model.nnodes, model.degrees_freedom), dtype=np.float64)
-            #print(h_force_bc_values)
-            # update the GPU force_bc_values
-            self.d_force_bc_values = cl.Buffer(self.context,
-                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                               hostbuf=self.h_force_bc_values)
+            # update the host force load scale
+            self.h_force_load_scale = np.float64(load_scale)
 class EulerStochastic(Integrator):
     r"""
     Stochastic Euler integrator for quasi-static loading, using optimised OpenCL kernels.
@@ -2723,6 +2700,9 @@ class EulerStochastic(Integrator):
         # Covariance matrix
         self.h_K = model.K
 
+        # For applying force in incriments
+        self.h_force_load_scale = np.float64(0.0)
+
         # Build OpenCL data structures
 
         # Read only
@@ -2773,7 +2753,7 @@ class EulerStochastic(Integrator):
             [None, None, None, None, None, None])
         self.cl_kernel_calc_bond_force.set_scalar_arg_dtypes(
             [None, None, None, None, None, None, None])
-        self.cl_kernel_reduce_force.set_scalar_arg_dtypes([None, None, None, None, None])
+        self.cl_kernel_reduce_force.set_scalar_arg_dtypes([None, None, None, None, None, None])
         self.cl_kernel_reduce_damage.set_scalar_arg_dtypes([None, None, None, None])
         self.cl_kernel_mmul.set_scalar_arg_dtypes([None, None, None])
     def __call__(self):
@@ -2837,7 +2817,7 @@ class EulerStochastic(Integrator):
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
-                                  (model.max_horizon_length,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem)
+                                  (model.max_horizon_length,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
         # Covariance matrix multiplication of forces
         #self.cl_kernel_mmul(self.queue, (model.nnodes, model.degrees_freedom), None, self.d_K, self.d_udn, self.d_udn1)
     def write(self, model, t, sample, realisation):
@@ -2852,19 +2832,6 @@ class EulerStochastic(Integrator):
                   model.coords, self.h_damage, self.h_un)
         vtk.writeDamage("output/damage_" + "sample" + str(sample)+ "realisation" +str(realisation) + ".vtk", "Title", self.h_damage)
         return self.h_damage
-
-# =============================================================================
-#     def incrementLoad(self, model, load_scale):
-#         if model.num_force_bc_nodes != 0:
-#             tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
-#             # update the host force_bc_values
-#             self.h_force_bc_values = tmp * np.ones((model.nnodes, model.degrees_freedom), dtype=np.float64)
-#             #print(h_force_bc_values)
-#             # update the GPU force_bc_values
-#             self.d_force_bc_values = cl.Buffer(self.context,
-#                                cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-#                                hostbuf=self.h_force_bc_values)
-# =============================================================================
 
 class HeunEuler(Integrator):
     r"""
@@ -2982,6 +2949,9 @@ class HeunEuler(Integrator):
         # Errors
         self.h_errorn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
+        # For applying force in incriments
+        self.h_force_load_scale = np.float64(0.0)
+
         # Build OpenCL data structures
 
         # Read only
@@ -3027,7 +2997,7 @@ class HeunEuler(Integrator):
         self.d_errorn = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_errorn.nbytes)
         # Initialize kernel parameters
         self.cl_kernel_calc_bond_force.set_scalar_arg_dtypes(
-            [None, None, None, None, None, None, None, None])
+            [None, None, None, None, None, None, None, None, None])
         self.cl_kernel_displacement_update.set_scalar_arg_dtypes(
             [None, None, None, None, None])
         self.cl_kernel_partial_displacement_update.set_scalar_arg_dtypes(
@@ -3054,7 +3024,7 @@ class HeunEuler(Integrator):
         # Find k1dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,), 
-                                          None, self.d_k1dn, self.d_un2, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                          None, self.d_k1dn, self.d_un2, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
         # Find first order accurate displacements
         # Scalars like self.h_dt can live on the host memory
         self.cl_kernel_partial_displacement_update(self.queue, (model.nnodes * model.degrees_freedom,),
@@ -3062,7 +3032,7 @@ class HeunEuler(Integrator):
         # Find k2dn (forces)
         self.cl_kernel_calc_bond_force(self.queue, 
                                           (model.nnodes,), 
-                                          None, self.d_k2dn, self.d_un1, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values)
+                                          None, self.d_k2dn, self.d_un1, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
         if self.adapt_time_step(model) == 1:
             # Do not update second order displacements (i.e. repeat time step)
             pass
@@ -3121,14 +3091,8 @@ class HeunEuler(Integrator):
         return adapt
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
-            tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
-            # update the host force_bc_values
-            self.h_force_bc_values = tmp * np.ones((model.nnodes, model.degrees_freedom), dtype=np.float64)
-            #print(h_force_bc_values)
-            # update the GPU force_bc_values
-            self.d_force_bc_values = cl.Buffer(self.context,
-                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                               hostbuf=self.h_force_bc_values)
+            # update the host force load scale
+            self.h_force_load_scale = np.float64(load_scale)
 
 class HeunEulerOptimised(Integrator):
     r"""
@@ -3251,6 +3215,9 @@ class HeunEulerOptimised(Integrator):
         # Errors
         self.h_errorn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
+        # For applying force in incriments
+        self.h_force_load_scale = np.float64(0.0)
+
         # Build OpenCL data structures
 
         # Read only
@@ -3304,7 +3271,7 @@ class HeunEulerOptimised(Integrator):
             [None, None, None, None])
         self.cl_kernel_check_bonds.set_scalar_arg_dtypes([None, None, None, None])
         self.cl_kernel_reduce_damage.set_scalar_arg_dtypes([None, None, None, None])
-        self.cl_kernel_reduce_force.set_scalar_arg_dtypes([None, None, None, None, None])
+        self.cl_kernel_reduce_force.set_scalar_arg_dtypes([None, None, None, None, None, None])
         self.cl_kernel_check_error.set_scalar_arg_dtypes([None, None, None, None, None, None, None])
     def __call__(self):
         """
@@ -3327,7 +3294,7 @@ class HeunEulerOptimised(Integrator):
                                   self.d_un2, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,), 
-                                    (model.max_horizon_length,), self.d_forces, self.d_k1dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem)
+                                    (model.max_horizon_length,), self.d_forces, self.d_k1dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
         # Find first order accurate displacements
         # Scalars like self.h_dt can live on the host memory
         self.cl_kernel_partial_displacement_update(self.queue, (model.nnodes * model.degrees_freedom,),
@@ -3337,7 +3304,7 @@ class HeunEulerOptimised(Integrator):
                                   self.d_un1, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
-                                  (model.max_horizon_length,), self.d_forces, self.d_k2dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem)
+                                  (model.max_horizon_length,), self.d_forces, self.d_k2dn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
         if self.adapt_time_step(model) == 1:
             # Do not update second order displacements (i.e. repeat time step)
             pass
@@ -3396,14 +3363,8 @@ class HeunEulerOptimised(Integrator):
         return adapt
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
-            tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
-            # update the host force_bc_values
-            self.h_force_bc_values = tmp * np.ones((model.nnodes, model.degrees_freedom), dtype=np.float64)
-            #print(h_force_bc_values)
-            # update the GPU force_bc_values
-            self.d_force_bc_values = cl.Buffer(self.context,
-                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                               hostbuf=self.h_force_bc_values)
+            # update the host force load scale
+            self.h_force_load_scale = np.float64(load_scale)
 
 class EulerOpenCLOptimisedLumped(Integrator):
     r"""
@@ -3504,6 +3465,9 @@ class EulerOpenCLOptimisedLumped(Integrator):
         # Damage vector
         self.h_damage = np.empty(model.nnodes).astype(np.float64)
 
+        # For applying force in incriments
+        self.h_force_load_scale = np.float64(0.0)
+
         # Build OpenCL data structures
 
         # Read only
@@ -3550,7 +3514,7 @@ class EulerOpenCLOptimisedLumped(Integrator):
         self.cl_kernel_calc_bond_force.set_scalar_arg_dtypes(
             [None, None, None, None, None, None, None])
         self.cl_kernel_reduce_force.set_scalar_arg_dtypes(
-            [None, None, None, None, None, None, None, None])
+            [None, None, None, None, None, None, None, None, None])
         self.cl_kernel_reduce_damage.set_scalar_arg_dtypes(
             [None, None, None, None])
     def __call__(self):
@@ -3575,7 +3539,7 @@ class EulerOpenCLOptimisedLumped(Integrator):
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
                                   (model.max_horizon_length,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, 
-                                  self.d_un, self.d_bc_types, self.d_bc_values, self.local_mem)
+                                  self.d_un, self.d_bc_types, self.d_bc_values, self.local_mem, self.h_force_load_scale)
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -3605,11 +3569,5 @@ class EulerOpenCLOptimisedLumped(Integrator):
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
-            tmp = -1. * model.max_reaction * load_scale / (model.num_force_bc_nodes)
-            # update the host force_bc_values
-            self.h_force_bc_values = tmp * np.ones((model.nnodes, model.degrees_freedom), dtype=np.float64)
-            #print(h_force_bc_values)
-            # update the GPU force_bc_values
-            self.d_force_bc_values = cl.Buffer(self.context,
-                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                               hostbuf=self.h_force_bc_values)
+            # update the host force load scale
+            self.h_force_load_scale = np.float64(load_scale)

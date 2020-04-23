@@ -89,11 +89,12 @@ __kernel void
 
 __kernel void 
     ReduceForce(
-        __global double* Forces,
+    	__global double* Forces,
         __global double *Udn,
         __global int const *FCTypes,
         __global double const *FCValues,
-        __local double* local_cache
+        __local double* local_cache,
+		double FORCE_LOAD_SCALE
    )
 {
     
@@ -122,15 +123,15 @@ __kernel void
     //Get the reduced forces
     int index = global_id/local_size;
     // Update accelerations
-    Udn[index] = (FCTypes[index] == 2 ? local_cache[local_id] : local_cache[local_id]);
+	Udn[index] = (FCTypes[index] == 2 ? local_cache[local_id] : local_cache[local_id] + FORCE_LOAD_SCALE * FCValues[index]);
 }
 }
 
 // Update displacements using k1 through k4
 __kernel void
 	UpdateDisplacement(
-        __global int const *ICTypes,
-		__global double const *ICValues,
+        __global int const *BCTypes,
+		__global double const *BCValues,
 		__global double const *Un2_1,
         __global double *Un2,
 		double PD_DT
@@ -140,7 +141,7 @@ __kernel void
 
 	if (i < PD_DPN_NODE_NO)
 	{
-        Un2[i] = ICTypes[i] == 2 ? Un2_1[i]  : Un2[i] + ICValues[i];
+        Un2[i] = BCTypes[i] == 2 ? Un2_1[i]  : Un2[i] + BCValues[i];
 	}
 }
 

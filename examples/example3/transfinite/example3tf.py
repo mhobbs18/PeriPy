@@ -10,9 +10,9 @@ import numpy as np
 import pathlib
 from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
-from peridynamics.integrators import EulerCromer
+from peridynamics.integrators import EulerCromerOptimised
 from pstats import SortKey, Stats
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import time
 import shutil
 import os
@@ -174,6 +174,13 @@ def boundary_forces_function(model):
         model.force_bc_types[i, 2] = np.intc((bnd[2]))
     print('number of force BC nodes', num_force_bc_nodes)
     model.num_force_bc_nodes = num_force_bc_nodes
+    for i in range(0, model.nnodes):
+        for j in range(model.dimensions):
+            bnd = model.force_bc_types[i,j]
+            if bnd != 2:
+                # apply the force bc value, which is total reaction force / (num loaded nodes * node volume)
+                # units are force per unit volume
+                model.force_bc_values[i, j] = np.float64(bnd * model.max_reaction / (model.num_force_bc_nodes * model.V[i]))
 
 def main():
     """
@@ -214,8 +221,8 @@ def main():
     critical_strain_concrete = np.double(0.000533) # check this value
     critical_strain_steel = np.double(0.01)
     crack_length = np.double(0)
-    model = OpenCL(mesh_file_name, 
-                   density = density_concrete, 
+    model = OpenCL(mesh_file_name,
+                   density = density_concrete,
                    horizon = horizon,
                    damping = damping,
                    bond_stiffness_concrete = bond_stiffness_concrete,
@@ -238,32 +245,30 @@ def main():
      (np.pi * np.power(model.horizon, 2.0) * dx * model.bond_stiffness_concrete), 0.5)
      * saf_fac
      )
-    model.max_reaction = 1e13 # in newtons, about 85 times self weight
+    model.max_reaction = 10000 # in newtons, about 85 times self weight
     model.load_scale_rate = 1/10
 
     # Set force and displacement boundary conditions
     boundary_function(model)
     boundary_forces_function(model)
 
-    integrator = EulerCromer(model)
+    integrator = EulerCromerOptimised(model)
 
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
-    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=400, integrator=integrator, write=200, toolbar=0)
+    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=2400, integrator=integrator, write=200, toolbar=0)
     print(tip_displacement_data)
     print(tip_shear_force_data)
     print(damage_sum_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
-# =============================================================================
-#     plt.figure(1)
-#     plt.title('damage over time')
-#     plt.plot(damage_sum_data)
-#     plt.figure(2)
-#     plt.title('tip displacement over time')
-#     plt.plot(tip_displacement_data)
-#     plt.show()
-# =============================================================================
+    plt.figure(1)
+    plt.title('damage over time')
+    plt.plot(damage_sum_data)
+    plt.figure(2)
+    plt.title('tip displacement over time')
+    plt.plot(tip_displacement_data)
+    plt.show()
     if args.profile:
         profile.disable()
         s = StringIO()

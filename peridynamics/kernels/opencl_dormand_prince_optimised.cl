@@ -95,7 +95,8 @@ __kernel void
         __global double *Udn,
         __global int const *FCTypes,
         __global double const *FCValues,
-        __local double* local_cache
+        __local double* local_cache,
+		double FORCE_LOAD_SCALE
    )
 {
     
@@ -124,7 +125,7 @@ __kernel void
     //Get the reduced forces
     int index = global_id/local_size;
     // Update accelerations
-    Udn[index] = (FCTypes[index] == 2 ? local_cache[local_id] : local_cache[local_id]);
+    Udn[index] = (FCTypes[index] == 2 ? local_cache[local_id]: local_cache[local_id] + FORCE_LOAD_SCALE * FCValues[index]);
 }
 }
 
@@ -156,8 +157,8 @@ __kernel void
 // Update 5th order displacements using k1 through k6, update 4th order displacements using k1 through k7, and calculate error.
 __kernel void
 	UpdateDisplacement(
-        __global int const *ICTypes,
-		__global double const *ICValues,
+        __global int const *BCTypes,
+		__global double const *BCValues,
 		__global double const *U5n1,
         __global double *U5n,
 		double PD_DT
@@ -169,7 +170,7 @@ __kernel void
 	{
 
 		// Final displacement update using the higher order value
-		U5n[i] = ICTypes[i] == 2 ? U5n1[i] : U5n[i] + ICValues[i];
+		U5n[i] = BCTypes[i] == 2 ? U5n1[i] : U5n[i] + BCValues[i];
 	}
 }
 

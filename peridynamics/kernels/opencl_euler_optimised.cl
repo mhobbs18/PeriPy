@@ -106,11 +106,12 @@ __kernel void
 
 __kernel void 
     ReduceForce(
-        __global double* Forces,
-        __global double *Udn,
-        __global int const *FCTypes,
-        __global double const *FCValues,
-        __local double* local_cache
+      __global double* Forces,
+      __global double *Udn,
+      __global int const *FCTypes,
+      __global double const *FCValues,
+      __local double* local_cache,
+      double FORCE_LOAD_SCALE
    )
 {
     
@@ -139,16 +140,16 @@ __kernel void
     //Get the reduced forces
     int index = global_id/local_size;
     // Update accelerations
-    Udn[index] = (FCTypes[index] == 2 ? local_cache[local_id] : local_cache[local_id]);
+    Udn[index] = (FCTypes[index] == 2 ? local_cache[local_id] : local_cache[local_id] + FORCE_LOAD_SCALE * FCValues[index]);
 }
 }
 
 __kernel void 
     ReduceDamage(
-        __global int const *Horizons,
-		__global int const *HorizonLengths,
-        __global double *Phi,
-        __local double* local_cache
+      __global int const *Horizons,
+		  __global int const *HorizonLengths,
+      __global double *Phi,
+      __local double* local_cache
    )
 {
     

@@ -48,7 +48,8 @@ __kernel void
 		__global double const *Nodes,
 		__global double const *Stiffnesses,
 		__global int const *FCTypes,
-		__global double const *FCValues
+		__global double const *FCValues,
+		double FORCE_LOAD_SCALE
 	)
 {
 	const int i = get_global_id(0);
@@ -94,11 +95,11 @@ __kernel void
 			}
 		}
 
-		// Final result
+		// Add body forces
 
-		f0 = (FCTypes[DPN*i + 0] == 2 ? f0 : f0);
-		f1 = (FCTypes[DPN*i + 1] == 2 ? f1 : f1);
-		f2 = (FCTypes[DPN*i + 2] == 2 ? f2 : f2);// + FCValues[DPN * i + 2]);
+		f0 = (FCTypes[DPN*i + 0] == 2 ? f0 : f0 + FORCE_LOAD_SCALE * FCValues[DPN * i + 0]);
+		f1 = (FCTypes[DPN*i + 1] == 2 ? f1 : f1 + FORCE_LOAD_SCALE * FCValues[DPN * i + 1]);
+		f2 = (FCTypes[DPN*i + 2] == 2 ? f2 : f2 + FORCE_LOAD_SCALE * FCValues[DPN * i + 2]);
 		
 		Udn[DPN * i + 0] = f0;
 		Udn[DPN * i + 1] = f1;

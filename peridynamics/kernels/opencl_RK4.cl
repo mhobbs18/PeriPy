@@ -32,7 +32,8 @@ __kernel void
 		__global double const *Nodes,
 		__global double const *Stiffnesses,
 		__global int const *FCTypes,
-		__global double const *FCValues
+		__global double const *FCValues,
+		double FORCE_LOAD_SCALE
 	)
 {
 	const int i = get_global_id(0);
@@ -78,15 +79,15 @@ __kernel void
 			}
 		}
 
-		// Final result
+		// Add body forces
 
-		f0 = (FCTypes[DPN*i + 0] == 2 ? f0 : f0); //+ FCValues[DPN * i + 0]);
-		f1 = (FCTypes[DPN*i + 1] == 2 ? f1 : f1); //+ FCValues[DPN * i + 1]);
-		f2 = (FCTypes[DPN*i + 2] == 2 ? f2 : f2); //+ FCValues[DPN * i + 2]);
-		
-		Udn[DPN * i + 0] = f0 / PD_ETA;
-		Udn[DPN * i + 1] = f1 / PD_ETA;
-		Udn[DPN * i + 2] = f2 / PD_ETA;
+		f0 = (FCTypes[DPN*i + 0] == 2 ? f0 : f0 + FORCE_LOAD_SCALE * FCValues[DPN * i + 0]);
+		f1 = (FCTypes[DPN*i + 1] == 2 ? f1 : f1 + FORCE_LOAD_SCALE * FCValues[DPN * i + 1]);
+		f2 = (FCTypes[DPN*i + 2] == 2 ? f2 : f2 + FORCE_LOAD_SCALE * FCValues[DPN * i + 2]);
+
+		Udn[DPN * i + 0] = f0;
+		Udn[DPN * i + 1] = f1;
+		Udn[DPN * i + 2] = f2;
 	}
 }
 
@@ -97,8 +98,8 @@ __kernel void
         __global double const *k2dn,
         __global double const *k3dn,
 		__global double const *k4dn,
-        __global int const *ICTypes,
-		__global double const *ICValues,
+        __global int const *BCTypes,
+		__global double const *BCValues,
         __global double *Un
 	)
 {
@@ -106,7 +107,7 @@ __kernel void
 
 	if (i < PD_DPN_NODE_NO)
 	{
-        Un[i] = ICTypes[i] == 2 ? Un[i] + (1.00 / 6.00) * PD_DT * (k1dn[i] + 2 * k2dn[i] + 2 * k3dn[i] + k4dn[i]) : Un[i] + ICValues[i];
+        Un[i] = BCTypes[i] == 2 ? Un[i] + (1.00 / 6.00) * PD_DT * (k1dn[i] + 2 * k2dn[i] + 2 * k3dn[i] + k4dn[i]) : Un[i] + BCValues[i];
 	}
 }
 
@@ -205,6 +206,6 @@ __kernel void
 			}
 		}
 
-		Phi[i] = 1.00 - (double) active_bonds / (double) (HorizonLengths[i] - 1);
+		Phi[i] = 1.00 - (double) active_bonds / (double) (HorizonLengths[i]);
 	}
 }

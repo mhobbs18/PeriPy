@@ -25,9 +25,9 @@
 // Calculate force using un
 __kernel void
 	CalcBondForce(
-    __global double *Forces,
-    __global double const *Un,
-    __global double const *Vols,
+    	__global double *Forces,
+    	__global double const *Un,
+    	__global double const *Vols,
 		__global int *Horizons,
 		__global double const *Nodes,
 		__global double const *Stiffnesses,
@@ -85,7 +85,8 @@ __kernel void
         __global double *Udn,
         __global int const *FCTypes,
         __global double const *FCValues,
-        __local double* local_cache
+        __local double* local_cache,
+		double FORCE_LOAD_SCALE
    )
 {
     
@@ -114,7 +115,7 @@ __kernel void
     //Get the reduced forces
     int index = global_id/local_size;
     // Update accelerations
-    Udn[index] = (FCTypes[index] == 2 ? local_cache[local_id] : local_cache[local_id]);
+	Udn[index] = (FCTypes[index] == 2 ? local_cache[local_id] : local_cache[local_id] + FORCE_LOAD_SCALE * FCValues[index]);
 }
 }
 
@@ -125,8 +126,8 @@ __kernel void
         __global double const *k2dn,
         __global double const *k3dn,
 		__global double const *k4dn,
-        __global int const *ICTypes,
-		__global double const *ICValues,
+        __global int const *BCTypes,
+		__global double const *BCValues,
         __global double *Un
 	)
 {
@@ -134,7 +135,7 @@ __kernel void
 
 	if (i < PD_DPN_NODE_NO)
 	{
-        Un[i] = ICTypes[i] == 2 ? Un[i] + (1.00 / 6.00) * PD_DT * (k1dn[i] + 2 * k2dn[i] + 2 * k3dn[i] + k4dn[i]) : Un[i] + ICValues[i];
+        Un[i] = BCTypes[i] == 2 ? Un[i] + (1.00 / 6.00) * PD_DT * (k1dn[i] + 2 * k2dn[i] + 2 * k3dn[i] + k4dn[i]) : Un[i] + BCValues[i];
 	}
 }
 

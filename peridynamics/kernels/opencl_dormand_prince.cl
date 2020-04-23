@@ -32,7 +32,8 @@ __kernel void
 		__global double const *Nodes,
 		__global double const *Stiffnesses,
 		__global int const *FCTypes,
-		__global double const *FCValues
+		__global double const *FCValues,
+		double FORCE_LOAD_SCALE
 	)
 {
 	const int i = get_global_id(0);
@@ -78,15 +79,15 @@ __kernel void
 			}
 		}
 
-		// Final result
+		// Add body forces
 
-		f0 = (FCTypes[DPN*i + 0] == 2 ? f0 : f0); //+ FCValues[DPN * i + 0]);
-		f1 = (FCTypes[DPN*i + 1] == 2 ? f1 : f1); //+ FCValues[DPN * i + 1]);
-		f2 = (FCTypes[DPN*i + 2] == 2 ? f2 : f2); //+ FCValues[DPN * i + 2]);
+		f0 = (FCTypes[DPN*i + 0] == 2 ? f0 : f0 + FORCE_LOAD_SCALE * FCValues[DPN * i + 0]);
+		f1 = (FCTypes[DPN*i + 1] == 2 ? f1 : f1 + FORCE_LOAD_SCALE * FCValues[DPN * i + 1]);
+		f2 = (FCTypes[DPN*i + 2] == 2 ? f2 : f2 + FORCE_LOAD_SCALE * FCValues[DPN * i + 2]);
 		
-		Udn[DPN * i + 0] = f0 / PD_ETA;
-		Udn[DPN * i + 1] = f1 / PD_ETA;
-		Udn[DPN * i + 2] = f2 / PD_ETA;
+		Udn[DPN * i + 0] = f0;
+		Udn[DPN * i + 1] = f1;
+		Udn[DPN * i + 2] = f2;
 	}
 }
 
@@ -118,8 +119,8 @@ __kernel void
 // Update 5th order displacements using k1 through k6, update 4th order displacements using k1 through k7, and calculate error.
 __kernel void
 	UpdateDisplacement(
-        __global int const *ICTypes,
-		__global double const *ICValues,
+        __global int const *BCTypes,
+		__global double const *BCValues,
 		__global double const *U5n1,
         __global double *U5n,
 		double PD_DT
@@ -130,7 +131,7 @@ __kernel void
 	if (i < PD_DPN_NODE_NO)
 	{
 		// Final displacement update using the higher order value
-		U5n[i] = ICTypes[i] == 2 ? U5n1[i] : U5n[i] + ICValues[i];
+		U5n[i] = BCTypes[i] == 2 ? U5n1[i] : U5n[i] + BCValues[i];
 	}
 }
 
@@ -313,6 +314,6 @@ __kernel void
 			}
 		}
 
-		Phi[i] = 1.00 - (double) active_bonds / (double) (HorizonLengths[i] - 1);
+		Phi[i] = 1.00 - (double) active_bonds / (double) (HorizonLengths[i]);
 	}
 }
