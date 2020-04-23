@@ -56,12 +56,15 @@ def bond_force(double[:, :] r, double[:, :] r0, int[:, :] nlist,
 
     cdef int i, j, dim, i_n_neigh, neigh
     cdef double strain, l, force_norm
+    cdef double volumei, volumej
     cdef double[3] f
 
     for i in prange(nnodes, nogil=True):
         i_n_neigh = n_neigh[i]
+        volumei = volume[i]
         for neigh in range(i_n_neigh):
             j = nlist[i, neigh]
+            volumej = volume[j]
 
             if i < j:
                 # Calculate total force
@@ -77,11 +80,7 @@ def bond_force(double[:, :] r, double[:, :] r0, int[:, :] nlist,
                 # Add force to particle i, using Newton's third law subtract
                 # force from j
                 for dim in range(3):
-                    force_view[i, dim] = force_view[i, dim] + f[dim]
-                    force_view[j, dim] = force_view[j, dim] - f[dim]
-
-        # Scale force by node volume
-        for dim in range(3):
-            force_view[i, dim] = force_view[i, dim] * volume[i]
+                    force_view[i, dim] = force_view[i, dim] + f[dim] * volumei
+                    force_view[j, dim] = force_view[j, dim] - f[dim] * volumej
 
     return force
