@@ -13,12 +13,10 @@ from peridynamics.model import initial_crack_helper
 from peridynamics.integrators import EulerStochastic
 from pstats import SortKey, Stats
 import scipy.stats as sp
-#import matplotlib.pyplot as plt
 import shutil
 import os
 import mcmc
 import csv
-
 mesh_file_name = 'test.msh'
 mesh_file = pathlib.Path(__file__).parent.absolute() / mesh_file_name
 
@@ -213,8 +211,8 @@ def main():
     # Sength scale for covariance matrix
     l = 1e-2
     # Vertical scale of the covariance matrix
-    nu = 9e-4
-    model = OpenCLProbabilistic(mesh_file_name, volume_total, nu, l, bond_type=bond_type, initial_crack=is_crack)
+    sigma = 9e-4
+    model = OpenCLProbabilistic(mesh_file_name, volume_total, sigma, l, bond_type=bond_type, initial_crack=is_crack)
     #dx = np.power(1.*volume_total/model.nnodes,1./(model.dimensions))
     # Set simulation parameters
     # not a transfinite mesh
@@ -247,9 +245,9 @@ def main():
     # read the data
     damage_data = read_data(model)
     samples = 10
-    realisations = 3
+    realisations = 1
     
-    # Define start point of the Metropolis Hastings sampler w[1] is lambda, w[0] is sigma
+    # Define start point of the Metropolis Hastings sampler w[1] is l, w[0] is sigma
     w_prev = [-6.51, -5.05]
     
     # Define proposal density of the MCMC sampler
@@ -275,6 +273,7 @@ def main():
     
     for sample in range(samples):
         total_samples += 1
+        print('Sample {}/{} Complete'.format(total_samples, samples))
         # Get proposal parameters
         w = sp.multivariate_normal.rvs(w_prev, w_cov, 1)
         # update (l, sigma)
@@ -302,9 +301,13 @@ def main():
                 # accept the sample
                 data[0].append(w[0])
                 data[1].append(w[1])
+                print('accepted sigma: ', w[0], 'accepted l: ', w[1])
                 w_prev = w
                 prior_prev = prior
                 likelihood_prev = likelihood
+                with open(pathlib.Path(__file__).parent.absolute() / "mcmc_current.csv", 'a', newline='') as myfile:
+                    wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
+                    wr.writerow([w[0],w[1]])
             else:
                 None
     
@@ -314,26 +317,18 @@ def main():
     data[0] = data[0][burn:]
     data[1] = data[1][burn:]
     
-    print(data)
-# =============================================================================
-#     NO_BINS = 10
-#     xstart = -1.5
-#     xfinish = 1.5
-#     ystart = -6.0
-#     yfinish = -3.0
-#     xedges = np.linspace(xstart, xfinish, NO_BINS)
-#     yedges = np.linspace(ystart, yfinish, NO_BINS)
-#     H, xedges, yedges = np.histogram2d(data[0], data[1], bins=(xedges, yedges))
-# =============================================================================
-    #print('The percentage of accepted samples was {}%'.format(len(data[0])*100/(total_samples)))
-    
-# =============================================================================
-#     plt.figure()
-#     plt.hist2d(data[0], data[1], bins=100)
-#     plt.xlabel('$\sigma$')
-#     plt.ylabel('$\zeta$')
-#     plt.show()
-# =============================================================================
+    print(len(data[0]), 'LENGTH')
+    mean = np.divide(np.sum(data, axis = 1), len(data[0]))
+    print(mean, mean.shape, 'MEAN AND SHAPE')
+        
+    with open(pathlib.Path(__file__).parent.absolute() / "mean.csv", "w") as output:
+        writer = csv.writer(output, lineterminator='\n')
+        for val in mean:
+            writer.writerow([val])
+    if total_samples == 0:
+        pass
+    else:
+        print('The percentage of accepted samples was {}%'.format(len(data[0])*100/(total_samples)))
     
     # Write data to a file
     with open(pathlib.Path(__file__).parent.absolute() / "mcmc.csv", 'w', newline='') as myfile:

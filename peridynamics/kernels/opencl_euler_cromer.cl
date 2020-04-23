@@ -102,9 +102,14 @@ __kernel void
 		f2 = (FCTypes[DPN*i + 2] == 2 ? f2 : f2 + FCValues[DPN * i + 2]);
 		
         // Update accelerations
-		Uddn[DPN * i + 0] = (f0 + PD_ETA * Udn[DPN * i + 0]) / PD_RHO;
-		Uddn[DPN * i + 1] = (f1 + PD_ETA * Udn[DPN * i + 1]) / PD_RHO;
-		Uddn[DPN * i + 2] = (f2 + PD_ETA * Udn[DPN * i + 2]) / PD_RHO;
+		Uddn[DPN * i + 0] = (f0 - PD_ETA * Udn[DPN * i + 0]) / PD_RHO;
+		Uddn[DPN * i + 1] = (f1 - PD_ETA * Udn[DPN * i + 1]) / PD_RHO;
+		Uddn[DPN * i + 2] = (f2 - PD_ETA * Udn[DPN * i + 2]) / PD_RHO;
+
+		// Update accelerations
+		//Uddn[DPN * i + 0] = (f0) / PD_RHO;
+		//Uddn[DPN * i + 1] = (f1) / PD_RHO;
+		//Uddn[DPN * i + 2] = (f2) / PD_RHO;
 	}
 }
 

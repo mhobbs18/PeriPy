@@ -2800,14 +2800,14 @@ class EulerStochastic(Integrator):
         """
     def reset(self, model, steps):
         # Displacements
-        self.h_un = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_un = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
         # Forces
-        self.h_udn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
-        self.h_udn1 = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_udn = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        #self.h_udn1 = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
         # Damage vector
-        self.h_damage = np.empty(model.nnodes).astype(np.float64)
+        self.h_damage = np.zeros(model.nnodes).astype(np.float64)
 
         # Sample random noise vector
         self.h_pn = noise(model.C, model.K, model.nnodes, steps)
@@ -2829,11 +2829,11 @@ class EulerStochastic(Integrator):
         self.d_horizons = cl.Buffer(
                 self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
                 hostbuf=self.h_horizons)
-        self.d_un = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_un.nbytes)
-        self.d_udn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1.nbytes)
-        self.d_udn1 = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1.nbytes)
+        self.d_un = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_un)
+        self.d_udn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn)
+        #self.d_udn1 = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1.nbytes)
         # Write only
-        self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_damage.nbytes)
+        self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_damage)
         # Initialize kernel parameters
     def runtime(self, model, step):
         # Time marching Part 1
@@ -2855,10 +2855,10 @@ class EulerStochastic(Integrator):
                                   (model.max_horizon_length,), self.d_horizons,
                                            self.d_horizons_lengths, self.d_damage, self.local_mem)
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
-        #cl.enqueue_copy(self.queue, self.h_un, self.d_un)
-        #vtk.write("output/U_"+"sample" + str(sample) +"realisation" +str(realisation) +"t" +str(t) + ".vtk", "Solution time step = "+str(t),
-                  #model.coords, self.h_damage, self.h_un)
-        #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
+        cl.enqueue_copy(self.queue, self.h_un, self.d_un)
+        vtk.write("output/U_"+"sample" + str(sample) +"realisation" +str(realisation) + ".vtk", "Solution time step = "+str(t),
+                  model.coords, self.h_damage, self.h_un)
+        vtk.writeDamage("output/damage_" + "sample" + str(sample)+ "realisation" +str(realisation) + ".vtk", "Title", self.h_damage)
         return self.h_damage
 
 # =============================================================================

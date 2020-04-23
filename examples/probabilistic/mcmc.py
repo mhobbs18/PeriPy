@@ -7,6 +7,7 @@ Created on Thu Mar  5 08:16:27 2020
 import numpy as np
 import scipy.stats as sp
 from scipy.special import gamma
+from matplotlib import pyplot as plt
 
 def gamma_prior_pdf(x, alpha =1., beta=100.0):
     """ pdf of zeta rv with values of alpha and beta
@@ -25,10 +26,31 @@ def get_fast_likelihood(damage_data, model_sample):
     print(nll)
     likelihood = np.exp(-1.*nll)
     print(likelihood)
+    return nll
+
+def get_log_likelihood(damage_data, model_sample):
+    # Assume idependent, identically distributed with a variance of 1
+    error = np.subtract(model_sample, damage_data)
+    l2 = np.dot(error, error)
+    nll = 1./2 * l2
+    print(nll)
+    likelihood = np.exp(-1.*nll)
+    print(likelihood)
+    return nll
+
+def get_likelihood(damage_data, model_sample):
+    # Assume idependent, identically distributed with a variance of 1
+    error = np.subtract(model_sample, damage_data)
+    l2 = np.dot(error, error)
+    nll = 1./2 * l2
+    likelihood = np.exp(-1.*nll)
+    print(likelihood)
     return likelihood
 
-def get_KL_divergence(damage_data, model_sample):
-    # Taking the damage_data as ground truth
+# =============================================================================
+# def get_KL_divergence(damage_data, model_sample):
+#     # Taking the damage_data as ground truth
+# =============================================================================
 
 def beta_likelihood(damage_data, model_sample):
     mode = model_sample
@@ -40,3 +62,12 @@ def beta_likelihood(damage_data, model_sample):
         log_likelihood += np.log(likelihood)
     total_likelihood = np.exp(log_likelihood)
     return total_likelihood
+
+
+# =============================================================================
+# x = np.linspace(-10.0, -2.0, 50)
+# 
+# y = gamma_prior_pdf(x)
+# 
+# plt.plot(x,y)
+# =============================================================================

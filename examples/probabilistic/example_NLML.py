@@ -261,7 +261,6 @@ class Model:
             Input:
             Output:
         """
-        
         damage_data = read_data(self.solver)
         realisations = 3       
         # Get the intial likelihood

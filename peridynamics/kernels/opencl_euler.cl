@@ -162,7 +162,7 @@ __kernel void
 	{
 		int active_bonds = 0;
 
-		for (int j = 1; j < MAX_HORIZON_LENGTH; j++)
+		for (int j = 0; j < MAX_HORIZON_LENGTH; j++)
 		{
 			if (Horizons[MAX_HORIZON_LENGTH * i + j] != -1)
 			{

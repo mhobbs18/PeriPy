@@ -10,11 +10,11 @@ import numpy as np
 import pathlib
 from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
-from peridynamics.integrators import EulerOpenCL
+from peridynamics.integrators import EulerCromer
 from pstats import SortKey, Stats
 # TODO: add argument on command line that gives option to plot results or not,
 # as some systems won't have matplotlib installed.
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import time
 import shutil
 import os
@@ -22,9 +22,6 @@ import os
 mesh_file_name = '3300beam.msh'
 mesh_file = pathlib.Path(__file__).parent.absolute() / mesh_file_name
 
-token_problems = ['test.msh', 'debug3D.msh', 'debug3D2.msh']
-verification_problems = ['1000beam2D.msh', '1000beam3D.msh', '1000beam3DT.msh']
-benchmark_problems = ['3300beam.msh']
 
 @initial_crack_helper
 def is_crack(x, y):
@@ -33,14 +30,8 @@ def is_crack(x, y):
 
 def is_tip(horizon, x):
     output = 0
-    if mesh_file_name in verification_problems:
-        if x[0] > 1.0 - 1./3 * horizon:
-            output = 1
-    elif mesh_file_name in benchmark_problems:
-        if x[0] > 3.3 - 0.5 * horizon:
-            output = 1
-    elif mesh_file_name in token_problems:
-        if x[0] > 1.0 - 1. * horizon:
+    if mesh_file_name == '3300beam.msh':
+        if x[0] > 3.3 - 0.2 * horizon:
             output = 1
     return output
 
@@ -72,40 +63,6 @@ def is_rebar(p):
             return True
         else:
             return False
-    elif mesh_file_name == '1000beam3DT.msh':
-        # Beam type 1 for flexural failure beam
-        # Beam type 2 for shear failure beam
-        beam_type = 2
-        if beam_type == 1:
-            bar_centers = [
-                    # Tensile bars 25mm of cover, WARNING: only gives 21.8mm inner spacing of bars
-                    np.array((0.0321, 0.185)),
-                    np.array((0.0679, 0.185))]
-            rad_t = 0.00705236
-            
-            radii = [
-                    rad_t,
-                    rad_t]
-            costs = [ np.sum(np.square(cent - p) - (np.square(rad))) for cent, rad in zip(bar_centers, radii) ]
-            if any( c <= 0 for c in costs ):
-                return True
-            else:
-                return False
-        elif beam_type ==2:
-            bar_centers = [
-                    # Tensile bars 25mm of cover, WARNING: only gives 7.6mm inner spacing of bars
-                    np.array((0.0356, 0.185)),
-                    np.array((0.0644, 0.185))]
-            rad_t = 0.0105786
-            
-            radii = [
-                    rad_t,
-                    rad_t]
-            costs = [ np.sum(np.square(cent - p) - (np.square(rad))) for cent, rad in zip(bar_centers, radii) ]
-            if any( c <= 0 for c in costs ):
-                return True
-            else:
-                return False
     else:
         return False
 
@@ -147,7 +104,7 @@ def is_boundary(horizon, x):
             bnd[1] = 0
             bnd[2] = 0
         if x[0] > 3.3 - 0.2* horizon:
-            bnd[2] = 1
+            bnd[2] = 2
     return bnd
 
 def is_forces_boundary(horizon, x):
@@ -157,26 +114,10 @@ def is_forces_boundary(horizon, x):
     -1 is force loaded IN -ve direction
     1 is force loaded IN +ve direction
     """
-    if mesh_file_name in token_problems:
+    if mesh_file_name == '3300beam.msh':
         bnd = 2
-        if x[0] > 1.0 - 1.5 * horizon:
-            bnd = 2
-    elif mesh_file_name == '1000beam2D.msh':
-        bnd = 2
-        if x[1] > 0.2 - 1./3 * horizon:
-            bnd = 2
-    elif mesh_file_name == '1000beam3DT.msh':
-        bnd = 2
-        if x[2] > 0.2 - 1. * horizon:
+        if x[0] > 3.3 - 0.2 * horizon:
             bnd = -1
-    elif mesh_file_name in verification_problems:
-        bnd = 2
-        if x[0] > 1.0 - 1. * horizon:
-            bnd = -1
-    elif mesh_file_name == '3300beam.msh':
-        bnd = 2
-        if x[2] > 0.6 - 1. * horizon:
-            bnd = 2
     return bnd
 
 def boundary_function(model):
@@ -226,10 +167,11 @@ def boundary_forces_function(model):
         model.force_bc_types[i, 2] = np.intc((bnd))
 
     model.num_force_bc_nodes = num_force_bc_nodes
+    print(num_force_bc_nodes)
 
     # Calculate initial forces
     model.force_bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
-    load_scale = 0.0
+    load_scale = 1.0
     for i in range(0, model.nnodes):
         bnd = is_forces_boundary(model.horizon, model.coords[i][:])
         if bnd == 1:
@@ -257,6 +199,31 @@ def main():
     youngs_modulus_concrete = 1.*22e9
     youngs_modulus_steel = 1.*210e9
     tensile_strength_concrete = 2.6e6
+    poisson_ratio = 0.25
+    # Set simulation parameters
+    # Two materials in this example, that is 'concrete' and 'steel'
+    dx = np.power(1.*volume_total/4625,1./(3))
+    horizon = dx * np.pi 
+    family_volume =(4./3)*np.pi*np.power(horizon, 3)
+    damping = 2.0e6 # damping term
+    # Peridynamic bond stiffness, c
+    bulk_modulus_concrete = youngs_modulus_concrete/ (3* (1 - 2*poisson_ratio))
+    bulk_modulus_steel = youngs_modulus_steel / (3* (1- 2*poisson_ratio))
+    bond_stiffness_concrete = (
+    np.double((18.00 * bulk_modulus_concrete) /
+    (np.pi * np.power(horizon, 4)))
+    )
+    bond_stiffness_steel = (
+    np.double((18.00 * bulk_modulus_steel) /
+    (np.pi * np.power(horizon, 4)))
+    )
+    critical_strain_concrete = (
+    np.double(tensile_strength_concrete /
+    youngs_modulus_concrete)
+    )
+    #model.critical_strain_concrete = np.double(0.000533) # check this value
+    critical_strain_steel = np.double(0.01)
+    crack_length = np.double(0.0)
 # =============================================================================
 #     # Sength scale for covariance matrix
 #     l = 1e-2
@@ -264,68 +231,48 @@ def main():
 #     nu = 9e-20
 #     model = OpenCLProbabilistic(mesh_file_name, volume_total, nu, l, bond_type=bond_type, initial_crack=is_crack)
 # =============================================================================
-    model = OpenCL(mesh_file_name, volume_total, bond_type=bond_type, initial_crack=is_crack, dimensions=3)
-    # Set simulation parameters
-    # not a transfinite mesh
-    model.transfinite = 0
-    # do precise stiffness correction factors
-    model.precise_stiffness_correction = 1
-    # Only one material in this example, that is 'concrete'
-    model.density = density_concrete
-    dx = np.power(1.*volume_total/model.nnodes,1./(model.dimensions))
-    model.horizon = dx * np.pi 
-    model.family_volume =(4./3)*np.pi*np.power(model.horizon, 3)
-    model.damping = 2.0e6 # damping term
-    # Peridynamic bond stiffness, c
-    bulk_modulus_concrete = youngs_modulus_concrete/ (3* (1 - 2*model.poisson_ratio))
-    bulk_modulus_steel = youngs_modulus_steel / (3* (1- 2*model.poisson_ratio))
-    model.bond_stiffness_concrete = (
-    np.double((18.00 * bulk_modulus_concrete) /
-    (np.pi * np.power(model.horizon, 4)))
-    )
-    model.bond_stiffness_steel = (
-    np.double((18.00 * bulk_modulus_steel) /
-    (np.pi * np.power(model.horizon, 4)))
-    )
-    model.critical_strain_concrete = (
-    np.double(tensile_strength_concrete /
-    youngs_modulus_concrete)
-    )
-    #model.critical_strain_concrete = np.double(0.000533) # check this value
-    model.critical_strain_steel = np.double(0.01)
-    model.crackLength = np.double(0.3)
-    #saf_fac = 0.2 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
-    #model.dt = (
-    # 0.8 * np.power( 2.0 * density_concrete * dx / 
-    # (np.pi * np.power(model.horizon, 2.0) * dx * model.bond_stiffness_concrete), 0.5)
-    # * saf_fac
-    # )
-    #model.dt = 1.25e-8
-    model.dt = 5.7e-14
-    model.max_reaction = 1.* self_weight # in newtons, about 85 times self weight
-    model.load_scale_rate = 1
+    model = OpenCL(mesh_file_name, density = density_concrete, horizon = horizon, family_volume = family_volume, 
+                 damping = damping, bond_stiffness_concrete = bond_stiffness_concrete, bond_stiffness_steel = bond_stiffness_steel, 
+                 critical_strain_concrete = critical_strain_concrete, critical_strain_steel = critical_strain_steel, crack_length = crack_length,
+                 volume_total=volume_total, bond_type=bond_type, network_file_name = 'Network.vtk', initial_crack=[], dimensions=3,
+                 transfinite=1, precise_stiffness_correction=0)
+    saf_fac = 0.7 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
+    model.dt = (
+     0.8 * np.power( 2.0 * density_concrete * dx / 
+     (np.pi * np.power(model.horizon, 2.0) * dx * model.bond_stiffness_concrete), 0.5)
+     * saf_fac
+     )
+    #model.dt = 5.0e-7
+    #model.dt = 5.7e-14
+    #model.max_reaction = 1.* self_weight # in newtons, about 85 times self weight
+    model.max_reaction = 100000000 # in newtons, about 85 times self weight
+    model.load_scale_rate = 1/1000
 
     # Set force and displacement boundary conditions
     boundary_function(model)
     boundary_forces_function(model)
 
-    integrator = EulerOpenCL(model)
+    integrator = EulerCromer(model)
 
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
 
-    damage_data, damage_sum_data, tip_displacement_data = model.simulate(model, sample=1, steps=2000, integrator=integrator, write=2000, toolbar=0)
-# =============================================================================
-#     plt.figure(1)
-#     plt.title('damage over time')
-#     plt.plot(damage_data)
-#     plt.figure(2)
-#     plt.title('tip displacement over time')
-#     plt.plot(tip_displacement_data)
-#     plt.show()
-# =============================================================================
+    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=15000, integrator=integrator, write=1000, toolbar=0)
+    plt.figure(1)
+    plt.title('damage over time')
+    plt.plot(damage_sum_data)
+    plt.figure(2)
+    plt.title('tip displacement over time')
+    plt.plot(tip_displacement_data)
+    plt.show()
+    plt.figure(3)
+    plt.title('shear force over time')
+    plt.plot(tip_shear_force_data)
+    plt.show()
     print(damage_sum_data)
+    print(tip_displacement_data)
+    print(tip_shear_force_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
     if args.profile:
         profile.disable()

@@ -140,7 +140,7 @@ __kernel void
     //Get the reduced forces
     int index = global_id/local_size;
     // Update accelerations
-    Uddn[index] = FCTypes[index] == 2 ? (local_cache[local_id] + PD_ETA * Udn[index]) / PD_RHO : (local_cache[local_id] + FCValues[index + 2] + PD_ETA * Udn[index]) / PD_RHO;
+    Uddn[index] = FCTypes[index] == 2 ? (local_cache[local_id] - PD_ETA * Udn[index]) / PD_RHO : (local_cache[local_id] + FCValues[index] - PD_ETA * Udn[index]) / PD_RHO;
 }
 }
 

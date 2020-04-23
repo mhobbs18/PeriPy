@@ -9,7 +9,6 @@ from scipy.spatial.distance import cdist
 import time
 import sys
 from .post_processing import vtk
-import peridynamics.grid as fem
 
 _MeshElements = namedtuple("MeshElements", ["connectivity", "boundary"])
 _mesh_elements_2d = _MeshElements(connectivity="triangle",
@@ -180,10 +179,10 @@ class Model:
             self.nnodes = self.coords.shape[0]
 
             # Get connectivity, mesh triangle cells
-            self.mesh_connectivity = mesh.cells_dict[self.mesh_elements.connectivity]
+            self.mesh_connectivity = mesh.cells[self.mesh_elements.connectivity]
 
             # Get boundary connectivity, mesh lines
-            self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
+            self.mesh_boundary = mesh.cells[self.mesh_elements.boundary]
 
             # Get number elements on boundary?
             self.nelem_bnd = self.mesh_boundary.shape[0]
@@ -556,7 +555,7 @@ class OpenCL(Model):
     This class allows users to define a peridynamics system from parameters and
     a set of initial conditions (coordinates and connectivity).
     """
-    def __init__(self, mesh_file_name, density = None, horizon = None, family_volume = None, 
+    def __init__(self, mesh_file_name, density = None, horizon = None, 
                  damping = None, bond_stiffness_concrete = None, bond_stiffness_steel = None, 
                  critical_strain_concrete = None, critical_strain_steel = None, crack_length = None,
                  volume_total=None, bond_type=None, network_file_name = 'Network.vtk', initial_crack=[], dimensions=2,
@@ -564,11 +563,14 @@ class OpenCL(Model):
         """
         Construct a :class:`OpenCL` object, which inherits Model class.
         
-        :arg str mesh_file: Path of the mesh file defining the systems nodes
+        :arg str mesh_file_name: Path of the mesh file defining the systems nodes
             and connectivity.
+        :arg float density: Density of the bulk material in kg/m^3
         :arg float horizon: The horizon radius. Nodes within `horizon` of
             another interact with that node and are said to be within its
             neighbourhood.
+        :arg float family_volume: The spherical volume defined by the horizon
+        radius.
         :arg float critical_strain: The critical strain of the model. Bonds
             which exceed this strain are permanently broken.
         :arg float elastic_modulus: The appropriate elastic modulus of the
@@ -593,8 +595,10 @@ class OpenCL(Model):
 
         if dimensions == 2:
             self.mesh_elements = _mesh_elements_2d
+            self.family_volume = np.pi*np.power(horizon, 2)
         elif dimensions == 3:
             self.mesh_elements = _mesh_elements_3d
+            self.family_volume = (4./3)*np.pi*np.power(horizon, 3)
         else:
             raise DimensionalityError(dimensions)
 
@@ -618,13 +622,13 @@ class OpenCL(Model):
         # These are the parameters that the user needs to define
         self.density = density
         self.horizon = horizon
-        self.family_volume = family_volume
         self.damping = damping
         self.bond_stiffness_concrete = bond_stiffness_concrete
         self.bond_stiffness_steel = bond_stiffness_steel
         self.critical_strain_concrete = critical_strain_concrete
         self.critical_strain_steel = critical_strain_steel
         self.crack_length = crack_length
+        self.volume_total = volume_total
         self.dt = None
         self.max_reaction = None
         self.load_scale_rate = None
@@ -898,7 +902,7 @@ class OpenCL(Model):
                             tmp2.append(self.bond_stiffness_steel)
                             tmp3.append(self.critical_strain_steel)
                         elif material_flag == 'interface':
-                            tmp2.append(self.bond_stiffness_concrete) # choose the weakest stiffness of the two bond types
+                            tmp2.append(self.bond_stiffness_concrete * 3.0) # factor of 3 is used for interface bonds in the literature
                             tmp3.append(self.critical_strain_concrete * 3.0) # 3.0 is used for interface bonds in the literature
                         elif material_flag == 'concrete':
                             tmp2.append(self.bond_stiffness_concrete)
@@ -934,20 +938,22 @@ class OpenCL(Model):
             # Calculate stiffening factor nore accurately using actual nodal volumes
             for i in range(0, self.nnodes):
                 family_list = family[i]
-                nodei_family_volume = self.family_v[i] # Possible to calculate more exactly, we have the volumes for free
+                nodei_family_volume = self.family_v[i]
                 for j in range(len(family_list)):
                     nodej_family_volume = self.family_v[j]
                     stiffening_factor = 2.* self.family_volume /  (nodej_family_volume + nodei_family_volume)
                     print('Stiffening factor {}'.format(stiffening_factor))
                     bond_stiffness_family[i][j] *= stiffening_factor
         elif self.precise_stiffness_correction == 0:
+            # TODO: check this code, it was 23:52pm
+            average_node_volume = self.volume_total/self.nnodes
             # Calculate stiffening factor - surface corrections for 3D problem, for this we need family matrix
             for i in range(0, self.nnodes):
                 nnodes_i_family = len(family[i])
-                nodei_family_volume = nnodes_i_family * self.average_node_volume # Possible to calculate more exactly, we have the volumes for free
+                nodei_family_volume = nnodes_i_family * average_node_volume # Possible to calculate more exactly, we have the volumes for free
                 for j in range(len(family[i])):
                     nnodes_j_family = len(family[j])
-                    nodej_family_volume = nnodes_j_family* self.average_node_volume # Possible to calculate more exactly, we have the volumes for free
+                    nodej_family_volume = nnodes_j_family* average_node_volume # Possible to calculate more exactly, we have the volumes for free
                     
                     stiffening_factor = 2.* self.family_volume /  (nodej_family_volume + nodei_family_volume)
                     
@@ -1107,9 +1113,12 @@ class OpenCL(Model):
                         st = time.time()
 
             # Increase load in linear increments
-            load_scale = min(1.0, model.load_scale_rate * step)
-            if load_scale != 1.0:
-                integrator.incrementLoad(model, load_scale)
+            if model.load_scale_rate is None:
+                pass
+            else:
+                load_scale = min(1.0, model.load_scale_rate * step)
+                if load_scale != 1.0:
+                    integrator.incrementLoad(model, load_scale)
             # Loading bar update
             if step%(steps/toolbar_width)<1 & toolbar:
                 sys.stdout.write("\u2588")
@@ -1125,7 +1134,7 @@ class OpenCLProbabilistic(OpenCL):
     This class allows users to define a peridynamics system from parameters and
     a set of initial conditions (coordinates and connectivity).
     """
-    def __init__(self, mesh_file_name, volume_total, nu, l, bond_type, network_file_name = 'Network.vtk', initial_crack=[], dimensions=2):
+    def __init__(self, mesh_file_name, volume_total, sigma, l, bond_type, network_file_name = 'Network.vtk', initial_crack=[], dimensions=2):
         """
         Construct a :class:`OpenCL` object, which inherits Model class.
         
@@ -1199,7 +1208,7 @@ class OpenCLProbabilistic(OpenCL):
 
         self._set_volume(volume_total)
         # Set covariance matrix
-        self._set_H(l, nu)
+        self._set_H(l, sigma)
         # If the network has already been written to file, then read, if not, setNetwork
         self._read_network(network_file_name)
 # =============================================================================
@@ -1225,7 +1234,7 @@ class OpenCLProbabilistic(OpenCL):
         if self.v == True:
             print("sum total volume", self.sum_total_volume)
             print("user input volume total", volume_total)
-    def _set_H(self, l, nu, epsilon=1e-5):
+    def _set_H(self, l, sigma, epsilon=1e-5):
         """
         Constructs the failure strains matrix and H matrix, which is a sparse
         matrix containing distances.
@@ -1259,21 +1268,21 @@ class OpenCLProbabilistic(OpenCL):
 
         # Exponential of radial basis functions
         K = np.exp(rbf)
-
         # Multiply by the vertical scale to get covariance matrix, K
-        self.K = np.multiply (pow(nu, 2), K)
+        self.K = np.multiply (pow(sigma, 2), K)
+        
 
         # Create C matrix for sampling perturbations
 
-        # add epsilon before scaling by a vertical variance scale, nu
+        # add epsilon before scaling by a vertical variance scale, sigma
         I = np.identity(self.nnodes)
-        K_tild = K = np.multiply(epsilon, I)
-        K_tild = np.multiply(pow(nu, 2), K_tild)
+        K_tild = np.add(K, np.multiply(epsilon, I))
+        K_tild = np.multiply(pow(sigma, 2), K_tild)
 
         self.C = np.linalg.cholesky(K_tild)
 
         #K = np.identity(self.nnodes)
-        #self.K = np.multiply(pow(nu, 2), K)
+        #self.K = np.multiply(pow(sigma, 2), K)
         #self.C = self.K
         #self.L_0 = np.sqrt(norms_matrix)
 
