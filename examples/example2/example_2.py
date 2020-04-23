@@ -105,9 +105,9 @@ def is_forces_boundary(horizon, x):
     1 is force loaded IN +ve direction
     """
     if mesh_file_name == 'test.msh':
-        bnd = 2
-        if x[0] > 1.0 - 1.5 * horizon:
-            bnd = 2
+        bnd = [2, 2, 2]
+        #if x[0] > 1.0 - 1.5 * horizon:
+            #bnd[2] = 1
     return bnd
 
 def boundary_function(model):
@@ -145,25 +145,15 @@ def boundary_forces_function(model):
     num_force_bc_nodes = 0
     for i in range(0, model.nnodes):
         bnd = is_forces_boundary(model.horizon, model.coords[i][:])
-        if bnd == -1:
+        if -1 in bnd:
             num_force_bc_nodes += 1
-        elif bnd == 1:
+        elif 1 in bnd:
             num_force_bc_nodes += 1
-        model.force_bc_types[i, 0] = np.intc((bnd))
-        model.force_bc_types[i, 1] = np.intc((bnd))
-        model.force_bc_types[i, 2] = np.intc((bnd))
+        model.force_bc_types[i, 0] = np.intc((bnd[0]))
+        model.force_bc_types[i, 1] = np.intc((bnd[1]))
+        model.force_bc_types[i, 2] = np.intc((bnd[2]))
 
     model.num_force_bc_nodes = num_force_bc_nodes
-
-    # Calculate initial forces
-    model.force_bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
-    load_scale = 0.0
-    for i in range(0, model.nnodes):
-        bnd = is_forces_boundary(model.horizon, model.coords[i][:])
-        if bnd == 1:
-            pass
-        elif bnd == -1:
-            model.force_bc_values[i, 2] = np.float64(1.* bnd * model.max_reaction * load_scale / (model.num_force_bc_nodes))
                 
 def main():
     """

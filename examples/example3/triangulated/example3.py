@@ -12,12 +12,11 @@ from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
 from peridynamics.integrators import EulerOpenCLOptimised
 from pstats import SortKey, Stats
-# TODO: add argument on command line that gives option to plot results or not,
-# as some systems won't have matplotlib installed.
 #import matplotlib.pyplot as plt
 import time
 import shutil
 import os
+# TODO: check that BC are correct on this main file
 
 mesh_file_name = '1000beam3DT.msh'
 mesh_file = pathlib.Path(__file__).parent.absolute() / mesh_file_name
@@ -29,7 +28,7 @@ def is_crack(x, y):
 
 def is_tip(horizon, x):
     output = 0
-    if mesh_file_name == 'test.msh':
+    if mesh_file_name == '1000beam3DT.msh':
         if x[0] > 1.0 - 1./3 * horizon:
             output = 1
     return output
@@ -106,7 +105,7 @@ def is_boundary(horizon, x):
     1 is displacement loaded IN +ve direction
     0 is clamped boundary
     """
-    if mesh_file_name == 'test.msh':
+    if mesh_file_name == '1000beam3DT.msh':
         bnd = [2, 2, 2]
         if x[0] < 1.5 * horizon:
             bnd[0] = 0
@@ -123,10 +122,10 @@ def is_forces_boundary(horizon, x):
     -1 is force loaded IN -ve direction
     1 is force loaded IN +ve direction
     """
-    if mesh_file_name == 'test.msh':
-        bnd = 2
-        if x[1] > 0.2 - 1./3 * horizon:
-            bnd = 2
+    if mesh_file_name == '1000beam3DT.msh':
+        bnd = [2, 2, 2]
+        if x[0] > 1.0 - 0.2 * horizon:
+            bnd[2] = -1
     return bnd
 
 def boundary_function(model):
@@ -155,10 +154,10 @@ def boundary_function(model):
         tip = is_tip(model.horizon, model.coords[i][:])
         model.tip_types[i] = np.intc(tip)
     print(np.max(model.tip_types), 'max_tip_types')
-
+    
 def boundary_forces_function(model):
     """ 
-    Initiates boundary forces
+    Initiates boundary forces. The units are force per unit volume.
     """
     model.force_bc_types = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.intc)
     model.force_bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
@@ -167,25 +166,15 @@ def boundary_forces_function(model):
     num_force_bc_nodes = 0
     for i in range(0, model.nnodes):
         bnd = is_forces_boundary(model.horizon, model.coords[i][:])
-        if bnd == -1:
+        if -1 in bnd:
             num_force_bc_nodes += 1
-        elif bnd == 1:
+        elif 1 in bnd:
             num_force_bc_nodes += 1
-        model.force_bc_types[i, 0] = np.intc((bnd))
-        model.force_bc_types[i, 1] = np.intc((bnd))
-        model.force_bc_types[i, 2] = np.intc((bnd))
-
+        model.force_bc_types[i, 0] = np.intc((bnd[0]))
+        model.force_bc_types[i, 1] = np.intc((bnd[1]))
+        model.force_bc_types[i, 2] = np.intc((bnd[2]))
+    print('number of force BC nodes', num_force_bc_nodes)
     model.num_force_bc_nodes = num_force_bc_nodes
-
-    # Calculate initial forces
-    model.force_bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
-    load_scale = 0.0
-    for i in range(0, model.nnodes):
-        bnd = is_forces_boundary(model.horizon, model.coords[i][:])
-        if bnd == 1:
-            pass
-        elif bnd == -1:
-            model.force_bc_values[i, 2] = np.float64(1.* bnd * model.max_reaction * load_scale / (model.num_force_bc_nodes))
 
 def main():
     """
@@ -211,7 +200,6 @@ def main():
     # Two materials in this example, that is 'concrete' and 'steel'
     dx = np.power(1.*volume_total/67500,1./3)
     horizon = dx * np.pi 
-    family_volume =(4./3)*np.pi*np.power(horizon, 3)
     damping = 2.0e6 # damping term
     # Peridynamic bond stiffness, c
     poisson_ratio = 0.25
@@ -225,28 +213,26 @@ def main():
     np.double((18.00 * bulk_modulus_steel) /
     (np.pi * np.power(horizon, 4)))
     )
-# =============================================================================
-#     critical_strain_concrete = (
-#     np.double(tensile_strength_concrete /
-#     youngs_modulus_concrete)
-#     )
-# =============================================================================
     critical_strain_concrete = np.double(0.000533) # check this value
     #critical_strain_concrete = np.double(1.0) # bond breakage off
     critical_strain_steel = np.double(0.01)
     crack_length = np.double(0)
-# =============================================================================
-#     # Sength scale for covariance matrix
-#     l = 1e-2
-#     # Vertical scale of the covariance matrix
-#     nu = 9e-20
-#     model = OpenCLProbabilistic(mesh_file_name, volume_total, nu, l, bond_type=bond_type, initial_crack=is_crack)
-# =============================================================================
-    model = OpenCL(mesh_file_name, density = density_concrete, horizon = horizon, family_volume = family_volume, 
-                 damping = damping, bond_stiffness_concrete = bond_stiffness_concrete, bond_stiffness_steel = bond_stiffness_steel, 
-                 critical_strain_concrete = critical_strain_concrete, critical_strain_steel = critical_strain_steel, crack_length = crack_length,
-                 volume_total=volume_total, bond_type=bond_type, network_file_name = 'Network.vtk', initial_crack=[], dimensions=3,
-                 transfinite=0, precise_stiffness_correction=1)
+    model = OpenCL(mesh_file_name,
+                   density = density_concrete,
+                   horizon = horizon,
+                   damping = damping,
+                   bond_stiffness_concrete = bond_stiffness_concrete, 
+                   bond_stiffness_steel = bond_stiffness_steel,
+                   critical_strain_concrete = critical_strain_concrete,
+                   critical_strain_steel = critical_strain_steel,
+                   crack_length = crack_length,
+                   volume_total=volume_total,
+                   bond_type=bond_type,
+                   network_file_name = 'Network.vtk',
+                   initial_crack=[],
+                   dimensions=3,
+                   transfinite=0,
+                   precise_stiffness_correction=1)
     
     #saf_fac = 0.2 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
     #model.dt = (
@@ -254,10 +240,9 @@ def main():
     # (np.pi * np.power(model.horizon, 2.0) * dx * model.bond_stiffness_concrete), 0.5)
     # * saf_fac
     # )
-    #model.dt = 1.25e-8
     model.dt = 5.7e-14
     model.max_reaction = 1.* self_weight # in newtons, about 85 times self weight
-    model.load_scale_rate = 1
+    model.load_scale_rate = 1/100
 
     # Set force and displacement boundary conditions
     boundary_function(model)

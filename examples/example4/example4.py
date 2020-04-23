@@ -12,16 +12,13 @@ from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
 from peridynamics.integrators import EulerCromer
 from pstats import SortKey, Stats
-# TODO: add argument on command line that gives option to plot results or not,
-# as some systems won't have matplotlib installed.
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import time
 import shutil
 import os
 
 mesh_file_name = '3300beam.msh'
 mesh_file = pathlib.Path(__file__).parent.absolute() / mesh_file_name
-
 
 @initial_crack_helper
 def is_crack(x, y):
@@ -115,9 +112,9 @@ def is_forces_boundary(horizon, x):
     1 is force loaded IN +ve direction
     """
     if mesh_file_name == '3300beam.msh':
-        bnd = 2
+        bnd = [2, 2, 2]
         if x[0] > 3.3 - 0.2 * horizon:
-            bnd = -1
+            bnd[2] = -1
     return bnd
 
 def boundary_function(model):
@@ -126,8 +123,7 @@ def boundary_function(model):
     also define the 'tip' (for plotting displacements)
     """
     load_rate = 1e-8
-    #theta = 18.75
-    # initiate
+    # initiate containers
     model.bc_types = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.intc)
     model.bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
     model.tip_types = np.zeros(model.nnodes, dtype=np.intc)
@@ -149,7 +145,7 @@ def boundary_function(model):
 
 def boundary_forces_function(model):
     """ 
-    Initiates boundary forces
+    Initiates boundary forces. The units are force per unit volume.
     """
     model.force_bc_types = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.intc)
     model.force_bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
@@ -158,26 +154,15 @@ def boundary_forces_function(model):
     num_force_bc_nodes = 0
     for i in range(0, model.nnodes):
         bnd = is_forces_boundary(model.horizon, model.coords[i][:])
-        if bnd == -1:
+        if -1 in bnd:
             num_force_bc_nodes += 1
-        elif bnd == 1:
+        elif 1 in bnd:
             num_force_bc_nodes += 1
-        model.force_bc_types[i, 0] = np.intc((bnd))
-        model.force_bc_types[i, 1] = np.intc((bnd))
-        model.force_bc_types[i, 2] = np.intc((bnd))
-
+        model.force_bc_types[i, 0] = np.intc((bnd[0]))
+        model.force_bc_types[i, 1] = np.intc((bnd[1]))
+        model.force_bc_types[i, 2] = np.intc((bnd[2]))
+    print('number of force BC nodes', num_force_bc_nodes)
     model.num_force_bc_nodes = num_force_bc_nodes
-    print(num_force_bc_nodes)
-
-    # Calculate initial forces
-    model.force_bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
-    load_scale = 1.0
-    for i in range(0, model.nnodes):
-        bnd = is_forces_boundary(model.horizon, model.coords[i][:])
-        if bnd == 1:
-            pass
-        elif bnd == -1:
-            model.force_bc_values[i, 2] = np.float64(1.* bnd * model.max_reaction * load_scale / (model.num_force_bc_nodes))
 
 def main():
     """
@@ -198,7 +183,6 @@ def main():
     self_weight = 1.*density_concrete * volume_total * 9.81
     youngs_modulus_concrete = 1.*22e9
     youngs_modulus_steel = 1.*210e9
-    tensile_strength_concrete = 2.6e6
     poisson_ratio = 0.25
     # Set simulation parameters
     # Two materials in this example, that is 'concrete' and 'steel'
@@ -217,20 +201,9 @@ def main():
     np.double((18.00 * bulk_modulus_steel) /
     (np.pi * np.power(horizon, 4)))
     )
-    critical_strain_concrete = (
-    np.double(tensile_strength_concrete /
-    youngs_modulus_concrete)
-    )
-    #model.critical_strain_concrete = np.double(0.000533) # check this value
+    critical_strain_concrete = np.double(0.000533) # check this value
     critical_strain_steel = np.double(0.01)
     crack_length = np.double(0.0)
-# =============================================================================
-#     # Sength scale for covariance matrix
-#     l = 1e-2
-#     # Vertical scale of the covariance matrix
-#     nu = 9e-20
-#     model = OpenCLProbabilistic(mesh_file_name, volume_total, nu, l, bond_type=bond_type, initial_crack=is_crack)
-# =============================================================================
     model = OpenCL(mesh_file_name, density = density_concrete, horizon = horizon, family_volume = family_volume, 
                  damping = damping, bond_stiffness_concrete = bond_stiffness_concrete, bond_stiffness_steel = bond_stiffness_steel, 
                  critical_strain_concrete = critical_strain_concrete, critical_strain_steel = critical_strain_steel, crack_length = crack_length,
@@ -259,17 +232,19 @@ def main():
     os.mkdir('./output')
 
     damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=15000, integrator=integrator, write=1000, toolbar=0)
-    plt.figure(1)
-    plt.title('damage over time')
-    plt.plot(damage_sum_data)
-    plt.figure(2)
-    plt.title('tip displacement over time')
-    plt.plot(tip_displacement_data)
-    plt.show()
-    plt.figure(3)
-    plt.title('shear force over time')
-    plt.plot(tip_shear_force_data)
-    plt.show()
+# =============================================================================
+#     plt.figure(1)
+#     plt.title('damage over time')
+#     plt.plot(damage_sum_data)
+#     plt.figure(2)
+#     plt.title('tip displacement over time')
+#     plt.plot(tip_displacement_data)
+#     plt.show()
+#     plt.figure(3)
+#     plt.title('shear force over time')
+#     plt.plot(tip_shear_force_data)
+#     plt.show()
+# =============================================================================
     print(damage_sum_data)
     print(tip_displacement_data)
     print(tip_shear_force_data)

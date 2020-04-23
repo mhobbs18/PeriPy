@@ -12,7 +12,7 @@ from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
 from peridynamics.integrators import EulerCromer
 from pstats import SortKey, Stats
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import time
 import shutil
 import os
@@ -160,26 +160,20 @@ def boundary_forces_function(model):
     """
     model.force_bc_types = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.intc)
     model.force_bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
-    load_scale = 0.0
 
     # Find the force boundary nodes and find amount of boundary nodes
     num_force_bc_nodes = 0
     for i in range(0, model.nnodes):
         bnd = is_forces_boundary(model.horizon, model.coords[i][:])
-        if bnd == -1:
+        if -1 in bnd:
+            num_force_bc_nodes += 1
+        elif 1 in bnd:
             num_force_bc_nodes += 1
         model.force_bc_types[i, 0] = np.intc((bnd[0]))
         model.force_bc_types[i, 1] = np.intc((bnd[1]))
         model.force_bc_types[i, 2] = np.intc((bnd[2]))
-
+    print('number of force BC nodes', num_force_bc_nodes)
     model.num_force_bc_nodes = num_force_bc_nodes
-    
-    for i in range(0, model.nnodes):
-        bnd = is_forces_boundary(model.horizon, model.coords[i][:])
-        if bnd == 1:
-            pass
-        elif bnd == -1:
-            model.force_bc_values[i, 2] = np.float64(1.* bnd * model.max_reaction * load_scale / (model.num_force_bc_nodes * model.V[i]))
 
 def main():
     """
@@ -205,7 +199,6 @@ def main():
     dx = np.power(1.*volume_total/81920,1./3)
     horizon = dx * np.pi
     damping = 2.5e6 # damping term
-    # Peridynamic bond stiffness, c
     poisson_ratio = 0.25
     bulk_modulus_concrete = youngs_modulus_concrete/ (3* (1 - 2*poisson_ratio))
     bulk_modulus_steel = youngs_modulus_steel / (3* (1 - 2*poisson_ratio))
@@ -245,8 +238,8 @@ def main():
      (np.pi * np.power(model.horizon, 2.0) * dx * model.bond_stiffness_concrete), 0.5)
      * saf_fac
      )
-    model.max_reaction = 10000 # in newtons, about 85 times self weight
-    model.load_scale_rate = 1/10000
+    model.max_reaction = 1e13 # in newtons, about 85 times self weight
+    model.load_scale_rate = 1/10
 
     # Set force and displacement boundary conditions
     boundary_function(model)
@@ -257,18 +250,20 @@ def main():
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
-    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=2000, integrator=integrator, write=200, toolbar=0)
+    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=400, integrator=integrator, write=200, toolbar=0)
     print(tip_displacement_data)
     print(tip_shear_force_data)
     print(damage_sum_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
-    plt.figure(1)
-    plt.title('damage over time')
-    plt.plot(damage_sum_data)
-    plt.figure(2)
-    plt.title('tip displacement over time')
-    plt.plot(tip_displacement_data)
-    plt.show()
+# =============================================================================
+#     plt.figure(1)
+#     plt.title('damage over time')
+#     plt.plot(damage_sum_data)
+#     plt.figure(2)
+#     plt.title('tip displacement over time')
+#     plt.plot(tip_displacement_data)
+#     plt.show()
+# =============================================================================
     if args.profile:
         profile.disable()
         s = StringIO()
