@@ -17,7 +17,7 @@ def euclid(r1, r2):
     return ceuclid(r1, r2)
 
 
-cdef inline double ceuclid(double[:] r1, double[:] r2):
+cdef inline double ceuclid(double[:] r1, double[:] r2) nogil:
     """
     C function for calculating the Euclidean distance between two coordinates.
     """
@@ -84,7 +84,7 @@ def strain2(l, r10, r20):
     return cstrain2(l, r10, r20)
 
 
-cdef inline double cstrain2(double l, double[:] r10, double[:] r20):
+cdef inline double cstrain2(double l, double[:] r10, double[:] r20) nogil:
     """
     C function for calculating the strain given current distplacement and the
     initial coordinates.

@@ -1,4 +1,5 @@
 from .spatial cimport ceuclid, cstrain2
+from cython.parallel import prange
 import numpy as np
 
 
@@ -16,7 +17,7 @@ def damage(int[:] n_neigh, int[:] family):
         dtype=numpy.int32.
     :type family: :class:`numpy.ndarray`
     """
-    cdef nnodes = family.shape[0]
+    cdef int nnodes = family.shape[0]
 
     result = np.empty(nnodes, dtype=np.float64)
     cdef double[:] result_view = result
@@ -57,7 +58,7 @@ def bond_force(double[:, :] r, double[:, :] r0, int[:, :] nlist,
     cdef double strain, l, force_norm
     cdef double[3] f
 
-    for i in range(nnodes):
+    for i in prange(nnodes, nogil=True):
         i_n_neigh = n_neigh[i]
         for neigh in range(i_n_neigh):
             j = nlist[i, neigh]
