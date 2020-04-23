@@ -360,7 +360,6 @@ class EulerCromerOptimised(Integrator):
         self.cl_kernel_update_displacement = program.UpdateDisplacement
         self.cl_kernel_calc_bond_force = program.CalcBondForce
         self.cl_kernel_update_velocity = program.UpdateVelocity
-        self.cl_kernel_check_bonds = program.CheckBonds
         self.cl_kernel_reduce_damage = program.ReduceDamage
         self.cl_kernel_reduce_force = program.ReduceForce
 
@@ -464,7 +463,6 @@ class EulerCromerOptimised(Integrator):
         self.cl_kernel_calc_bond_force.set_scalar_arg_dtypes(
             [None, None, None, None, None, None, None])
         self.cl_kernel_update_velocity.set_scalar_arg_dtypes([None, None])
-        self.cl_kernel_check_bonds.set_scalar_arg_dtypes([None, None, None, None])
         self.cl_kernel_reduce_damage.set_scalar_arg_dtypes([None, None, None, None])
         self.cl_kernel_reduce_force.set_scalar_arg_dtypes([None, None, None, None, None, None])
         return None
@@ -497,15 +495,9 @@ class EulerCromerOptimised(Integrator):
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
                                   (model.max_horizon_length,), self.d_forces, self.d_uddn, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem)
-
         # Update velocity
         self.cl_kernel_update_velocity(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_uddn)
-
-        # Check for broken bonds
-        self.cl_kernel_check_bonds(self.queue,
-                              (model.nnodes, model.max_horizon_length),
-                              None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
