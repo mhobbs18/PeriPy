@@ -88,7 +88,7 @@ __kernel void
 
 			const double s = (y - xi) / xi;
 
-			// Check for state of the bond
+			//Check for state of the bond
 
 			if (s > PD_S0)
 			{
@@ -180,4 +180,46 @@ __kernel void
     // Update damage
     Phi[index] = 1.00 - (double) local_cache[local_id] / (double) (HorizonLengths[index]);
 }
+}
+
+__kernel void
+	CheckBonds(
+		__global int *Horizons,
+		__global double const *Un,
+		__global double const *Nodes,
+		__global double const *FailStretches
+	)
+{
+	const int i = get_global_id(0);
+	const int j = get_global_id(1);
+
+	if ((i < PD_NODE_NO) && (j > 0) && (j < MAX_HORIZON_LENGTH))
+	{
+		const int n = Horizons[i * MAX_HORIZON_LENGTH + j];
+
+		if (n != -1)
+		{
+			const double xi_x = Nodes[DPN * n + 0] - Nodes[DPN * i + 0];  // Optimize later
+			const double xi_y = Nodes[DPN * n + 1] - Nodes[DPN * i + 1];
+			const double xi_z = Nodes[DPN * n + 2] - Nodes[DPN * i + 2];
+
+			const double xi_eta_x = Un[DPN * n + 0] - Un[DPN * i + 0] + xi_x;
+			const double xi_eta_y = Un[DPN * n + 1] - Un[DPN * i + 1] + xi_y;
+			const double xi_eta_z = Un[DPN * n + 2] - Un[DPN * i + 2] + xi_z;
+
+			const double xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
+			const double y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
+
+			const double PD_S0 = FailStretches[i * MAX_HORIZON_LENGTH + j];
+
+			const double s = (y - xi) / xi;
+
+			// Check for state of the bond
+
+			if (s > PD_S0)
+			{
+				Horizons[i * MAX_HORIZON_LENGTH + j] = -1;  // Break the bond
+			}
+		}
+	}
 }

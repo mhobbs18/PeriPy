@@ -10,6 +10,14 @@ import numpy as np
 import pathlib
 from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
+from peridynamics.integrators import DormandPrinceOptimised
+from peridynamics.integrators import DormandPrince
+from peridynamics.integrators import HeunEuler
+from peridynamics.integrators import HeunEulerOptimised
+from peridynamics.integrators import EulerOpenCL
+from peridynamics.integrators import EulerOpenCLOptimised
+from peridynamics.integrators import EulerOpenCLOptimisedLumped
+from peridynamics.integrators import RK4
 from peridynamics.integrators import RK4Optimised
 from pstats import SortKey, Stats
 import matplotlib.pyplot as plt
@@ -115,7 +123,7 @@ def boundary_function(model):
     Initiates displacement boundary conditions,
     also define the 'tip' (for plotting displacements)
     """
-    load_rate = 1e-5
+    load_rate = 1e-6
     #initiate containers
     model.bc_types = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.intc)
     model.bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
@@ -187,15 +195,16 @@ def main():
                dimensions=2,
                transfinite=0,
                precise_stiffness_correction=1)
-    model.dt = np.double(0.5e-3)
+    #model.dt = np.double(0.3e-3)
+    model.dt = np.double(0.5e-3 / (1.1))
     # Set force and displacement boundary conditions
     boundary_function(model)
     boundary_forces_function(model)
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
-    integrator = RK4Optimised(model)
-    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=350, integrator=integrator, write=350, toolbar=0)
+    integrator = DormandPrinceOptimised(model, error_size_max=1e-6, error_size_min=1e-20)
+    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=4000, integrator=integrator, write=100, toolbar=0)
     print('damage_sum_data', damage_sum_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
     plt.figure(1)

@@ -902,8 +902,8 @@ class OpenCL(Model):
                             tmp2.append(self.bond_stiffness_steel)
                             tmp3.append(self.critical_strain_steel)
                         elif material_flag == 'interface':
-                            tmp2.append(self.bond_stiffness_concrete * 3.0) # factor of 3 is used for interface bonds in the literature
-                            tmp3.append(self.critical_strain_concrete * 3.0) # 3.0 is used for interface bonds in the literature
+                            tmp2.append(self.bond_stiffness_concrete) # factor of 3 is used for interface bonds in the literature
+                            tmp3.append(self.critical_strain_concrete) # 3.0 is used for interface bonds in the literature
                         elif material_flag == 'concrete':
                             tmp2.append(self.bond_stiffness_concrete)
                             tmp3.append(self.critical_strain_concrete)
@@ -947,7 +947,7 @@ class OpenCL(Model):
         elif self.precise_stiffness_correction == 0:
             # TODO: check this code, it was 23:52pm
             average_node_volume = self.volume_total/self.nnodes
-            # Calculate stiffening factor - surface corrections for 3D problem, for this we need family matrix
+            # Calculate stiffening factor - surface corrections for 2D/3D problem, for this we need family matrix
             for i in range(0, self.nnodes):
                 nnodes_i_family = len(family[i])
                 nodei_family_volume = nnodes_i_family * average_node_volume # Possible to calculate more exactly, we have the volumes for free
@@ -958,6 +958,9 @@ class OpenCL(Model):
                     stiffening_factor = 2.* self.family_volume /  (nodej_family_volume + nodei_family_volume)
                     
                     bond_stiffness_family[i][j] *= stiffening_factor
+        elif self.precise_stiffness_correction == 2:
+            # Don't apply stiffness correction factor
+            pass
 
         # Maximum number of nodes that any one of the nodes is connected to, must be a power of 2 (for OpenCL reduction)
         self.max_horizon_length = np.intc(

@@ -69,6 +69,17 @@ __kernel void
 			Forces[MAX_HORIZON_LENGTH * (DPN * i + 1) + j] = _EAL * cy * y_xi;
 			Forces[MAX_HORIZON_LENGTH * (DPN * i + 2) + j] = _EAL * cz * y_xi;
 
+			const double PD_S0 = FailStretches[i * MAX_HORIZON_LENGTH + j];
+
+			const double s = (y - xi) / xi;
+
+			//Check for state of the bond
+
+			if (s > PD_S0)
+			{
+			Horizons[i * MAX_HORIZON_LENGTH + j] = -1;  // Break the bond
+			}
+
 		}
 		else 
 		{
