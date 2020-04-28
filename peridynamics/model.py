@@ -179,10 +179,10 @@ class Model:
             self.nnodes = self.coords.shape[0]
 
             # Get connectivity, mesh triangle cells
-            self.mesh_connectivity = mesh.cells[self.mesh_elements.connectivity]
+            self.mesh_connectivity = mesh.cells_dict[self.mesh_elements.connectivity]
 
             # Get boundary connectivity, mesh lines
-            self.mesh_boundary = mesh.cells[self.mesh_elements.boundary]
+            self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
 
             # Get number elements on boundary?
             self.nelem_bnd = self.mesh_boundary.shape[0]
@@ -902,8 +902,8 @@ class OpenCL(Model):
                             tmp2.append(self.bond_stiffness_steel)
                             tmp3.append(self.critical_strain_steel)
                         elif material_flag == 'interface':
-                            tmp2.append(self.bond_stiffness_concrete) # factor of 3 is used for interface bonds in the literature
-                            tmp3.append(self.critical_strain_concrete) # 3.0 is used for interface bonds in the literature
+                            tmp2.append(self.bond_stiffness_concrete * 3.0) # factor of 3 is used for interface bonds in the literature turn this off for parameter est. tests
+                            tmp3.append(self.critical_strain_concrete * 3.0) # 3.0 is used for interface bonds in the literature
                         elif material_flag == 'concrete':
                             tmp2.append(self.bond_stiffness_concrete)
                             tmp3.append(self.critical_strain_concrete)
@@ -1109,8 +1109,10 @@ class OpenCL(Model):
                     tip_shear_force_data.append(tip_shear_force)
                     damage_sum = np.sum(damage_data)
                     damage_sum_data.append(damage_sum)
-                    if damage_sum > 0.05*model.nnodes:
-                        print('Warning: over 5% of bonds have broken! -- PERIDYNAMICS SIMULATION CONTINUING')
+                    if damage_sum > 0.02*model.nnodes:
+                        #print('Warning: over 5% of bonds have broken! -- PERIDYNAMICS SIMULATION CONTINUING')
+                        print('Warning: over 2% of bonds have broken! -- PERIDYNAMICS SIMULATION STOPPING')
+                        break
                     if toolbar == 0:
                         print('Print number {}/{} complete in {} s '.format(int(step/write), int(steps/write), time.time() - st))
                         st = time.time()
@@ -1273,7 +1275,6 @@ class OpenCLProbabilistic(OpenCL):
         K = np.exp(rbf)
         # Multiply by the vertical scale to get covariance matrix, K
         self.K = np.multiply (pow(sigma, 2), K)
-        
 
         # Create C matrix for sampling perturbations
 

@@ -203,7 +203,7 @@ def main():
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
-    integrator = DormandPrinceOptimised(model, error_size_max=1e-6, error_size_min=1e-20)
+    integrator = DormandPrince(model, error_size_max=1e-6, error_size_min=1e-20)
     damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=4000, integrator=integrator, write=100, toolbar=0)
     print('damage_sum_data', damage_sum_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))

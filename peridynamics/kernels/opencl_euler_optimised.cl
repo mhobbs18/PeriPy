@@ -23,8 +23,8 @@
 // Update un
 __kernel void
 	UpdateDisplacement(
-    __global double const *Udn,
-    __global double *Un,
+    	__global double const *Udn,
+    	__global double *Un,
 		__global int const *BCTypes,
 		__global double const *BCValues
 	)
@@ -40,9 +40,9 @@ __kernel void
 // Calculate force using un
 __kernel void
 	CalcBondForce(
-    __global double *Forces,
-    __global double const *Un,
-    __global double const *Vols,
+    	__global double *Forces,
+    	__global double const *Un,
+    	__global double const *Vols,
 		__global int *Horizons,
 		__global double const *Nodes,
 		__global double const *Stiffnesses,

@@ -11,13 +11,15 @@ import pathlib
 from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
 from peridynamics.integrators import EulerCromer
+from peridynamics.integrators import EulerCromerOptimised
 from pstats import SortKey, Stats
 #import matplotlib.pyplot as plt
 import time
 import shutil
 import os
+beams = ['1650beam792.msh', '1650beam2652.msh', '1650beam3570.msh', '1650beam4095.msh', '1650beam6256.msh', '1650beam15840.msh', '1650beam32370.msh', '1650beam74800.msh', '1650beam144900.msh', '1650beam247500.msh']
+mesh_file_name = beams[5]
 
-mesh_file_name = '1650beam792.msh'
 mesh_file = pathlib.Path(__file__).parent.absolute() / mesh_file_name
 
 @initial_crack_helper
@@ -27,7 +29,7 @@ def is_crack(x, y):
 
 def is_tip(horizon, x):
     output = 0
-    if mesh_file_name == '1650beam792.msh':
+    if mesh_file_name in beams:
         if x[0] > 1.650 - 0.2 * horizon:
             output = 1
     return output
@@ -60,7 +62,7 @@ def is_rebar(p):
             return True
         else:
             return False
-    elif mesh_file_name == '1650beam792.msh':
+    elif mesh_file_name in beams:
         bar_centers = [
             # Compressive bars 25mm of cover
             np.array((0.031, 0.031)),
@@ -110,6 +112,7 @@ def bond_type(x, y):
         output = 'concrete'
     return output
 
+
 def is_boundary(horizon, x):
     """
     Function which marks displacement boundary constrained particles
@@ -118,14 +121,14 @@ def is_boundary(horizon, x):
     1 is displacement loaded IN +ve direction
     0 is clamped boundary
     """
-    if mesh_file_name == '3300beam.msh':
+    if mesh_file_name in beams:
         bnd = [2, 2, 2]
-        if x[0] < 1.5 * horizon:
+        if x[0] < 0.2 * horizon:
             bnd[0] = 0
             bnd[1] = 0
             bnd[2] = 0
-        if x[0] > 3.3 - 0.2* horizon:
-            bnd[2] = 2
+        #if x[0] > 1.65 - 0.2* horizon:
+            #bnd[2] = 1
     return bnd
 
 def is_forces_boundary(horizon, x):
@@ -135,7 +138,7 @@ def is_forces_boundary(horizon, x):
     -1 is force loaded IN -ve direction
     1 is force loaded IN +ve direction
     """
-    if mesh_file_name == '1650beam792.msh':
+    if mesh_file_name in beams:
         bnd = [2, 2, 2]
         if x[0] > 1.65 - 0.2 * horizon:
             bnd[2] = -1
@@ -146,8 +149,7 @@ def boundary_function(model):
     Initiates displacement boundary conditions,
     also define the 'tip' (for plotting displacements)
     """
-    load_rate = 1e-8
-    #theta = 18.75
+    load_rate = 0
     # initiate
     model.bc_types = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.intc)
     model.bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
@@ -166,6 +168,7 @@ def boundary_function(model):
         # Define tip here
         tip = is_tip(model.horizon, model.coords[i][:])
         model.tip_types[i] = np.intc(tip)
+    print(np.max(model.tip_types), 'max_tip_types')
 
 def boundary_forces_function(model):
     """ 
@@ -187,6 +190,13 @@ def boundary_forces_function(model):
         model.force_bc_types[i, 2] = np.intc((bnd[2]))
     print('number of force BC nodes', num_force_bc_nodes)
     model.num_force_bc_nodes = num_force_bc_nodes
+    for i in range(0, model.nnodes):
+        for j in range(model.dimensions):
+            bnd = model.force_bc_types[i,j]
+            if bnd != 2:
+                # apply the force bc value, which is total reaction force / (num loaded nodes * node volume)
+                # units are force per unit volume
+                model.force_bc_values[i, j] = np.float64(bnd * model.max_reaction / (model.num_force_bc_nodes * model.V[i]))
 
 def main():
     """
@@ -201,19 +211,28 @@ def main():
         profile.enable()
 
     st = time.time()
-
-    volume_total = 3.3 * 0.6 * 0.25
+    
+    volume_total = 1.65 * 0.6 * 0.25
     density_concrete = 2400
-    self_weight = 1.*density_concrete * volume_total * 9.81
     youngs_modulus_concrete = 1.*22e9
     youngs_modulus_steel = 1.*210e9
-    tensile_strength_concrete = 2.6e6
     poisson_ratio = 0.25
-    # Set simulation parameters
+    strain_energy_release_rate_concrete = 100
+    strain_energy_release_rate_steel = 13000
     # Two materials in this example, that is 'concrete' and 'steel'
-    dx = np.power(1.*volume_total/4625,1./(3))
+    dxs = [0.075, 0.0485, 0.0485, 0.0423, 0.0359, 0.025, 0.020, 0.015, 0.012, 0.010]
+    dx = dxs[5]
     horizon = dx * np.pi 
-    family_volume =(4./3)*np.pi*np.power(horizon, 3)
+    critical_strain_concrete = np.double(np.power(
+            np.divide(5*strain_energy_release_rate_concrete, 6*youngs_modulus_steel*horizon),
+            (1./2)
+            ))
+    critical_strain_steel = np.double(np.power(
+    np.divide(5*strain_energy_release_rate_steel, 6*youngs_modulus_steel*horizon),
+    (1./2)
+    ))
+    # Set simulation parameters
+    #family_volume =(4./3)*np.pi*np.power(horizon, 3)
     damping = 2.0e6 # damping term
     # Peridynamic bond stiffness, c
     bulk_modulus_concrete = youngs_modulus_concrete/ (3* (1 - 2*poisson_ratio))
@@ -226,12 +245,6 @@ def main():
     np.double((18.00 * bulk_modulus_steel) /
     (np.pi * np.power(horizon, 4)))
     )
-    critical_strain_concrete = (
-    np.double(tensile_strength_concrete /
-    youngs_modulus_concrete)
-    )
-    #model.critical_strain_concrete = np.double(0.000533) # check this value
-    critical_strain_steel = np.double(0.01)
     crack_length = np.double(0.0)
     model = OpenCL(mesh_file_name, 
                    density = density_concrete, 
@@ -249,15 +262,17 @@ def main():
                    dimensions=3,
                    transfinite=1,
                    precise_stiffness_correction=0)
-    saf_fac = 0.7 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
+    saf_fac = 0.5 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap) 0.5
     model.dt = (
      0.8 * np.power( 2.0 * density_concrete * dx / 
      (np.pi * np.power(model.horizon, 2.0) * dx * model.bond_stiffness_concrete), 0.5)
      * saf_fac
      )
+    
+    print(model.dt, 'dt')
     #model.max_reaction = 1.* self_weight # in newtons, about 85 times self weight
-    model.max_reaction = 100000000 # in newtons, about 85 times self weight
-    model.load_scale_rate = 1/1000
+    model.max_reaction = 500000 # in newtons, about 85 times self weight
+    model.load_scale_rate = 1/500000
 
     # Set force and displacement boundary conditions
     boundary_function(model)
@@ -269,7 +284,7 @@ def main():
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
 
-    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=15000, integrator=integrator, write=1000, toolbar=0)
+    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=100000, integrator=integrator, write=500, toolbar=0)
 # =============================================================================
 #     plt.figure(1)
 #     plt.title('damage over time')
