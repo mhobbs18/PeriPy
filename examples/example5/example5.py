@@ -13,12 +13,12 @@ from peridynamics.model import initial_crack_helper
 from peridynamics.integrators import EulerCromer
 from peridynamics.integrators import EulerCromerOptimised
 from pstats import SortKey, Stats
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import time
 import shutil
 import os
 beams = ['1650beam792.msh', '1650beam2652.msh', '1650beam3570.msh', '1650beam4095.msh', '1650beam6256.msh', '1650beam15840.msh', '1650beam32370.msh', '1650beam74800.msh', '1650beam144900.msh', '1650beam247500.msh']
-mesh_file_name = beams[5]
+mesh_file_name = beams[1]
 
 mesh_file = pathlib.Path(__file__).parent.absolute() / mesh_file_name
 
@@ -127,8 +127,9 @@ def is_boundary(horizon, x):
             bnd[0] = 0
             bnd[1] = 0
             bnd[2] = 0
-        #if x[0] > 1.65 - 0.2* horizon:
-            #bnd[2] = 1
+        if x[0] > 1.65 - 0.2* horizon:
+            #if x[2] > 0.6 - 0.2*horizon:
+            bnd[2] = -1
     return bnd
 
 def is_forces_boundary(horizon, x):
@@ -141,7 +142,7 @@ def is_forces_boundary(horizon, x):
     if mesh_file_name in beams:
         bnd = [2, 2, 2]
         if x[0] > 1.65 - 0.2 * horizon:
-            bnd[2] = -1
+            bnd[2] = 2
     return bnd
 
 def boundary_function(model):
@@ -149,7 +150,7 @@ def boundary_function(model):
     Initiates displacement boundary conditions,
     also define the 'tip' (for plotting displacements)
     """
-    load_rate = 0
+    load_rate = 1e-8
     # initiate
     model.bc_types = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.intc)
     model.bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
@@ -221,7 +222,7 @@ def main():
     strain_energy_release_rate_steel = 13000
     # Two materials in this example, that is 'concrete' and 'steel'
     dxs = [0.075, 0.0485, 0.0485, 0.0423, 0.0359, 0.025, 0.020, 0.015, 0.012, 0.010]
-    dx = dxs[5]
+    dx = dxs[1]
     horizon = dx * np.pi 
     critical_strain_concrete = np.double(np.power(
             np.divide(5*strain_energy_release_rate_concrete, 6*youngs_modulus_steel*horizon),
@@ -278,26 +279,24 @@ def main():
     boundary_function(model)
     boundary_forces_function(model)
 
-    integrator = EulerCromer(model)
+    integrator = EulerCromerOptimised(model)
 
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
 
     damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=100000, integrator=integrator, write=500, toolbar=0)
-# =============================================================================
-#     plt.figure(1)
-#     plt.title('damage over time')
-#     plt.plot(damage_sum_data)
-#     plt.figure(2)
-#     plt.title('tip displacement over time')
-#     plt.plot(tip_displacement_data)
-#     plt.show()
-#     plt.figure(3)
-#     plt.title('shear force over time')
-#     plt.plot(tip_shear_force_data)
-#     plt.show()
-# =============================================================================
+    plt.figure(1)
+    plt.title('damage over time')
+    plt.plot(damage_sum_data)
+    plt.figure(2)
+    plt.title('tip displacement over time')
+    plt.plot(tip_displacement_data)
+    plt.show()
+    plt.figure(3)
+    plt.title('shear force over time')
+    plt.plot(tip_shear_force_data)
+    plt.show()
     print(damage_sum_data)
     print(tip_displacement_data)
     print(tip_shear_force_data)

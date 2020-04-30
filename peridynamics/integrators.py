@@ -84,20 +84,6 @@ class EulerCromer(Integrator):
     def __init__(self, model):
         """ Initialise the integration scheme for Euler Cromer
         """
-        def output_device_info(device_id):
-            sys.stdout.write("Device is ")
-            sys.stdout.write(device_id.name)
-            if device_id.type == cl.device_type.GPU:
-                sys.stdout.write("GPU from ")
-            elif device_id.type == cl.device_type.CPU:
-                sys.stdout.write("CPU from ")
-            else:
-                sys.stdout.write("non CPU of GPU processor from ")
-            sys.stdout.write(device_id.vendor)
-            sys.stdout.write(" with a max of ")
-            sys.stdout.write(str(device_id.max_compute_units))
-            sys.stdout.write(" compute units\n")
-            sys.stdout.flush()
 
         # Initializing OpenCL
         self.context = cl.create_some_context()
@@ -323,21 +309,6 @@ class EulerCromerOptimised(Integrator):
     def __init__(self, model):
         """ Initialise the integration scheme for Euler Cromer
         """
-        def output_device_info(device_id):
-            sys.stdout.write("Device is ")
-            sys.stdout.write(device_id.name)
-            if device_id.type == cl.device_type.GPU:
-                sys.stdout.write("GPU from ")
-            elif device_id.type == cl.device_type.CPU:
-                sys.stdout.write("CPU from ")
-            else:
-                sys.stdout.write("non CPU of GPU processor from ")
-            sys.stdout.write(device_id.vendor)
-            sys.stdout.write(" with a max of ")
-            sys.stdout.write(str(device_id.max_compute_units))
-            sys.stdout.write(" compute units\n")
-            sys.stdout.flush()
-
         # Initializing OpenCL
         self.context = cl.create_some_context()
         self.queue = cl.CommandQueue(self.context)   
@@ -553,20 +524,6 @@ class EulerOpenCL(Integrator):
     def __init__(self, model):
         """ Initialise the integration scheme
         """
-        def output_device_info(device_id):
-            sys.stdout.write("Device is ")
-            sys.stdout.write(device_id.name)
-            if device_id.type == cl.device_type.GPU:
-                sys.stdout.write("GPU from ")
-            elif device_id.type == cl.device_type.CPU:
-                sys.stdout.write("CPU from ")
-            else:
-                sys.stdout.write("non CPU of GPU processor from ")
-            sys.stdout.write(device_id.vendor)
-            sys.stdout.write(" with a max of ")
-            sys.stdout.write(str(device_id.max_compute_units))
-            sys.stdout.write(" compute units\n")
-            sys.stdout.flush()
 
         # Initializing OpenCL
         self.context = cl.create_some_context()
@@ -762,20 +719,6 @@ class EulerOpenCLOptimised(Integrator):
     def __init__(self, model):
         """ Initialise the integration scheme
         """
-        def output_device_info(device_id):
-            sys.stdout.write("Device is ")
-            sys.stdout.write(device_id.name)
-            if device_id.type == cl.device_type.GPU:
-                sys.stdout.write("GPU from ")
-            elif device_id.type == cl.device_type.CPU:
-                sys.stdout.write("CPU from ")
-            else:
-                sys.stdout.write("non CPU of GPU processor from ")
-            sys.stdout.write(device_id.vendor)
-            sys.stdout.write(" with a max of ")
-            sys.stdout.write(str(device_id.max_compute_units))
-            sys.stdout.write(" compute units\n")
-            sys.stdout.flush()
 
         # Initializing OpenCL
         self.context = cl.create_some_context()
@@ -970,21 +913,6 @@ class VelocityVerletOpenCL(Integrator):
     def __init__(self, model):
         """ Initialise the integration scheme
         """
-        
-        def output_device_info(device_id):
-            sys.stdout.write("Device is ")
-            sys.stdout.write(device_id.name)
-            if device_id.type == cl.device_type.GPU:
-                sys.stdout.write("GPU from ")
-            elif device_id.type == cl.device_type.CPU:
-                sys.stdout.write("CPU from ")
-            else:
-                sys.stdout.write("non CPU of GPU processor from ")
-            sys.stdout.write(device_id.vendor)
-            sys.stdout.write(" with a max of ")
-            sys.stdout.write(str(device_id.max_compute_units))
-            sys.stdout.write(" compute units\n")
-            sys.stdout.flush()
 
         # Initializing OpenCL
         self.context = cl.create_some_context()
@@ -1180,21 +1108,6 @@ class RK4(Integrator):
     def __init__(self, model):
         """ Initialise the integration scheme
         """
-        
-        def output_device_info(device_id):
-            sys.stdout.write("Device is ")
-            sys.stdout.write(device_id.name)
-            if device_id.type == cl.device_type.GPU:
-                sys.stdout.write("GPU from ")
-            elif device_id.type == cl.device_type.CPU:
-                sys.stdout.write("CPU from ")
-            else:
-                sys.stdout.write("non CPU of GPU processor from ")
-            sys.stdout.write(device_id.vendor)
-            sys.stdout.write(" with a max of ")
-            sys.stdout.write(str(device_id.max_compute_units))
-            sys.stdout.write(" compute units\n")
-            sys.stdout.flush()
 
         # Initializing OpenCL
         self.context = cl.create_some_context()
@@ -1440,21 +1353,6 @@ class RK4Optimised(Integrator):
     def __init__(self, model):
         """ Initialise the integration scheme
         """
-        
-        def output_device_info(device_id):
-            sys.stdout.write("Device is ")
-            sys.stdout.write(device_id.name)
-            if device_id.type == cl.device_type.GPU:
-                sys.stdout.write("GPU from ")
-            elif device_id.type == cl.device_type.CPU:
-                sys.stdout.write("CPU from ")
-            else:
-                sys.stdout.write("non CPU of GPU processor from ")
-            sys.stdout.write(device_id.vendor)
-            sys.stdout.write(" with a max of ")
-            sys.stdout.write(str(device_id.max_compute_units))
-            sys.stdout.write(" compute units\n")
-            sys.stdout.flush()
 
         # Initializing OpenCL
         self.context = cl.create_some_context()
@@ -1719,22 +1617,6 @@ class DormandPrince(Integrator):
     def __init__(self, model, error_size_max=1e-7, error_size_min=1e-10):
         """ Initialise the integration scheme
         """
-        
-        def output_device_info(device_id):
-            sys.stdout.write("Device is ")
-            sys.stdout.write(device_id.name)
-            if device_id.type == cl.device_type.GPU:
-                sys.stdout.write("GPU from ")
-            elif device_id.type == cl.device_type.CPU:
-                sys.stdout.write("CPU from ")
-            else:
-                sys.stdout.write("non CPU of GPU processor from ")
-            sys.stdout.write(device_id.vendor)
-            sys.stdout.write(" with a max of ")
-            sys.stdout.write(str(device_id.max_compute_units))
-            sys.stdout.write(" compute units\n")
-            sys.stdout.flush()
-
         # Initializing OpenCL
         self.context = cl.create_some_context()
         self.queue = cl.CommandQueue(self.context)   
@@ -2038,21 +1920,6 @@ class DormandPrinceOptimised(Integrator):
     def __init__(self, model, error_size_max=1e-7, error_size_min=1e-10):
         """ Initialise the integration scheme
         """
-        def output_device_info(device_id):
-            sys.stdout.write("Device is ")
-            sys.stdout.write(device_id.name)
-            if device_id.type == cl.device_type.GPU:
-                sys.stdout.write("GPU from ")
-            elif device_id.type == cl.device_type.CPU:
-                sys.stdout.write("CPU from ")
-            else:
-                sys.stdout.write("non CPU of GPU processor from ")
-            sys.stdout.write(device_id.vendor)
-            sys.stdout.write(" with a max of ")
-            sys.stdout.write(str(device_id.max_compute_units))
-            sys.stdout.write(" compute units\n")
-            sys.stdout.flush()
-
         # Initializing OpenCL
         self.context = cl.create_some_context()
         self.queue = cl.CommandQueue(self.context)   
@@ -2380,22 +2247,6 @@ class EulerStochastic(Integrator):
     def __init__(self, model):
         """ Initialise the integration scheme
         """
-        
-        def output_device_info(device_id):
-            sys.stdout.write("Device is ")
-            sys.stdout.write(device_id.name)
-            if device_id.type == cl.device_type.GPU:
-                sys.stdout.write("GPU from ")
-            elif device_id.type == cl.device_type.CPU:
-                sys.stdout.write("CPU from ")
-            else:
-                sys.stdout.write("non CPU of GPU processor from ")
-            sys.stdout.write(device_id.vendor)
-            sys.stdout.write(" with a max of ")
-            sys.stdout.write(str(device_id.max_compute_units))
-            sys.stdout.write(" compute units\n")
-            sys.stdout.flush()
-
         # Initializing OpenCL
         self.context = cl.create_some_context()
         self.queue = cl.CommandQueue(self.context)   
@@ -2614,22 +2465,6 @@ class HeunEuler(Integrator):
     def __init__(self, model, error_size_max=1e-2, error_size_min=1e-10):
         """ Initialise the integration scheme
         """
-        
-        def output_device_info(device_id):
-            sys.stdout.write("Device is ")
-            sys.stdout.write(device_id.name)
-            if device_id.type == cl.device_type.GPU:
-                sys.stdout.write("GPU from ")
-            elif device_id.type == cl.device_type.CPU:
-                sys.stdout.write("CPU from ")
-            else:
-                sys.stdout.write("non CPU of GPU processor from ")
-            sys.stdout.write(device_id.vendor)
-            sys.stdout.write(" with a max of ")
-            sys.stdout.write(str(device_id.max_compute_units))
-            sys.stdout.write(" compute units\n")
-            sys.stdout.flush()
-
         # Initializing OpenCL
         self.context = cl.create_some_context()
         self.queue = cl.CommandQueue(self.context)   
@@ -2875,21 +2710,6 @@ class HeunEulerOptimised(Integrator):
     def __init__(self, model, error_size_max=1e-2, error_size_min=1e-10):
         """ Initialise the integration scheme
         """
-        
-        def output_device_info(device_id):
-            sys.stdout.write("Device is ")
-            sys.stdout.write(device_id.name)
-            if device_id.type == cl.device_type.GPU:
-                sys.stdout.write("GPU from ")
-            elif device_id.type == cl.device_type.CPU:
-                sys.stdout.write("CPU from ")
-            else:
-                sys.stdout.write("non CPU of GPU processor from ")
-            sys.stdout.write(device_id.vendor)
-            sys.stdout.write(" with a max of ")
-            sys.stdout.write(str(device_id.max_compute_units))
-            sys.stdout.write(" compute units\n")
-            sys.stdout.flush()
 
         # Initializing OpenCL
         self.context = cl.create_some_context()
@@ -3147,20 +2967,6 @@ class EulerOpenCLOptimisedLumped(Integrator):
     def __init__(self, model):
         """ Initialise the integration scheme
         """
-        def output_device_info(device_id):
-            sys.stdout.write("Device is ")
-            sys.stdout.write(device_id.name)
-            if device_id.type == cl.device_type.GPU:
-                sys.stdout.write("GPU from ")
-            elif device_id.type == cl.device_type.CPU:
-                sys.stdout.write("CPU from ")
-            else:
-                sys.stdout.write("non CPU of GPU processor from ")
-            sys.stdout.write(device_id.vendor)
-            sys.stdout.write(" with a max of ")
-            sys.stdout.write(str(device_id.max_compute_units))
-            sys.stdout.write(" compute units\n")
-            sys.stdout.flush()
 
         # Initializing OpenCL
         self.context = cl.create_some_context()
@@ -3335,3 +3141,28 @@ class EulerOpenCLOptimisedLumped(Integrator):
         if model.num_force_bc_nodes != 0:
             # update the host force load scale
             self.h_force_load_scale = np.float64(load_scale)
+
+def output_device_info(device_id):
+            sys.stdout.write("Device is ")
+            sys.stdout.write(device_id.name)
+            if device_id.type == cl.device_type.GPU:
+                sys.stdout.write("GPU from ")
+            elif device_id.type == cl.device_type.CPU:
+                sys.stdout.write("CPU from ")
+            else:
+                sys.stdout.write("non CPU of GPU processor from ")
+            sys.stdout.write(device_id.vendor)
+            sys.stdout.write(" with a max of ")
+            sys.stdout.write(str(device_id.max_compute_units))
+            sys.stdout.write(" compute units, \n")
+            sys.stdout.write("a max of ")
+            sys.stdout.write(str(device_id.max_work_group_size))
+            sys.stdout.write(" work-items per work-group, \n")
+            sys.stdout.write("a max work item dimensions of ")
+            sys.stdout.write(str(device_id.max_work_item_dimensions))
+            sys.stdout.write(", \n a max work item sizes of ")
+            sys.stdout.write(str(device_id.max_work_item_sizes))
+            sys.stdout.write(",\n and device local memory size is ")
+            sys.stdout.write(str(device_id.local_mem_size))
+            sys.stdout.write(" bytes. \n")
+            sys.stdout.flush()
