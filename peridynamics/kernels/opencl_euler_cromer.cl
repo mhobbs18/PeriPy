@@ -191,3 +191,14 @@ __kernel void
 		Phi[i] = 1.00 - (double) active_bonds / (double) (HorizonLengths[i]);
 	}
 }
+
+
+__kernel void
+	DoNothing(
+		double FORCE_LOAD_SCALE
+	)
+{
+	int global_id = get_global_id(0);
+
+	// do nothing
+}

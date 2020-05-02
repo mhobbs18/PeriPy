@@ -591,7 +591,7 @@ class OpenCL(Model):
         """
 
         # verbose
-        self.v = True
+        self.v = False
 
         if dimensions == 2:
             self.mesh_elements = _mesh_elements_2d
@@ -649,9 +649,10 @@ class OpenCL(Model):
         # Initate crack
         self._set_connectivity(initial_crack)
 
-        print(
-            "Building horizons took {} seconds. Horizon length: {}".format(
-                (time.time() - st), self.max_horizon_length))
+        if self.v == True:
+            print(
+                "Building horizons took {} seconds. Horizon length: {}".format(
+                    (time.time() - st), self.max_horizon_length))
 
         # Initiate boundary condition containers
         self.bc_types = np.zeros((self.nnodes, self.degrees_freedom), dtype=np.intc)
@@ -698,11 +699,13 @@ class OpenCL(Model):
             # Read the Max horizons length first
             row_as_list, iline = find_string('MAX_HORIZON_LENGTH', iline)
             max_horizon_length = int(row_as_list[1])
-            print('max_horizon_length', max_horizon_length)
+            if self.v == True:
+                print('max_horizon_length', max_horizon_length)
             # Read nnodes
             row_as_list, iline = find_string('NNODES', iline)
             nnodes = int(row_as_list[1])
-            print('nnodes', nnodes)
+            if self.v == True:
+                print('nnodes', nnodes)
             # Read horizons lengths
             row_as_list, iline = find_string('HORIZONS_LENGTHS', iline)
             horizons_lengths = np.zeros(nnodes, dtype=int)
@@ -712,7 +715,8 @@ class OpenCL(Model):
                 horizons_lengths[i] = np.intc(line.split())
 
             # Read family matrix
-            print('Building family matrix from file')
+            if self.v == True:
+                print('Building family matrix from file')
             row_as_list, iline = find_string('FAMILY', iline)
             family = []
             for i in range(nnodes):
@@ -725,7 +729,8 @@ class OpenCL(Model):
                     family[i][j] = np.intc(row_as_list[j])
 
             # Read stiffness values
-            print('Building stiffnesses from file')
+            if self.v == True:
+                print('Building stiffnesses from file')
             row_as_list, iline = find_string('STIFFNESS', iline)
             bond_stiffness_family = []
             for i in range(nnodes):
@@ -738,7 +743,8 @@ class OpenCL(Model):
                     bond_stiffness_family[i][j] = (row_as_list[j])
 
             # Now read critcal stretch values
-            print('Building critical stretch values from file')
+            if self.v == True:
+                print('Building critical stretch values from file')
             row_as_list, iline = find_string('STRETCH', iline)
             bond_critical_stretch_family = []
             for i in range(nnodes):
@@ -1005,7 +1011,8 @@ class OpenCL(Model):
         also see self.family, which is a verlet list:
             self.horizons and self.horizons_lengths are neccessary OpenCL cannot deal with non fixed length arrays
         """
-        print("defining crack")
+        if self.v == True:
+            print("defining crack")
         # This code is the fastest because it doesn't have to iterate through
         # all possible initial crack bonds.
         def is_crack(x, y):
@@ -1104,6 +1111,7 @@ class OpenCL(Model):
             integrator.runtime(model)
             if write:
                 if step % write == 0:
+                    ft = time.time()
                     damage_data, tip_displacement, tip_shear_force = integrator.write(model, step, sample)
                     tip_displacement_data.append(tip_displacement)
                     tip_shear_force_data.append(tip_shear_force)
@@ -1115,6 +1123,7 @@ class OpenCL(Model):
                         break
                     if toolbar == 0:
                         print('Print number {}/{} complete in {} s '.format(int(step/write), int(steps/write), time.time() - st))
+                        print('Print number {}/{} runtime was ~ {} s '.format(int(step/write), int(steps/write), ft - st))
                         st = time.time()
 
             # Increase load in linear increments
@@ -1227,9 +1236,10 @@ class OpenCLProbabilistic(OpenCL):
         # Initate crack
         self._set_connectivity(initial_crack)
 
-        print(
-            "Building horizons took {} seconds. Horizon length: {}".format(
-                (time.time() - st), self.max_horizon_length))
+        if self.v == True:
+            print(
+                "Building horizons took {} seconds. Horizon length: {}".format(
+                    (time.time() - st), self.max_horizon_length))
 
         # Initiate boundary condition containers
         self.bc_types = np.zeros((self.nnodes, self.degrees_freedom), dtype=np.intc)

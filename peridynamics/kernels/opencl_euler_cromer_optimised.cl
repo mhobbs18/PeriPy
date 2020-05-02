@@ -52,6 +52,7 @@ __kernel void
 	const int i = get_global_id(0);
 	const int j = get_global_id(1);
 
+
 	if ((i < PD_NODE_NO) && (j >= 0) && (j < MAX_HORIZON_LENGTH))
     {
 		const int n = Horizons[MAX_HORIZON_LENGTH * i + j];
@@ -116,33 +117,34 @@ __kernel void
    )
 {
     
-  int global_id = get_global_id(0); 
+  	int global_id = get_global_id(0); 
   
-  int local_id = get_local_id(0); 
+ 	int local_id = get_local_id(0); 
   
-  // local size is the MAX_HORIZONS_LENGTHS and must be a power of 2
-  int local_size = get_local_size(0); 
+  	// local size is the MAX_HORIZONS_LENGTHS and must be a power of 2
+  	int local_size = get_local_size(0); 
   
-  //Copy values into local memory 
-  local_cache[local_id] = Forces[global_id]; 
+  	//Copy values into local memory 
+  	local_cache[local_id] = Forces[global_id]; 
 
-  //Wait for all threads to catch up 
-  barrier(CLK_LOCAL_MEM_FENCE); 
+  	//Wait for all threads to catch up 
+  	barrier(CLK_LOCAL_MEM_FENCE); 
 
-  for (int i = local_size/2; i > 0; i /= 2){
-    if(local_id < i){
-      local_cache[local_id] += local_cache[local_id + i];
-    } 
-    //Wait for all threads to catch up 
-    barrier(CLK_LOCAL_MEM_FENCE);
-  }
+	// Parallel reduction
+	for (int i = local_size/2; i > 0; i /= 2){
+		if(local_id < i){
+		local_cache[local_id] += local_cache[local_id + i];
+		} 
+		//Wait for all threads to catch up 
+		barrier(CLK_LOCAL_MEM_FENCE);
+	}
 
-  if (!local_id) {
-    //Get the reduced forces
-    int index = global_id/local_size;
-    // Update accelerations
-    Uddn[index] = FCTypes[index] == 2 ? (local_cache[local_id] - PD_ETA * Udn[index]) / PD_RHO : (local_cache[local_id] + FORCE_LOAD_SCALE * FCValues[index] - PD_ETA * Udn[index]) / PD_RHO;
-}
+	if (!local_id) {
+		//Get the reduced forces
+		int index = global_id/local_size;
+		// Update accelerations
+		Uddn[index] = FCTypes[index] == 2 ? (local_cache[local_id] - PD_ETA * Udn[index]) / PD_RHO : (local_cache[local_id] + FORCE_LOAD_SCALE * FCValues[index] - PD_ETA * Udn[index]) / PD_RHO;
+	}
 }
 
 // Update velocities
@@ -239,4 +241,14 @@ __kernel void
     // Update damage
     Phi[index] = 1.00 - (double) local_cache[local_id] / (double) (HorizonLengths[index]);
 }
+}
+
+__kernel void
+	DoNothing(
+		double FORCE_LOAD_SCALE
+	)
+{
+	int global_id = get_global_id(0);
+
+	// do nothing
 }

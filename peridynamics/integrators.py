@@ -23,6 +23,20 @@ class Integrator(ABC):
 
         This method should be implemennted in every concrete integrator.
         """
+    def marker_displacement(self):
+        cl.enqueue_marker(self.queue)
+    def marker_force(self):
+        cl.enqueue_marker(self.queue)
+    def marker_nothing(self):
+        cl.enqueue_marker(self.queue)
+    def marker_velocity(self):
+        cl.enqueue_marker(self.queue)
+    def marker_check(self):
+        cl.enqueue_marker(self.queue)
+    def marker_reduce_force(self):
+        cl.enqueue_marker(self.queue)
+    def marker_reduce_damage(self):
+        cl.enqueue_marker(self.queue)
 class Euler(Integrator):
     r"""
     Euler integrator.
@@ -87,7 +101,7 @@ class EulerCromer(Integrator):
 
         # Initializing OpenCL
         self.context = cl.create_some_context()
-        self.queue = cl.CommandQueue(self.context)   
+        self.queue = cl.CommandQueue(self.context, properties=cl.command_queue_properties.PROFILING_ENABLE)   
 
         # Print out device info
         output_device_info(self.context.devices[0])
@@ -230,7 +244,6 @@ class EulerCromer(Integrator):
         :returns: The new displacements after integration.
         :rtype: :class:`numpy.ndarray`
         """
-
     def runtime(self, model):
         """ Run time integration for Euler Cromer scheme
         """
@@ -238,7 +251,7 @@ class EulerCromer(Integrator):
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values)
-
+        self.marker_displacement()
         # Time marching Part 2
         # Scalars like self.h_force_load_scale can live on the host memory
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes,), None,
@@ -252,20 +265,25 @@ class EulerCromer(Integrator):
                                        self.d_force_bc_types,
                                        self.d_force_bc_values,
                                        self.h_force_load_scale)
+        
+        self.marker_force()
         # Time marching Part 3
         self.cl_kernel_update_velocity(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_uddn)
-
+        self.marker_velocity()
         # Check for broken bonds
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
+        self.marker_check()
+        
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
         self.cl_kernel_calculate_damage(self.queue, (model.nnodes,), None, 
                                            self.d_damage, self.d_horizons,
                                            self.d_horizons_lengths)
+        #self.marker_reduce_damage()
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
         cl.enqueue_copy(self.queue, self.h_uddn, self.d_uddn)
@@ -311,7 +329,7 @@ class EulerCromerOptimised(Integrator):
         """
         # Initializing OpenCL
         self.context = cl.create_some_context()
-        self.queue = cl.CommandQueue(self.context)   
+        self.queue = cl.CommandQueue(self.context, properties=cl.command_queue_properties.PROFILING_ENABLE)   
 
         # Print out device info
         output_device_info(self.context.devices[0])
@@ -338,6 +356,7 @@ class EulerCromerOptimised(Integrator):
         self.cl_kernel_update_velocity = program.UpdateVelocity
         self.cl_kernel_reduce_damage = program.ReduceDamage
         self.cl_kernel_reduce_force = program.ReduceForce
+        self.cl_kernel_do_nothing = program.DoNothing
 
         # Set initial values in host memory
         # horizons and horizons lengths
@@ -442,6 +461,7 @@ class EulerCromerOptimised(Integrator):
         self.cl_kernel_update_velocity.set_scalar_arg_dtypes([None, None])
         self.cl_kernel_reduce_damage.set_scalar_arg_dtypes([None, None, None, None])
         self.cl_kernel_reduce_force.set_scalar_arg_dtypes([None, None, None, None, None, None, None])
+        self.cl_kernel_do_nothing.set_scalar_arg_dtypes([None])
         return None
 
     def __call__(self):
@@ -462,25 +482,30 @@ class EulerCromerOptimised(Integrator):
     def runtime(self, model):
         """ Run time integration for Euler Cromer scheme
         """
-        # Update displacement
+        # Update displacements
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values)
+        self.marker_displacement()
         # Calc bond forces
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes, model.max_horizon_length), None, self.d_forces,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
+        self.marker_force()
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
                                   (model.max_horizon_length,), self.d_forces, self.d_uddn, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
+        self.marker_reduce_force()
         # Update velocity
         self.cl_kernel_update_velocity(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_uddn)
+        self.marker_velocity()
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
         self.cl_kernel_reduce_damage(self.queue, (model.nnodes * model.max_horizon_length,),
                                   (model.max_horizon_length,), self.d_horizons,
                                            self.d_horizons_lengths, self.d_damage, self.local_mem)
+        #self.marker_reduce_damage()
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
         cl.enqueue_copy(self.queue, self.h_uddn, self.d_uddn)
@@ -546,8 +571,8 @@ class EulerOpenCL(Integrator):
         from pathlib import Path
         print(Path.cwd())
         program = cl.Program(self.context, kernelsource).build([options_string])
-        self.cl_kernel_time_marching_1 = program.TimeMarching1
-        self.cl_kernel_time_marching_2 = program.TimeMarching2
+        self.cl_kernel_update_displacement = program.UpdateDisplacement
+        self.cl_kernel_calc_bond_force = program.CalcBondForce
         self.cl_kernel_check_bonds = program.CheckBonds
         self.cl_kernel_calculate_damage = program.CalculateDamage
 
@@ -556,11 +581,7 @@ class EulerOpenCL(Integrator):
         # horizons and horizons lengths
         self.h_horizons = model.horizons
         self.h_horizons_lengths = model.horizons_lengths
-        print(self.h_horizons_lengths)
-        print(self.h_horizons)
-        print("shape horizons lengths", self.h_horizons_lengths.shape)
         print("shape horizons lengths", self.h_horizons.shape)
-        print(self.h_horizons_lengths.dtype, "dtype")
 
         # Nodal coordinates
         self.h_coords = np.ascontiguousarray(model.coords, dtype=np.float64)
@@ -635,9 +656,9 @@ class EulerOpenCL(Integrator):
         # Write only
         self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_damage.nbytes)
         # Initialize kernel parameters
-        self.cl_kernel_time_marching_1.set_scalar_arg_dtypes(
+        self.cl_kernel_update_displacement.set_scalar_arg_dtypes(
             [None, None, None, None])
-        self.cl_kernel_time_marching_2.set_scalar_arg_dtypes(
+        self.cl_kernel_calc_bond_force.set_scalar_arg_dtypes(
             [None, None, None, None, None, None, None, None, None])
         self.cl_kernel_check_bonds.set_scalar_arg_dtypes([None, None, None, None])
         self.cl_kernel_calculate_damage.set_scalar_arg_dtypes([None, None, None])
@@ -658,24 +679,26 @@ class EulerOpenCL(Integrator):
 
     def runtime(self, model):
         # Time marching Part 1
-        self.cl_kernel_time_marching_1(self.queue, (model.degrees_freedom * model.nnodes,),
+        self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn1, self.d_un, self.d_bc_types,
                                   self.d_bc_values)
-
+        self.marker_displacement()
         # Time marching Part 2
-        self.cl_kernel_time_marching_2(self.queue, (model.nnodes,), None, self.d_udn1,
+        self.cl_kernel_calc_bond_force(self.queue, (model.nnodes,), None, self.d_udn1,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
-
+        self.marker_force()
         # Check for broken bonds
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
+        self.marker_check()
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
         self.cl_kernel_calculate_damage(self.queue, (model.nnodes,), None, 
                                            self.d_damage, self.d_horizons,
                                            self.d_horizons_lengths)
+        #self.marker_reduce_damage()
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
         cl.enqueue_copy(self.queue, self.h_udn1, self.d_udn1)
@@ -719,7 +742,6 @@ class EulerOpenCLOptimised(Integrator):
     def __init__(self, model):
         """ Initialise the integration scheme
         """
-
         # Initializing OpenCL
         self.context = cl.create_some_context()
         self.queue = cl.CommandQueue(self.context)   
@@ -751,9 +773,6 @@ class EulerOpenCLOptimised(Integrator):
         # horizons and horizons lengths
         self.h_horizons = model.horizons
         self.h_horizons_lengths = model.horizons_lengths
-        print(self.h_horizons_lengths)
-        print(self.h_horizons)
-        print("shape horizons_lengths", self.h_horizons_lengths.shape)
         print("shape horizons", self.h_horizons.shape)
 
         # Nodal coordinates
@@ -865,22 +884,27 @@ class EulerOpenCLOptimised(Integrator):
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values)
+        self.marker_displacement()
         # Calc bond forces
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes, model.max_horizon_length), None, self.d_forces,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
+        self.marker_force()
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
                                   (model.max_horizon_length,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
+        self.marker_reduce_force()
         # Check for broken bonds not needed, since check bonds is done in "CalcBondForce"
         #self.cl_kernel_check_bonds(self.queue,
                                    #(model.nnodes, model.max_horizon_length),
                                    #None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
+        self.marker_check()
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
         self.cl_kernel_reduce_damage(self.queue, (model.nnodes * model.max_horizon_length,),
                                   (model.max_horizon_length,), self.d_horizons,
                                            self.d_horizons_lengths, self.d_damage, self.local_mem)
+        #self.marker_reduce_damage()
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
         cl.enqueue_copy(self.queue, self.h_udn, self.d_udn)
@@ -3160,9 +3184,9 @@ def output_device_info(device_id):
             sys.stdout.write(" work-items per work-group, \n")
             sys.stdout.write("a max work item dimensions of ")
             sys.stdout.write(str(device_id.max_work_item_dimensions))
-            sys.stdout.write(", \n a max work item sizes of ")
+            sys.stdout.write(", \na max work item sizes of ")
             sys.stdout.write(str(device_id.max_work_item_sizes))
-            sys.stdout.write(",\n and device local memory size is ")
+            sys.stdout.write(",\nand device local memory size is ")
             sys.stdout.write(str(device_id.local_mem_size))
             sys.stdout.write(" bytes. \n")
             sys.stdout.flush()

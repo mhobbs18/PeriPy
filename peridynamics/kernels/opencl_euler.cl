@@ -22,7 +22,7 @@
 
 // Update un
 __kernel void
-	TimeMarching1(
+	UpdateDisplacement(
         __global double const *Udn,
         __global double *Un,
 		__global int const *BCTypes,
@@ -40,7 +40,7 @@ __kernel void
 
 // Calculate force using un, force BC applied at end here
 __kernel void
-	TimeMarching2(
+	CalcBondForce(
         __global double *Udn,
         __global double const *Un,
         __global double const *Vols,
