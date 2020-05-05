@@ -106,7 +106,6 @@ def boundary_function(model):
     also define the 'tip' (for plotting displacements)
     """
     load_rate = 1e-5
-    #theta = 18.75
     # initiate
     model.bc_types = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.intc)
     model.bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
@@ -120,7 +119,6 @@ def boundary_function(model):
         model.bc_types[i, 1] = np.intc((bnd))
         model.bc_types[i, 2] = np.intc((bnd))
         model.bc_values[i, 0] = np.float64(bnd * 0.5 * load_rate)
-        #model.bc_values[i, 0] = np.float64(bnd * -0.5/theta * load_rate)
 
         # Define tip here
         tip = is_tip(model.horizon, model.coords[i][:])
@@ -244,7 +242,7 @@ def main():
     # MCMC wrapper function
     # read the data
     damage_data = read_data(model)
-    samples = 10
+    samples = 1
     realisations = 1
     
     # Define start point of the Metropolis Hastings sampler w[1] is l, w[0] is sigma

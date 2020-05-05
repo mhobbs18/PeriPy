@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// opencl_peridynamics.cl
+// opencl_euler_cromer_optimised.cl
 //
 // OpenCL Peridynamics kernels
 //
@@ -9,16 +9,11 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 // Includes, project
-//#include <stdio.h>
 #include "opencl_enable_fp64.cl"
 
 // Macros
-
 #define DPN 3
 // MAX_HORIZON_LENGTH, PD_DT, PD_E, PD_S0, PD_NODE_NO, PD_DPN_NODE_NO will be defined on JIT compiler's command line
-
-// A horizon by horizon approach is chosen to proceed with the solution, in which
-// no assembly of the system of equations is required.
 
 // Update displacements
 __kernel void
@@ -33,7 +28,7 @@ __kernel void
 
 	if (i < PD_DPN_NODE_NO)
 	{
-		Un[i] = BCTypes[i] == 2 ? Un[i] + PD_DT * (Udn[i]) : Un[i] + BCValues[i] ;
+		Un[i] = (BCTypes[i] == 2 ? (Un[i] + PD_DT * Udn[i]) : (Un[i] + BCValues[i]));
 	}
 }
 
@@ -143,7 +138,7 @@ __kernel void
 		//Get the reduced forces
 		int index = global_id/local_size;
 		// Update accelerations
-		Uddn[index] = FCTypes[index] == 2 ? (local_cache[local_id] - PD_ETA * Udn[index]) / PD_RHO : (local_cache[local_id] + FORCE_LOAD_SCALE * FCValues[index] - PD_ETA * Udn[index]) / PD_RHO;
+		Uddn[index] = (FCTypes[index] == 2 ? ((local_cache[0] - PD_ETA * Udn[index]) / PD_RHO) : ((local_cache[0] + FORCE_LOAD_SCALE * FCValues[index] - PD_ETA * Udn[index]) / PD_RHO));
 	}
 }
 
@@ -239,16 +234,6 @@ __kernel void
     //Get the reduced forces
     int index = global_id/local_size;
     // Update damage
-    Phi[index] = 1.00 - (double) local_cache[local_id] / (double) (HorizonLengths[index]);
+    Phi[index] = 1.00 - (double) local_cache[0] / (double) (HorizonLengths[index]);
 }
-}
-
-__kernel void
-	DoNothing(
-		double FORCE_LOAD_SCALE
-	)
-{
-	int global_id = get_global_id(0);
-
-	// do nothing
 }

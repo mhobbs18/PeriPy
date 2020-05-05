@@ -1,8 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// opencl_peridynamics.cl
+// opencl_euler.cl
 //
-// OpenCL Peridynamics kernels
+// OpenCL Peridynamics kernels for an Euler integrator
 //
 // Based on code from Copyright (c) Farshid Mossaiby, 2016, 2017. Adapted for python.
 //
@@ -33,7 +33,7 @@ __kernel void
 
 	if (i < PD_DPN_NODE_NO)
 	{
-		Un[i] = BCTypes[i] == 2 ? Un[i] + PD_DT * (Udn[i]) : Un[i] + BCValues[i] ;
+		Un[i] = (BCTypes[i] == 2 ? (Un[i] + PD_DT * Udn[i]) : (Un[i] + BCValues[i]));
 	}
 }
 
@@ -97,9 +97,9 @@ __kernel void
 
 		// Add body forces
 
-		f0 = (FCTypes[DPN*i + 0] == 2 ? f0 : f0 + FORCE_LOAD_SCALE * FCValues[DPN * i + 0]);
-		f1 = (FCTypes[DPN*i + 1] == 2 ? f1 : f1 + FORCE_LOAD_SCALE * FCValues[DPN * i + 1]);
-		f2 = (FCTypes[DPN*i + 2] == 2 ? f2 : f2 + FORCE_LOAD_SCALE * FCValues[DPN * i + 2]);
+		f0 = (FCTypes[DPN*i + 0] == 2 ? f0 : (f0 + FORCE_LOAD_SCALE * FCValues[DPN * i + 0]));
+		f1 = (FCTypes[DPN*i + 1] == 2 ? f1 : (f1 + FORCE_LOAD_SCALE * FCValues[DPN * i + 1]));
+		f2 = (FCTypes[DPN*i + 2] == 2 ? f2 : (f2 + FORCE_LOAD_SCALE * FCValues[DPN * i + 2]));
 		
 		Udn[DPN * i + 0] = f0;
 		Udn[DPN * i + 1] = f1;

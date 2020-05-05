@@ -20,7 +20,7 @@
 // A horizon by horizon approach is chosen to proceed with the solution, in which
 // no assembly of the system of equations is required.
 
-// Update un
+// Update displacements
 __kernel void
 	UpdateDisplacement(
     	__global double const *Udn,
@@ -37,7 +37,7 @@ __kernel void
 	}
 }
 
-// Calculate force using un
+// Calculate force using displacements
 __kernel void
 	CalcBondForce(
     	__global double *Forces,
@@ -104,30 +104,31 @@ __kernel void
 	}
 }
 
+// Reduction of bond forces to nodal forces
 __kernel void 
     ReduceForce(
-      __global double* Forces,
-      __global double *Udn,
-      __global int const *FCTypes,
-      __global double const *FCValues,
-      __local double* local_cache,
-      double FORCE_LOAD_SCALE
-   )
+    	__global double * Forces,
+    	__global double * Udn,
+    	__global int const * FCTypes,
+    	__global double const * FCValues,
+    	__local double * local_cache,
+    	double FORCE_LOAD_SCALE
+   	)
 {
-    
-  int global_id = get_global_id(0); 
+  	int global_id = get_global_id(0);
+	
+  	int local_id = get_local_id(0); 
   
-  int local_id = get_local_id(0); 
-  
-  // local size is the MAX_HORIZONS_LENGTHS and must be a power of 2
+  // local size is the MAX_HORIZONS_LENGTHS, usually 128 or 256 depending on the problem
   int local_size = get_local_size(0); 
   
   //Copy values into local memory 
   local_cache[local_id] = Forces[global_id]; 
 
   //Wait for all threads to catch up 
-  barrier(CLK_LOCAL_MEM_FENCE); 
+  barrier(CLK_LOCAL_MEM_FENCE);
 
+  // reduction of local values (sum bond forces for one node in one cartesian direction)
   for (int i = local_size/2; i > 0; i /= 2){
     if(local_id < i){
       local_cache[local_id] += local_cache[local_id + i];
@@ -140,48 +141,50 @@ __kernel void
     //Get the reduced forces
     int index = global_id/local_size;
     // Update accelerations
-    Udn[index] = (FCTypes[index] == 2 ? local_cache[local_id] : local_cache[local_id] + FORCE_LOAD_SCALE * FCValues[index]);
+    Udn[index] = (FCTypes[index] == 2 ? local_cache[0] : (local_cache[0] + FORCE_LOAD_SCALE * FCValues[index]));
 }
 }
 
+// Reduction of damage
 __kernel void 
-    ReduceDamage(
-      __global int const *Horizons,
-		  __global int const *HorizonLengths,
-      __global double *Phi,
-      __local double* local_cache
+	ReduceDamage(
+    	__global int const *Horizons,
+		__global int const *HorizonLengths,
+    	__global double *Phi,
+      	__local double* local_cache
    )
 {
     
-  int global_id = get_global_id(0); 
+	int global_id = get_global_id(0);
+	
+	int local_id = get_local_id(0); 
+  	
+	// local size is the MAX_HORIZONS_LENGTHS and must be a power of 2
+	int local_size = get_local_size(0); 
   
-  int local_id = get_local_id(0); 
-  
-  // local size is the MAX_HORIZONS_LENGTHS and must be a power of 2
-  int local_size = get_local_size(0); 
-  
-  //Copy values into local memory 
-  local_cache[local_id] = Horizons[global_id] != -1 ? 1.00 : 0.00; 
+  	//Copy values into local memory 
+  	local_cache[local_id] = Horizons[global_id] != -1 ? 1.00 : 0.00; 
 
-  //Wait for all threads to catch up 
-  barrier(CLK_LOCAL_MEM_FENCE); 
+  	//Wait for all threads to catch up 
+  	barrier(CLK_LOCAL_MEM_FENCE); 
 
-  for (int i = local_size/2; i > 0; i /= 2){
-    if(local_id < i){
-      local_cache[local_id] += local_cache[local_id + i];
-    } 
-    //Wait for all threads to catch up 
-    barrier(CLK_LOCAL_MEM_FENCE);
-  }
+	for (int i = local_size/2; i > 0; i /= 2){
+		if(local_id < i){
+		local_cache[local_id] += local_cache[local_id + i];
+		} 
+		//Wait for all threads to catch up 
+		barrier(CLK_LOCAL_MEM_FENCE);
+	}
 
-  if (!local_id) {
-    //Get the reduced forces
-    int index = global_id/local_size;
-    // Update damage
-    Phi[index] = 1.00 - (double) local_cache[local_id] / (double) (HorizonLengths[index]);
+	if (!local_id) {
+		//Get the reduced forces
+		int index = global_id/local_size;
+		// Update damage
+		Phi[index] = 1.00 - (double) local_cache[0] / (double) (HorizonLengths[index]);
+	}
 }
-}
 
+// Not needed, since we already Checked in 'CalcBondForce'
 __kernel void
 	CheckBonds(
 		__global int *Horizons,

@@ -179,10 +179,10 @@ class Model:
             self.nnodes = self.coords.shape[0]
 
             # Get connectivity, mesh triangle cells
-            self.mesh_connectivity = mesh.cells_dict[self.mesh_elements.connectivity]
+            self.mesh_connectivity = mesh.cells[self.mesh_elements.connectivity]
 
             # Get boundary connectivity, mesh lines
-            self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
+            self.mesh_boundary = mesh.cells[self.mesh_elements.boundary]
 
             # Get number elements on boundary?
             self.nelem_bnd = self.mesh_boundary.shape[0]
@@ -629,6 +629,7 @@ class OpenCL(Model):
         self.critical_strain_steel = critical_strain_steel
         self.crack_length = crack_length
         self.volume_total = volume_total
+        self.network_file_name = network_file_name
         self.dt = None
         self.max_reaction = None
         self.load_scale_rate = None
@@ -641,7 +642,7 @@ class OpenCL(Model):
 
         # If the network has already been written to file, then read, if not, setNetwork
         try:
-            self._read_network(network_file_name)
+            self._read_network(self.network_file_name)
         except:
             print('No network file found: writing network file.')
             self._set_network(self.horizon, bond_type)
@@ -988,7 +989,7 @@ class OpenCL(Model):
         # Make sure it is in a datatype that C can handle
         self.horizons = self.horizons.astype(np.intc)
 
-        vtk.writeNetwork("Network"+".vtk", "Network",
+        vtk.writeNetwork(self.network_file_name, "Network",
                       self.max_horizon_length, self.horizons_lengths,
                       self.family, self.bond_stiffness_family, self.bond_critical_stretch_family)
 
@@ -1117,9 +1118,9 @@ class OpenCL(Model):
                     tip_shear_force_data.append(tip_shear_force)
                     damage_sum = np.sum(damage_data)
                     damage_sum_data.append(damage_sum)
-                    if damage_sum > 0.02*model.nnodes:
+                    if damage_sum > 0.03*model.nnodes:
                         #print('Warning: over 5% of bonds have broken! -- PERIDYNAMICS SIMULATION CONTINUING')
-                        print('Warning: over 2% of bonds have broken! -- PERIDYNAMICS SIMULATION STOPPING')
+                        print('Warning: over 3% of bonds have broken! -- PERIDYNAMICS SIMULATION STOPPING')
                         break
                     if toolbar == 0:
                         print('Print number {}/{} complete in {} s '.format(int(step/write), int(steps/write), time.time() - st))
@@ -1249,6 +1250,137 @@ class OpenCLProbabilistic(OpenCL):
         if self.v == True:
             print("sum total volume", self.sum_total_volume)
             print("user input volume total", volume_total)
+    def _set_network(self, horizon, bond_type):
+        """
+        Sets the family matrix, and converts this to a horizons matrix 
+        (a fixed size data structure compatible with OpenCL).
+        Calculates horizons_lengths
+        Also initiate crack here if there is one
+        :arg horizon: Peridynamic horizon distance
+        :returns: None
+        :rtype: NoneType
+        """
+        def l2(y1, y2):
+            """
+            Euclidean distance between nodes y1 and y2.
+            """
+            l2 = 0
+            for i in range(len(y1)):
+                l2 += (y1[i] - y2[i]) * (y1[i] - y2[i])
+            l2 = np.sqrt(l2)
+            return l2
+
+        # Container for nodal family
+        family = []
+        bond_stiffness_family = []
+        bond_critical_stretch_family = []
+
+        # Container for number of nodes (including self) that each of the nodes
+        # is connected to
+        self.horizons_lengths = np.zeros(self.nnodes, dtype=np.intc)
+
+        for i in range(0, self.nnodes):
+            print('node', i, 'networking...')
+            # Container for family nodes
+            tmp = []
+            # Container for bond stiffnesses
+            tmp2 = []
+            # Container for bond critical stretches
+            tmp3 = []
+            for j in range(0, self.nnodes):
+                if i != j:
+                    distance = l2(self.coords[i, :], self.coords[j, :])
+                    if distance < horizon:
+                        tmp.append(j)
+                        # Determine the material properties for that bond
+                        material_flag = bond_type(self.coords[i, :], self.coords[j, :])
+                        if material_flag == 'steel':
+                            tmp2.append(self.bond_stiffness_steel)
+                            tmp3.append(self.critical_strain_steel)
+                        elif material_flag == 'interface':
+                            tmp2.append(self.bond_stiffness_concrete) # In the probabilistic examples, "steel" is used for a no-fail-zone to prevent boundary effects
+                            tmp3.append(self.critical_strain_concrete)
+                        elif material_flag == 'concrete':
+                            tmp2.append(self.bond_stiffness_concrete)
+                            tmp3.append(self.critical_strain_concrete)
+
+            family.append(np.zeros(len(tmp), dtype=np.intc))
+            bond_stiffness_family.append(np.zeros(len(tmp2), dtype=np.float64))
+            bond_critical_stretch_family.append(np.zeros(len(tmp3), dtype=np.float64))
+
+            self.horizons_lengths[i] = np.intc((len(tmp)))
+            for j in range(0, len(tmp)):
+                family[i][j] = np.intc(tmp[j])
+                bond_stiffness_family[i][j] = np.float64(tmp2[j])
+                bond_critical_stretch_family[i][j] = np.float64(tmp3[j])
+
+        assert len(family) == self.nnodes
+        # As numpy array
+        self.family = np.array(family)
+
+        # Do the bond critical ste
+        self.bond_critical_stretch_family = np.array(bond_critical_stretch_family)
+        self.bond_stiffness_family = np.array(bond_stiffness_family)
+
+        self.family_v = np.zeros(self.nnodes)
+        for i in range(0, self.nnodes):
+            tmp = 0 # tmp family volume
+            family_list = family[i]
+            for j in range(0, len(family_list)):
+                tmp += self.V[family_list[j]]
+            self.family_v[i] = tmp
+
+        if self.precise_stiffness_correction == 1:
+            # Calculate stiffening factor nore accurately using actual nodal volumes
+            for i in range(0, self.nnodes):
+                family_list = family[i]
+                nodei_family_volume = self.family_v[i]
+                for j in range(len(family_list)):
+                    nodej_family_volume = self.family_v[j]
+                    stiffening_factor = 2.* self.family_volume /  (nodej_family_volume + nodei_family_volume)
+                    print('Stiffening factor {}'.format(stiffening_factor))
+                    bond_stiffness_family[i][j] *= stiffening_factor
+        elif self.precise_stiffness_correction == 0:
+            # TODO: check this code, it was 23:52pm
+            average_node_volume = self.volume_total/self.nnodes
+            # Calculate stiffening factor - surface corrections for 2D/3D problem, for this we need family matrix
+            for i in range(0, self.nnodes):
+                nnodes_i_family = len(family[i])
+                nodei_family_volume = nnodes_i_family * average_node_volume # Possible to calculate more exactly, we have the volumes for free
+                for j in range(len(family[i])):
+                    nnodes_j_family = len(family[j])
+                    nodej_family_volume = nnodes_j_family* average_node_volume # Possible to calculate more exactly, we have the volumes for free
+                    
+                    stiffening_factor = 2.* self.family_volume /  (nodej_family_volume + nodei_family_volume)
+                    
+                    bond_stiffness_family[i][j] *= stiffening_factor
+        elif self.precise_stiffness_correction == 2:
+            # Don't apply stiffness correction factor
+            pass
+
+        # Maximum number of nodes that any one of the nodes is connected to, must be a power of 2 (for OpenCL reduction)
+        self.max_horizon_length = np.intc(
+                    1<<(len(max(family, key=lambda x: len(x)))-1).bit_length()
+                )
+
+        self.horizons = -1 * np.ones([self.nnodes, self.max_horizon_length])
+        for i, j in enumerate(self.family):
+            self.horizons[i][0:len(j)] = j
+
+        self.bond_stiffness = -1. * np.ones([self.nnodes, self.max_horizon_length])
+        for i, j in enumerate(self.bond_stiffness_family):
+            self.bond_stiffness[i][0:len(j)] = j
+
+        self.bond_critical_stretch = -1. * np.ones([self.nnodes, self.max_horizon_length])
+        for i, j in enumerate(self.bond_critical_stretch_family):
+            self.bond_critical_stretch[i][0:len(j)] = j
+
+        # Make sure it is in a datatype that C can handle
+        self.horizons = self.horizons.astype(np.intc)
+
+        vtk.writeNetwork(self.network_file_name, "Network",
+                      self.max_horizon_length, self.horizons_lengths,
+                      self.family, self.bond_stiffness_family, self.bond_critical_stretch_family)
     def _set_H(self, l, sigma, epsilon=1e-5):
         """
         Constructs the failure strains matrix and H matrix, which is a sparse
@@ -1256,6 +1388,9 @@ class OpenCLProbabilistic(OpenCL):
         :returns: None
         :rtype: NoneType
         """
+        # TODO: How much of this could be done in OpenCL?
+        # These are all element-wise operations so cost is with O(n^2), so not too bad
+        # Apart from choleshky decomp
         coords = self.coords
 
         # Extract the coordinates

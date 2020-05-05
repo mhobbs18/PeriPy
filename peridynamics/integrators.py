@@ -1,6 +1,5 @@
 """Integrators."""
 from abc import ABC, abstractmethod
-from peridynamics.probabilistic import noise
 import pyopencl as cl
 import numpy as np
 import sys
@@ -27,8 +26,6 @@ class Integrator(ABC):
         cl.enqueue_marker(self.queue)
     def marker_force(self):
         cl.enqueue_marker(self.queue)
-    def marker_nothing(self):
-        cl.enqueue_marker(self.queue)
     def marker_velocity(self):
         cl.enqueue_marker(self.queue)
     def marker_check(self):
@@ -37,6 +34,30 @@ class Integrator(ABC):
         cl.enqueue_marker(self.queue)
     def marker_reduce_damage(self):
         cl.enqueue_marker(self.queue)
+    def barrier_displacement(self):
+        cl.enqueue_barrier(self.queue)
+    def barrier_force(self):
+        cl.enqueue_barrier(self.queue)
+    def barrier_velocity(self):
+        cl.enqueue_barrier(self.queue)
+    def barrier_check(self):
+        cl.enqueue_barrier(self.queue)
+    def barrier_reduce_force(self):
+        cl.enqueue_barrier(self.queue)
+    def barrier_reduce_damage(self):
+        cl.enqueue_barrier(self.queue)
+    def finish_displacement(self):
+        self.queue.finish()
+    def finish_force(self):
+        self.queue.finish()
+    def finish_velocity(self):
+        self.queue.finish()
+    def finish_check(self):
+        self.queue.finish()
+    def finish_reduce_force(self):
+        self.queue.finish()
+    def finish_reduce_damage(self):
+        self.queue.finish()
 class Euler(Integrator):
     r"""
     Euler integrator.
@@ -251,7 +272,9 @@ class EulerCromer(Integrator):
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values)
-        self.marker_displacement()
+        #self.marker_displacement()
+        self.barrier_displacement()
+        #self.finish_displacement()
         # Time marching Part 2
         # Scalars like self.h_force_load_scale can live on the host memory
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes,), None,
@@ -266,16 +289,22 @@ class EulerCromer(Integrator):
                                        self.d_force_bc_values,
                                        self.h_force_load_scale)
         
-        self.marker_force()
+        #self.marker_force()
+        #self.finish_force()
+        self.barrier_force()
         # Time marching Part 3
         self.cl_kernel_update_velocity(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_uddn)
-        self.marker_velocity()
+        #self.marker_velocity()
+        #self.finish_velocity()
+        self.barrier_velocity()
         # Check for broken bonds
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
-        self.marker_check()
+        #self.marker_check()
+        #self.finish_check()
+        self.barrier_check()
         
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
@@ -356,7 +385,6 @@ class EulerCromerOptimised(Integrator):
         self.cl_kernel_update_velocity = program.UpdateVelocity
         self.cl_kernel_reduce_damage = program.ReduceDamage
         self.cl_kernel_reduce_force = program.ReduceForce
-        self.cl_kernel_do_nothing = program.DoNothing
 
         # Set initial values in host memory
         # horizons and horizons lengths
@@ -461,7 +489,6 @@ class EulerCromerOptimised(Integrator):
         self.cl_kernel_update_velocity.set_scalar_arg_dtypes([None, None])
         self.cl_kernel_reduce_damage.set_scalar_arg_dtypes([None, None, None, None])
         self.cl_kernel_reduce_force.set_scalar_arg_dtypes([None, None, None, None, None, None, None])
-        self.cl_kernel_do_nothing.set_scalar_arg_dtypes([None])
         return None
 
     def __call__(self):
@@ -486,19 +513,28 @@ class EulerCromerOptimised(Integrator):
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values)
-        self.marker_displacement()
+        #self.marker_displacement()
+        #self.finish_displacement()
+        self.barrier_displacement()
+        #self.marker_force()
         # Calc bond forces
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes, model.max_horizon_length), None, self.d_forces,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
-        self.marker_force()
+        #self.marker_force()
+        #self.finish_force()
+        self.barrier_force()
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
                                   (model.max_horizon_length,), self.d_forces, self.d_uddn, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
-        self.marker_reduce_force()
+        #self.marker_reduce_force()
+        self.barrier_reduce_force()
+        #self.finish_reduce_force()
         # Update velocity
         self.cl_kernel_update_velocity(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_uddn)
-        self.marker_velocity()
+        #self.marker_velocity()
+        self.barrier_velocity()
+        #self.finish_velocity()
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -682,16 +718,22 @@ class EulerOpenCL(Integrator):
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn1, self.d_un, self.d_bc_types,
                                   self.d_bc_values)
-        self.marker_displacement()
+        #self.marker_displacement()
+        #self.finish_displacement()
+        self.barrier_displacement()
         # Time marching Part 2
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes,), None, self.d_udn1,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
-        self.marker_force()
+        #self.marker_force()
+        #self.finish_force()
+        self.barrier_force()
         # Check for broken bonds
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
-        self.marker_check()
+        #self.marker_check()
+        #self.finish_check()
+        self.barrier_check()
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -884,20 +926,26 @@ class EulerOpenCLOptimised(Integrator):
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values)
-        self.marker_displacement()
+        #self.finish_displacement()
+        #self.marker_displacement()
+        self.barrier_displacement()
         # Calc bond forces
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes, model.max_horizon_length), None, self.d_forces,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
-        self.marker_force()
+        #self.finish_force()
+        #self.marker_force()
+        self.barrier_force()
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
                                   (model.max_horizon_length,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
-        self.marker_reduce_force()
+        #self.finish_reduce_force()
+        #self.marker_reduce_force()
+        self.barrier_reduce_force()
         # Check for broken bonds not needed, since check bonds is done in "CalcBondForce"
         #self.cl_kernel_check_bonds(self.queue,
                                    #(model.nnodes, model.max_horizon_length),
                                    #None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
-        self.marker_check()
+        #self.marker_check()
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -2295,6 +2343,8 @@ class EulerStochastic(Integrator):
         self.cl_kernel_calc_bond_force = program.CalcBondForce
         self.cl_kernel_reduce_force = program.ReduceForce
         self.cl_kernel_reduce_damage = program.ReduceDamage
+        self.cl_kernel_matrix_vector_mul1 = program.gemv1
+        self.cl_kernel_matrix_vector_mul2 = program.gemv2
 
         # Set initial values in host memory
 
@@ -2341,6 +2391,12 @@ class EulerStochastic(Integrator):
 
         # For applying force in incriments
         self.h_force_load_scale = np.float64(0.0)
+
+        # 
+        self.h_m = np.intc(
+        1<<(model.nnodes-1).bit_length()
+        )
+        self.h_n = np.intc(model.nnodes)
 
         # Build OpenCL data structures
 
@@ -2395,6 +2451,10 @@ class EulerStochastic(Integrator):
         self.cl_kernel_reduce_force.set_scalar_arg_dtypes([None, None, None, None, None, None])
         self.cl_kernel_reduce_damage.set_scalar_arg_dtypes([None, None, None, None])
         self.cl_kernel_mmul.set_scalar_arg_dtypes([None, None, None])
+        self.cl_kernel_matrix_vector_mul1.set_scalar_arg_dtypes(
+            [None, None, None, None, None])
+        self.cl_kernel_matrix_vector_mul2.set_scalar_arg_dtypes(
+            [None, None, None, None, None, None])
     def __call__(self):
         """
         Conduct one iteration of the integrator.
@@ -2409,6 +2469,57 @@ class EulerStochastic(Integrator):
         :returns: The new displacements after integration.
         :rtype: :class:`numpy.ndarray`
         """
+    def noise(self, C, K, num_nodes, num_steps, degrees_freedom = 3):
+        """Takes sample from multivariate normal distribution 
+        with covariance matrix whith Cholesky factor, L
+        :arg L: Cholesky factor, C
+        :arg C: Covariance matrix, K
+        :arg samples: The number of degrees of freedom (read: dimensions) the
+        noise is generated in, degault 3 i.e. x,y and z directions.
+        :returns: num_nodes * 3 * num_steps array of noise
+        :rtype: np.array dtype=float64
+        """
+
+        def multivar_normal(self, L, num_nodes):
+            """ Fn for taking a single multivar normal sample covariance matrix with Cholesky factor, L
+            """
+            # Pad L
+            shape = np.shape(L)
+            padded_L = np.zeros((self.h_m, self.h_n))
+            padded_L[:shape[0],:shape[1]] = L
+
+            # OpenCL kernel reads L in column major not row major order
+            h_L = np.ascontiguousarray(np.transpose(padded_L), dtype=np.float64)
+
+            h_x = np.ascontiguousarray(np.random.normal(0, 1, size = num_nodes), dtype=np.float64)
+            h_y = np.empty((self.h_n), dtype=np.float64)
+            # Read only
+            d_x = cl.Buffer(self.context,
+                             cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                             hostbuf=h_x)
+            d_L = cl.Buffer(self.context,
+                cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                hostbuf=h_L)
+            # Write only
+            d_y = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, h_y.nbytes)
+            self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
+                            d_L, d_x, d_y, self.h_m, self.h_n)
+            # Device to host
+            cl.enqueue_copy(self.queue, h_y, d_y)
+            # CPU version
+            #y = np.dot(L, h_x) #vector
+            #zeros = np.subtract(h_y, y)
+            #error = abs(np.max(zeros))
+            #print(error)
+            #assert (error < 1e-13), 'error was too large, something is wrong, error was {}'.format(error)
+            print('noise step complete')
+            return h_y
+
+        noise = []
+        for i in range(degrees_freedom * num_steps):
+            noise.append(multivar_normal(self, C, num_nodes))
+        return np.ascontiguousarray(noise, dtype=np.float64)
+
     def reset(self, model, steps):
         # Displacements
         self.h_un = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
@@ -2420,8 +2531,9 @@ class EulerStochastic(Integrator):
         # Damage vector
         self.h_damage = np.zeros(model.nnodes).astype(np.float64)
 
-        # Sample random noise vector
-        self.h_pn = noise(model.C, model.K, model.nnodes, steps)
+        # Sample random noise vector using openCL
+        #self.h_pn = noise(model.C, model.K, model.nnodes, steps)
+        self.h_pn = self.noise(model.C, model.K, model.nnodes, steps)
 
         # Covariance matrix
         #self.h_K = model.K

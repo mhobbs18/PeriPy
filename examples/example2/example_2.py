@@ -28,8 +28,6 @@ import os
 mesh_file_name = 'test.msh'
 mesh_file = pathlib.Path(__file__).parent.absolute() / mesh_file_name
 
-token_problems = ['test.msh', 'debug3D.msh', 'debug3D2.msh']
-
 @initial_crack_helper
 def is_crack(x, y):
     output = 0
@@ -195,7 +193,6 @@ def main():
                dimensions=2,
                transfinite=0,
                precise_stiffness_correction=1)
-    #model.dt = np.double(0.3e-3)
     model.dt = np.double(0.5e-3 / (1.1))
     # Set force and displacement boundary conditions
     boundary_function(model)
@@ -203,7 +200,7 @@ def main():
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
-    integrator = DormandPrince(model, error_size_max=1e-6, error_size_min=1e-20)
+    integrator = EulerOpenCL(model)#, error_size_max=1e-6, error_size_min=1e-20)
     damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=4000, integrator=integrator, write=100, toolbar=0)
     print('damage_sum_data', damage_sum_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))

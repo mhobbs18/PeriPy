@@ -1,24 +1,19 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// opencl_peridynamics.cl
+// opencl_euler_cromer.cl
 //
-// OpenCL Peridynamics kernels
+// OpenCL Peridynamics kernels for an Euler Cromer integrator
 //
 // Based on code from Copyright (c) Farshid Mossaiby, 2016, 2017. Adapted for python.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 // Includes, project
-//#include <stdio.h>
 #include "opencl_enable_fp64.cl"
 
 // Macros
-
 #define DPN 3
 // MAX_HORIZON_LENGTH, PD_DT, PD_E, PD_S0, PD_NODE_NO, PD_DPN_NODE_NO will be defined on JIT compiler's command line
-
-// A horizon by horizon approach is chosen to proceed with the solution, in which
-// no assembly of the system of equations is required.
 
 // Update displacements
 __kernel void
@@ -33,7 +28,7 @@ __kernel void
 
 	if (i < PD_DPN_NODE_NO)
 	{
-		Un[i] = BCTypes[i] == 2 ? Un[i] + PD_DT * (Udn[i]) : Un[i] + BCValues[i] ;
+		Un[i] = (BCTypes[i] == 2 ? (Un[i] + PD_DT * Udn[i]) : (Un[i] + BCValues[i]));
 	}
 }
 
@@ -98,9 +93,9 @@ __kernel void
 		}
 
 		// Add body forces
-		f0 = (FCTypes[DPN*i + 0] == 2 ? f0 : f0 + FORCE_LOAD_SCALE * FCValues[DPN * i + 0]);
-		f1 = (FCTypes[DPN*i + 1] == 2 ? f1 : f1 + FORCE_LOAD_SCALE * FCValues[DPN * i + 1]);
-		f2 = (FCTypes[DPN*i + 2] == 2 ? f2 : f2 + FORCE_LOAD_SCALE * FCValues[DPN * i + 2]);
+		f0 = (FCTypes[DPN*i + 0] == 2 ? f0 : (f0 + FORCE_LOAD_SCALE * FCValues[DPN * i + 0]));
+		f1 = (FCTypes[DPN*i + 1] == 2 ? f1 : (f1 + FORCE_LOAD_SCALE * FCValues[DPN * i + 1]));
+		f2 = (FCTypes[DPN*i + 2] == 2 ? f2 : (f2 + FORCE_LOAD_SCALE * FCValues[DPN * i + 2]));
 		
         // Update accelerations
 		Uddn[DPN * i + 0] = (f0 - PD_ETA * Udn[DPN * i + 0]) / PD_RHO;
@@ -190,15 +185,4 @@ __kernel void
 
 		Phi[i] = 1.00 - (double) active_bonds / (double) (HorizonLengths[i]);
 	}
-}
-
-
-__kernel void
-	DoNothing(
-		double FORCE_LOAD_SCALE
-	)
-{
-	int global_id = get_global_id(0);
-
-	// do nothing
 }
