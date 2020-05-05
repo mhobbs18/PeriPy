@@ -273,7 +273,7 @@ class EulerCromer(Integrator):
                                   None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values)
         #self.marker_displacement()
-        self.barrier_displacement()
+        #self.barrier_displacement()
         #self.finish_displacement()
         # Time marching Part 2
         # Scalars like self.h_force_load_scale can live on the host memory
@@ -291,20 +291,20 @@ class EulerCromer(Integrator):
         
         #self.marker_force()
         #self.finish_force()
-        self.barrier_force()
+        #self.barrier_force()
         # Time marching Part 3
         self.cl_kernel_update_velocity(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_uddn)
         #self.marker_velocity()
         #self.finish_velocity()
-        self.barrier_velocity()
+        #self.barrier_velocity()
         # Check for broken bonds
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
         #self.marker_check()
         #self.finish_check()
-        self.barrier_check()
+        #self.barrier_check()
         
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
@@ -515,25 +515,25 @@ class EulerCromerOptimised(Integrator):
                                   self.d_bc_values)
         #self.marker_displacement()
         #self.finish_displacement()
-        self.barrier_displacement()
+        #self.barrier_displacement()
         #self.marker_force()
         # Calc bond forces
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes, model.max_horizon_length), None, self.d_forces,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
         #self.marker_force()
         #self.finish_force()
-        self.barrier_force()
+        #self.barrier_force()
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
                                   (model.max_horizon_length,), self.d_forces, self.d_uddn, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
         #self.marker_reduce_force()
-        self.barrier_reduce_force()
+        #self.barrier_reduce_force()
         #self.finish_reduce_force()
         # Update velocity
         self.cl_kernel_update_velocity(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_uddn)
         #self.marker_velocity()
-        self.barrier_velocity()
+        #self.barrier_velocity()
         #self.finish_velocity()
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
@@ -720,20 +720,20 @@ class EulerOpenCL(Integrator):
                                   self.d_bc_values)
         #self.marker_displacement()
         #self.finish_displacement()
-        self.barrier_displacement()
+        #self.barrier_displacement()
         # Time marching Part 2
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes,), None, self.d_udn1,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
         #self.marker_force()
         #self.finish_force()
-        self.barrier_force()
+        ##self.barrier_force()
         # Check for broken bonds
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
         #self.marker_check()
         #self.finish_check()
-        self.barrier_check()
+        #self.barrier_check()
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -928,19 +928,19 @@ class EulerOpenCLOptimised(Integrator):
                                   self.d_bc_values)
         #self.finish_displacement()
         #self.marker_displacement()
-        self.barrier_displacement()
+        #self.barrier_displacement()
         # Calc bond forces
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes, model.max_horizon_length), None, self.d_forces,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
         #self.finish_force()
         #self.marker_force()
-        self.barrier_force()
+        ##self.barrier_force()
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
                                   (model.max_horizon_length,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
         #self.finish_reduce_force()
         #self.marker_reduce_force()
-        self.barrier_reduce_force()
+        #self.barrier_reduce_force()
         # Check for broken bonds not needed, since check bonds is done in "CalcBondForce"
         #self.cl_kernel_check_bonds(self.queue,
                                    #(model.nnodes, model.max_horizon_length),
