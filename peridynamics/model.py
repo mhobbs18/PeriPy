@@ -179,10 +179,10 @@ class Model:
             self.nnodes = self.coords.shape[0]
 
             # Get connectivity, mesh triangle cells
-            self.mesh_connectivity = mesh.cells[self.mesh_elements.connectivity]
+            self.mesh_connectivity = mesh.cells_dict[self.mesh_elements.connectivity]
 
             # Get boundary connectivity, mesh lines
-            self.mesh_boundary = mesh.cells[self.mesh_elements.boundary]
+            self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
 
             # Get number elements on boundary?
             self.nelem_bnd = self.mesh_boundary.shape[0]
@@ -555,11 +555,25 @@ class OpenCL(Model):
     This class allows users to define a peridynamics system from parameters and
     a set of initial conditions (coordinates and connectivity).
     """
-    def __init__(self, mesh_file_name, density = None, horizon = None, 
-                 damping = None, bond_stiffness_concrete = None, bond_stiffness_steel = None, 
-                 critical_strain_concrete = None, critical_strain_steel = None, crack_length = None,
-                 volume_total=None, bond_type=None, network_file_name = 'Network.vtk', initial_crack=[], dimensions=2,
-                 transfinite= None, precise_stiffness_correction = None):
+    def __init__(self, mesh_file_name, 
+                 density = None,
+                 horizon = None, 
+                 damping = None,
+                 bond_stiffness_concrete = None,
+                 bond_stiffness_steel = None, 
+                 critical_strain_concrete = None,
+                 critical_strain_steel = None,
+                 crack_length = None,
+                 volume_total=None,
+                 bond_type=None,
+                 network_file_name = 'Network.vtk',
+                 initial_crack=[],
+                 dimensions=2,
+                 transfinite= None,
+                 precise_stiffness_correction = None,
+                 displacement_scale_rate = None,
+                 build_displacement = None,
+                 final_displacement = None):
         """
         Construct a :class:`OpenCL` object, which inherits Model class.
         
@@ -1068,7 +1082,10 @@ class OpenCL(Model):
 #                     self.horizons[j][k] = np.intc(-1)
 # =============================================================================
 
-    def simulate(self, model, sample, steps, integrator, write=None, toolbar=0):
+    def simulate(self, model, sample, steps, integrator, write=None, toolbar=0,
+                 displacement_rate = None,
+                 build_displacement = None,
+                 final_displacement = None):
         """
         Simulate the peridynamics model.
         :arg int steps: The number of simulation steps to conduct.
@@ -1094,14 +1111,19 @@ class OpenCL(Model):
         """
         if not isinstance(integrator, Integrator):
             raise InvalidIntegrator(integrator)
+        # Calculate number of time steps that displacement load is in the 'build-up' phase
+        if not ((displacement_rate is None) or (build_displacement is None) or (final_displacement is None)):
+            build_time, a, b, c= _calc_build_time(build_displacement, displacement_rate, steps)
 
         # Container for plotting data
         damage_sum_data = []
         tip_displacement_data = []
         tip_shear_force_data = []
-        
+
         #Progress bar
         toolbar_width = 40
+        # Ease off displacement loading switch
+        ease_off = 0
         if toolbar:    
             sys.stdout.write("[%s]" % (" " * toolbar_width))
             sys.stdout.flush()
@@ -1128,17 +1150,30 @@ class OpenCL(Model):
                         st = time.time()
 
             # Increase load in linear increments
-            if model.load_scale_rate is None:
-                pass
-            else:
+            if not (model.load_scale_rate is None):
                 load_scale = min(1.0, model.load_scale_rate * step)
                 if load_scale != 1.0:
                     integrator.incrementLoad(model, load_scale)
+            # Increase dispalcement in 5th order polynomial increments
+            if not ((displacement_rate is None) or (build_displacement is None) or (final_displacement is None)):
+                # 5th order polynomial/ linear curve used to calculate displacement_scale
+                displacement_scale, ease_off = _calc_load_displacement_rate(a, b, c,
+                                                                 final_displacement,
+                                                                 build_time,
+                                                                 displacement_rate,
+                                                                 step, 
+                                                                 build_displacement,
+                                                                 ease_off)
+                if displacement_scale != 0.0:
+                    integrator.incrementDisplacement(model, displacement_scale)
+            # No user specified build up parameters case
+            elif not (displacement_rate is None):
+                integrator.incrementDisplacement(model, 1.0)
             # Loading bar update
             if step%(steps/toolbar_width)<1 & toolbar:
                 sys.stdout.write("\u2588")
                 sys.stdout.flush()
-        
+
         if toolbar:
             sys.stdout.write("]\n")
 
@@ -1520,6 +1555,69 @@ def initial_crack_helper(crack_function):
                 crack.append((i, j))
         return crack
     return initial_crack
+
+def _calc_midpoint_gradient(T, displacement_scale_rate):
+    A = np.array([
+        [(1*T**5)/1,(1*T**4)/1,(1*T**3)/1],
+        [(20*T**3)/1,(12*T**2)/1,(6*T**1)/1],
+        [(5*T**4)/1,(4*T**3)/1,(3*T**2)/1,]
+        ]
+        )
+    b = np.array(
+        [
+            [displacement_scale_rate],
+            [0.0],
+            [0.0]
+                ])
+    x = np.linalg.solve(A,b)
+    a = x[0][0]
+
+    b = x[1][0]
+
+    c = x[2][0]
+    
+    midpoint_gradient = (5./16)*a*T**4 + (4./8)*b*T**3 + (3./4)*c*T**2
+    
+    return(midpoint_gradient, a, b, c)
+
+def _calc_build_time(build_displacement, displacement_scale_rate, steps):
+    T = 0
+    midpoint_gradient = np.inf
+    while midpoint_gradient > displacement_scale_rate:
+        try:
+            midpoint_gradient, a, b, c = _calc_midpoint_gradient(T, build_displacement)
+        except:
+            pass
+        T += 1
+        if T > steps:
+            # TODO: suggest some valid values from the parameters given
+            raise ValueError('Displacement build-up time was larger than total simulation time steps! \ntry decreasing build_displacement, or increase max_displacement_rate. steps = {}'.format(steps))
+            break
+    return(T, a, b, c)
+
+def _calc_load_displacement_rate(a, b, c, final_displacement, build_time, displacement_scale_rate, step, build_displacement, ease_off):
+    if step < build_time/2:
+        m = 5*a*step**4 + 4*b*step**3 + 3*c*step**2
+        #print('m = ', m)
+        load_displacement_rate = m/displacement_scale_rate
+    elif ease_off != 0:
+        t = step - ease_off + build_time/2
+        if t > build_time:
+            load_displacement_rate = 0.0
+        else:
+            m = 5*a*t**4 + 4*b*t**3 + 3*c*t**2
+            load_displacement_rate = m/displacement_scale_rate
+    else: # linear regime
+        # calculate displacement
+        linear_regime_time = step - build_time/2
+        linear_regime_displacement = linear_regime_time * displacement_scale_rate
+        displacement = linear_regime_displacement + build_displacement/2
+        if displacement + build_displacement/2 < final_displacement:
+            load_displacement_rate = 1.0
+        else:
+            ease_off = step
+            load_displacement_rate = 1.0
+    return(load_displacement_rate, ease_off)
 
 class DimensionalityError(Exception):
     """An invalid dimensionality argument used to construct a model."""

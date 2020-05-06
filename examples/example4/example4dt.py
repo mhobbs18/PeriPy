@@ -30,7 +30,7 @@ os.environ['COMPUTE_PROFILE'] = '1'
 # Choice, comma-separated [0]:0
 # Set the environment variable PYOPENCL_CTX='0:0' to avoid being asked again.
 # =============================================================================
-os.environ['PYOPENCL_CTX'] = '0:0'
+os.environ['PYOPENCL_CTX'] = '0:1'
 
 @initial_crack_helper
 def is_crack(x, y):
@@ -122,12 +122,11 @@ def is_forces_boundary(horizon, x):
     bnd = [2, 2, 2]
     return bnd
 
-def boundary_function(model):
+def boundary_function(model, displacement_scale_rate):
     """ 
     Initiates displacement boundary conditions,
     also define the 'tip' (for plotting displacements)
     """
-    load_rate = 1e-8
     # initiate
     model.bc_types = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.intc)
     model.bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
@@ -140,9 +139,9 @@ def boundary_function(model):
         model.bc_types[i, 0] = np.intc(bnd[0])
         model.bc_types[i, 1] = np.intc(bnd[1])
         model.bc_types[i, 2] = np.intc((bnd[2]))
-        model.bc_values[i, 0] = np.float64(bnd[0] * 0.5 * load_rate)
-        model.bc_values[i, 1] = np.float64(bnd[1] * 0.5 * load_rate)
-        model.bc_values[i, 2] = np.float64(bnd[2] * 0.5 * load_rate)
+        model.bc_values[i, 0] = np.float64(bnd[0] * 0.5 * displacement_scale_rate)
+        model.bc_values[i, 1] = np.float64(bnd[1] * 0.5 * displacement_scale_rate)
+        model.bc_values[i, 2] = np.float64(bnd[2] * 0.5 * displacement_scale_rate)
         # Define tip here
         tip = is_tip(model.horizon, model.coords[i][:])
         model.tip_types[i] = np.intc(tip)
@@ -202,9 +201,9 @@ def main():
     assert args.mesh_file_name in beams, 'mesh_file_name = {} was not recognised, please check the mesh file is in the directory'.format(args.mesh_file_name)
 
     if args.optimised:
-        print(args.mesh_file_name, 'EulerOptimisedMarked')
+        print(args.mesh_file_name, 'EulerOptimised')
     else:
-        print(args.mesh_file_name, 'EulerMarked')
+        print(args.mesh_file_name, 'Euler')
     mesh_file = pathlib.Path(__file__).parent.absolute() / args.mesh_file_name
     st = time.time()
 
@@ -281,9 +280,10 @@ def main():
     model.dt = 1e-14
     model.max_reaction = 0 # in newtons, about 85 times self weight
     model.load_scale_rate = 1
+    displacement_scale_rate = 1e-8
 
     # Set force and displacement boundary conditions
-    boundary_function(model)
+    boundary_function(model, displacement_scale_rate)
     boundary_forces_function(model)
     
     if args.optimised:
@@ -295,7 +295,9 @@ def main():
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
 
-    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=1000, integrator=integrator, write=1000, toolbar=0)
+    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=1000, integrator=integrator, write=1000, toolbar=0,
+                                                                                  displacement_scale_rate = displacement_scale_rate)
+
 # =============================================================================
 #     plt.figure(1)
 #     plt.title('damage over time')

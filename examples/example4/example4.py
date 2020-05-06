@@ -30,7 +30,7 @@ os.environ['COMPUTE_PROFILE'] = '1'
 # Choice, comma-separated [0]:0
 # Set the environment variable PYOPENCL_CTX='0:0' to avoid being asked again.
 # =============================================================================
-os.environ['PYOPENCL_CTX'] = '0:0'
+os.environ['PYOPENCL_CTX'] = '0:1'
 
 @initial_crack_helper
 def is_crack(x, y):

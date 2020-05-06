@@ -650,6 +650,8 @@ class EulerOpenCL(Integrator):
 
         # For applying force in incriments
         self.h_force_load_scale = np.float64(0.0)
+        # For applying displacement in incriments
+        self.h_displacement_load_scale = np.float64(0.0)
 
         # Build OpenCL data structures
 
@@ -693,7 +695,7 @@ class EulerOpenCL(Integrator):
         self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_damage.nbytes)
         # Initialize kernel parameters
         self.cl_kernel_update_displacement.set_scalar_arg_dtypes(
-            [None, None, None, None])
+            [None, None, None, None, None])
         self.cl_kernel_calc_bond_force.set_scalar_arg_dtypes(
             [None, None, None, None, None, None, None, None, None])
         self.cl_kernel_check_bonds.set_scalar_arg_dtypes([None, None, None, None])
@@ -717,7 +719,7 @@ class EulerOpenCL(Integrator):
         # Time marching Part 1
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn1, self.d_un, self.d_bc_types,
-                                  self.d_bc_values)
+                                  self.d_bc_values, self.h_displacement_load_scale)
         #self.marker_displacement()
         #self.finish_displacement()
         #self.barrier_displacement()
@@ -766,6 +768,10 @@ class EulerOpenCL(Integrator):
         if model.num_force_bc_nodes != 0:
             # update the host force load scale
             self.h_force_load_scale = np.float64(load_scale)
+
+    def incrementDisplacement(self, model, displacement_scale):
+        # update the host force load scale
+        self.h_displacement_load_scale = np.float64(displacement_scale)
 
 class EulerOpenCLOptimised(Integrator):
     r"""
@@ -853,6 +859,8 @@ class EulerOpenCLOptimised(Integrator):
 
         # For applying force in incriments
         self.h_force_load_scale = np.float64(0.0)
+        # For applying displacement in incriments
+        self.h_displacement_load_scale = np.float64(0.0)
 
         # Build OpenCL data structures
 
@@ -898,7 +906,7 @@ class EulerOpenCLOptimised(Integrator):
         self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_damage.nbytes)
         # Initialize kernel parameters
         self.cl_kernel_update_displacement.set_scalar_arg_dtypes(
-            [None, None, None, None])
+            [None, None, None, None, None])
         self.cl_kernel_calc_bond_force.set_scalar_arg_dtypes(
             [None, None, None, None, None, None, None])
         self.cl_kernel_reduce_force.set_scalar_arg_dtypes(
@@ -925,7 +933,7 @@ class EulerOpenCLOptimised(Integrator):
         # Update displacements
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_un, self.d_bc_types,
-                                  self.d_bc_values)
+                                  self.d_bc_values, self.h_displacement_load_scale)
         #self.finish_displacement()
         #self.marker_displacement()
         #self.barrier_displacement()
@@ -978,6 +986,9 @@ class EulerOpenCLOptimised(Integrator):
         if model.num_force_bc_nodes != 0:
             # update the host force load scale
             self.h_force_load_scale = np.float64(load_scale)
+    def incrementDisplacement(self, model, displacement_scale):
+        # update the host force load scale
+        self.h_displacement_load_scale = np.float64(displacement_scale)
 
 class VelocityVerletOpenCL(Integrator):
     """ TODO: check implementation is correct, is unstable as is

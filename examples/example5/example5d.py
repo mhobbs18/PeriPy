@@ -122,12 +122,11 @@ def is_forces_boundary(horizon, x):
     bnd = [2, 2, 2]
     return bnd
 
-def boundary_function(model):
+def boundary_function(model, displacement_rate):
     """ 
     Initiates displacement boundary conditions,
     also define the 'tip' (for plotting displacements)
     """
-    load_rate = 1e-8
     # initiate
     model.bc_types = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.intc)
     model.bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
@@ -140,9 +139,9 @@ def boundary_function(model):
         model.bc_types[i, 0] = np.intc(bnd[0])
         model.bc_types[i, 1] = np.intc(bnd[1])
         model.bc_types[i, 2] = np.intc((bnd[2]))
-        model.bc_values[i, 0] = np.float64(bnd[0] * 0.5 * load_rate)
-        model.bc_values[i, 1] = np.float64(bnd[1] * 0.5 * load_rate)
-        model.bc_values[i, 2] = np.float64(bnd[2] * 0.5 * load_rate)
+        model.bc_values[i, 0] = np.float64(bnd[0] * displacement_rate)
+        model.bc_values[i, 1] = np.float64(bnd[1] * displacement_rate)
+        model.bc_values[i, 2] = np.float64(bnd[2] * displacement_rate)
         # Define tip here
         tip = is_tip(model.horizon, model.coords[i][:])
         model.tip_types[i] = np.intc(tip)
@@ -254,9 +253,9 @@ def main():
     model.dt = 1e-14
     model.max_reaction = 0 # in newtons, about 85 times self weight
     model.load_scale_rate = 1
-
+    displacement_rate = 1e-8
     # Set force and displacement boundary conditions
-    boundary_function(model)
+    boundary_function(model, displacement_rate)
     boundary_forces_function(model)
     
     if args.optimised:
@@ -268,7 +267,8 @@ def main():
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
 
-    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=1000, integrator=integrator, write=1000, toolbar=0)
+    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=1000, integrator=integrator, write=1000, toolbar=0, 
+                                                                                  displacement_rate = displacement_rate)
 # =============================================================================
 #     plt.figure(1)
 #     plt.title('damage over time')
