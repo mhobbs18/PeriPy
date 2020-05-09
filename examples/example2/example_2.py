@@ -16,7 +16,9 @@ from peridynamics.integrators import HeunEuler
 from peridynamics.integrators import HeunEulerOptimised
 from peridynamics.integrators import EulerOpenCL
 from peridynamics.integrators import EulerOpenCLOptimised
+from peridynamics.integrators import EulerOpenCLOptimised2
 from peridynamics.integrators import EulerOpenCLOptimisedLumped
+from peridynamics.integrators import EulerOpenCLOptimisedLumped2
 from peridynamics.integrators import RK4
 from peridynamics.integrators import RK4Optimised
 from pstats import SortKey, Stats
@@ -200,7 +202,7 @@ def main():
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
-    integrator = EulerOpenCLOptimisedLumped(model)#, error_size_max=1e-6, error_size_min=1e-20)
+    integrator = EulerOpenCLOptimised2(model)#, error_size_max=1e-6, error_size_min=1e-20)
     damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=4000, integrator=integrator, write=100, toolbar=0,
                                                                                   displacement_rate = displacement_rate)
     print('damage_sum_data', damage_sum_data)

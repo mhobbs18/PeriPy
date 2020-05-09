@@ -36,15 +36,13 @@ __kernel void
 // Calculate force using un, force BC applied at end here
 __kernel void
 	CalcBondForce(
-        __global double *Forces,
-        __global double const *Un,
-        __global double const *Vols,
-		__global int const *Horizons,
-		__global double const *Nodes,
-		__global double const *Stiffnesses,
-		__global int const *FCTypes,
-		__global double const *FCValues,
-		double FORCE_LOAD_SCALE
+        __global double * Forces,
+        __global double const * Un,
+        __global double const * Vols,
+		__global int * Horizons,
+		__global double const * Nodes,
+		__global double const * Stiffnesses,
+		__global double const * FailStretches
 	)
 {
 	const int i = get_global_id(0);

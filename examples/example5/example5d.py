@@ -12,7 +12,9 @@ from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
 from peridynamics.integrators import EulerOpenCL
 from peridynamics.integrators import EulerOpenCLOptimised
+from peridynamics.integrators import EulerOpenCLOptimised2
 from peridynamics.integrators import EulerOpenCLOptimisedLumped
+from peridynamics.integrators import EulerOpenCLOptimisedLumped2
 from pstats import SortKey, Stats
 #import matplotlib.pyplot as plt
 import time
@@ -263,6 +265,8 @@ def main():
     if args.optimised:
         if args.lumped:
             integrator = EulerOpenCLOptimisedLumped(model)
+            #integrator = EulerOpenCLOptimisedLumped2(model)
+            #integrator = EulerOpenCLOptimised2(model)
         else:
             integrator = EulerOpenCLOptimised(model)
     else:
