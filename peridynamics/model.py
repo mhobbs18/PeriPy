@@ -1140,10 +1140,10 @@ class OpenCL(Model):
                     tip_shear_force_data.append(tip_shear_force)
                     damage_sum = np.sum(damage_data)
                     damage_sum_data.append(damage_sum)
-                    if damage_sum > 0.03*model.nnodes:
-                        #print('Warning: over 5% of bonds have broken! -- PERIDYNAMICS SIMULATION CONTINUING')
-                        print('Warning: over 3% of bonds have broken! -- PERIDYNAMICS SIMULATION STOPPING')
-                        break
+                    if damage_sum > 0.05*model.nnodes:
+                        print('Warning: over 5% of bonds have broken! -- PERIDYNAMICS SIMULATION CONTINUING')
+                        #print('Warning: over 3% of bonds have broken! -- PERIDYNAMICS SIMULATION STOPPING')
+                        #break
                     if toolbar == 0:
                         print('Print number {}/{} complete in {} s '.format(int(step/write), int(steps/write), time.time() - st))
                         print('Print number {}/{} runtime was ~ {} s '.format(int(step/write), int(steps/write), ft - st))

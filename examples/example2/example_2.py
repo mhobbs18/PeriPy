@@ -116,12 +116,11 @@ def is_forces_boundary(horizon, x):
             #bnd[2] = 1
     return bnd
 
-def boundary_function(model):
+def boundary_function(model, displacement_rate):
     """ 
     Initiates displacement boundary conditions,
     also define the 'tip' (for plotting displacements)
     """
-    load_rate = 1e-6
     #initiate containers
     model.bc_types = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.intc)
     model.bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
@@ -134,7 +133,7 @@ def boundary_function(model):
         model.bc_types[i, 0] = np.intc((bnd))
         model.bc_types[i, 1] = np.intc((bnd))
         model.bc_types[i, 2] = np.intc((bnd))
-        model.bc_values[i, 0] = np.float64(bnd * 0.5 * load_rate)
+        model.bc_values[i, 0] = np.float64(bnd * 0.5 * displacement_rate)
 
         # Define tip here
         tip = is_tip(model.horizon, model.coords[i][:])
@@ -194,14 +193,16 @@ def main():
                transfinite=0,
                precise_stiffness_correction=1)
     model.dt = np.double(0.5e-3 / (1.1))
+    displacement_rate = 1e-6
     # Set force and displacement boundary conditions
-    boundary_function(model)
+    boundary_function(model, displacement_rate)
     boundary_forces_function(model)
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
-    integrator = EulerOpenCL(model)#, error_size_max=1e-6, error_size_min=1e-20)
-    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=4000, integrator=integrator, write=100, toolbar=0)
+    integrator = EulerOpenCLOptimisedLumped(model)#, error_size_max=1e-6, error_size_min=1e-20)
+    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=4000, integrator=integrator, write=100, toolbar=0,
+                                                                                  displacement_rate = displacement_rate)
     print('damage_sum_data', damage_sum_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
     plt.figure(1)

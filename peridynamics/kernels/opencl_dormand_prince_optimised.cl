@@ -117,7 +117,7 @@ __kernel void
     //Get the reduced forces
     int index = global_id/local_size;
     // Update accelerations
-    Udn[index] = (FCTypes[index] == 2 ? local_cache[local_id]: local_cache[local_id] + FORCE_LOAD_SCALE * FCValues[index]);
+    Udn[index] = (FCTypes[index] == 2 ? local_cache[0]: (local_cache[0] + FORCE_LOAD_SCALE * FCValues[index]));
 }
 }
 
@@ -358,6 +358,6 @@ __kernel void
     //Get the reduced forces
     int index = global_id/local_size;
     // Update damage
-    Phi[index] = 1.00 - (double) local_cache[local_id] / (double) (HorizonLengths[index]);
+    Phi[index] = 1.00 - (double) local_cache[0] / (double) (HorizonLengths[index]);
 }
 }

@@ -22,30 +22,6 @@ class Integrator(ABC):
 
         This method should be implemennted in every concrete integrator.
         """
-    def marker_displacement(self):
-        cl.enqueue_marker(self.queue)
-    def marker_force(self):
-        cl.enqueue_marker(self.queue)
-    def marker_velocity(self):
-        cl.enqueue_marker(self.queue)
-    def marker_check(self):
-        cl.enqueue_marker(self.queue)
-    def marker_reduce_force(self):
-        cl.enqueue_marker(self.queue)
-    def marker_reduce_damage(self):
-        cl.enqueue_marker(self.queue)
-    def barrier_displacement(self):
-        cl.enqueue_barrier(self.queue)
-    def barrier_force(self):
-        cl.enqueue_barrier(self.queue)
-    def barrier_velocity(self):
-        cl.enqueue_barrier(self.queue)
-    def barrier_check(self):
-        cl.enqueue_barrier(self.queue)
-    def barrier_reduce_force(self):
-        cl.enqueue_barrier(self.queue)
-    def barrier_reduce_damage(self):
-        cl.enqueue_barrier(self.queue)
     def finish_displacement(self):
         self.queue.finish()
     def finish_force(self):
@@ -272,8 +248,6 @@ class EulerCromer(Integrator):
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values)
-        #self.marker_displacement()
-        #self.barrier_displacement()
         #self.finish_displacement()
         # Time marching Part 2
         # Scalars like self.h_force_load_scale can live on the host memory
@@ -289,22 +263,16 @@ class EulerCromer(Integrator):
                                        self.d_force_bc_values,
                                        self.h_force_load_scale)
         
-        #self.marker_force()
         #self.finish_force()
-        #self.barrier_force()
         # Time marching Part 3
         self.cl_kernel_update_velocity(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_uddn)
-        #self.marker_velocity()
         #self.finish_velocity()
-        #self.barrier_velocity()
         # Check for broken bonds
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
-        #self.marker_check()
         #self.finish_check()
-        #self.barrier_check()
         
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
@@ -312,7 +280,6 @@ class EulerCromer(Integrator):
         self.cl_kernel_calculate_damage(self.queue, (model.nnodes,), None, 
                                            self.d_damage, self.d_horizons,
                                            self.d_horizons_lengths)
-        #self.marker_reduce_damage()
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
         cl.enqueue_copy(self.queue, self.h_uddn, self.d_uddn)
@@ -513,27 +480,18 @@ class EulerCromerOptimised(Integrator):
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values)
-        #self.marker_displacement()
         #self.finish_displacement()
-        #self.barrier_displacement()
-        #self.marker_force()
         # Calc bond forces
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes, model.max_horizon_length), None, self.d_forces,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
-        #self.marker_force()
         #self.finish_force()
-        #self.barrier_force()
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
                                   (model.max_horizon_length,), self.d_forces, self.d_uddn, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
-        #self.marker_reduce_force()
-        #self.barrier_reduce_force()
         #self.finish_reduce_force()
         # Update velocity
         self.cl_kernel_update_velocity(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_uddn)
-        #self.marker_velocity()
-        #self.barrier_velocity()
         #self.finish_velocity()
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
@@ -541,7 +499,6 @@ class EulerCromerOptimised(Integrator):
         self.cl_kernel_reduce_damage(self.queue, (model.nnodes * model.max_horizon_length,),
                                   (model.max_horizon_length,), self.d_horizons,
                                            self.d_horizons_lengths, self.d_damage, self.local_mem)
-        #self.marker_reduce_damage()
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
         cl.enqueue_copy(self.queue, self.h_uddn, self.d_uddn)
@@ -720,29 +677,22 @@ class EulerOpenCL(Integrator):
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn1, self.d_un, self.d_bc_types,
                                   self.d_bc_values, self.h_displacement_load_scale)
-        #self.marker_displacement()
         #self.finish_displacement()
-        #self.barrier_displacement()
         # Time marching Part 2
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes,), None, self.d_udn1,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
-        #self.marker_force()
         #self.finish_force()
-        ##self.barrier_force()
         # Check for broken bonds
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
-        #self.marker_check()
         #self.finish_check()
-        #self.barrier_check()
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
         self.cl_kernel_calculate_damage(self.queue, (model.nnodes,), None, 
                                            self.d_damage, self.d_horizons,
                                            self.d_horizons_lengths)
-        #self.marker_reduce_damage()
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
         cl.enqueue_copy(self.queue, self.h_udn1, self.d_udn1)
@@ -935,32 +885,25 @@ class EulerOpenCLOptimised(Integrator):
                                   None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values, self.h_displacement_load_scale)
         #self.finish_displacement()
-        #self.marker_displacement()
-        #self.barrier_displacement()
         # Calc bond forces
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes, model.max_horizon_length), None, self.d_forces,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
         #self.finish_force()
-        #self.marker_force()
-        ##self.barrier_force()
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
                                   (model.max_horizon_length,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
         #self.finish_reduce_force()
-        #self.marker_reduce_force()
-        #self.barrier_reduce_force()
         # Check for broken bonds not needed, since check bonds is done in "CalcBondForce"
         #self.cl_kernel_check_bonds(self.queue,
                                    #(model.nnodes, model.max_horizon_length),
                                    #None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
-        #self.marker_check()
+        #self.finish_check()
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
         self.cl_kernel_reduce_damage(self.queue, (model.nnodes * model.max_horizon_length,),
                                   (model.max_horizon_length,), self.d_horizons,
                                            self.d_horizons_lengths, self.d_damage, self.local_mem)
-        #self.marker_reduce_damage()
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
         cl.enqueue_copy(self.queue, self.h_udn, self.d_udn)
@@ -3134,19 +3077,13 @@ class EulerOpenCLOptimisedLumped(Integrator):
             + "-DPD_DT=" + str(model.dt) + SEP)
 
         program = cl.Program(self.context, kernelsource).build([options_string])
-        self.cl_kernel_calc_bond_force = program.CalcBondForce
-        self.cl_kernel_reduce_force = program.ReduceForce
+        self.cl_kernel_time_integration = program.TimeIntegration
         self.cl_kernel_reduce_damage = program.ReduceDamage
 
         # Set initial values in host memory
-
         # horizons and horizons lengths
         self.h_horizons = model.horizons
         self.h_horizons_lengths = model.horizons_lengths
-        print(self.h_horizons_lengths)
-        print(self.h_horizons)
-        print("shape horizons_lengths", self.h_horizons_lengths.shape)
-        print("shape horizons", self.h_horizons.shape)
 
         # Nodal coordinates
         self.h_coords = np.ascontiguousarray(model.coords, dtype=np.float64)
@@ -3173,17 +3110,20 @@ class EulerOpenCLOptimisedLumped(Integrator):
 
         # Forces
         self.h_udn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
-        self.h_udn1 = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
         # Bond forces
-        self.h_forces =  np.empty((model.nnodes, model.degrees_freedom, model.max_horizon_length), dtype=np.float64)
-        self.local_mem = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
+        self.local_mem_x = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
+        self.local_mem_y = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
+        self.local_mem_z = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
 
         # Damage vector
         self.h_damage = np.empty(model.nnodes).astype(np.float64)
+        self.local_mem = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
 
         # For applying force in incriments
         self.h_force_load_scale = np.float64(0.0)
+        # For applying displacement in incriments
+        self.h_displacement_load_scale = np.float64(0.0)
 
         # Build OpenCL data structures
 
@@ -3221,17 +3161,29 @@ class EulerOpenCLOptimisedLumped(Integrator):
                 self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
                 hostbuf=self.h_horizons)
         self.d_un = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_un.nbytes)
-        self.d_forces = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_forces.nbytes)
         self.d_udn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn.nbytes)
-        self.d_udn1 = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn.nbytes)
 
         # Write only
         self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_damage.nbytes)
         # Initialize kernel parameters
-        self.cl_kernel_calc_bond_force.set_scalar_arg_dtypes(
-            [None, None, None, None, None, None, None])
-        self.cl_kernel_reduce_force.set_scalar_arg_dtypes(
-            [None, None, None, None, None, None, None, None, None])
+        self.cl_kernel_time_integration.set_scalar_arg_dtypes(
+            [None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None
+             ])
         self.cl_kernel_reduce_damage.set_scalar_arg_dtypes(
             [None, None, None, None])
     def __call__(self):
@@ -3250,13 +3202,26 @@ class EulerOpenCLOptimisedLumped(Integrator):
         """
 
     def runtime(self, model):
-        # Calc bond forces
-        self.cl_kernel_calc_bond_force(self.queue, (model.nnodes, model.max_horizon_length), None, self.d_forces,
-                                  self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
-        # Reduction of bond forces onto nodal forces
-        self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
-                                  (model.max_horizon_length,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, 
-                                  self.d_un, self.d_bc_types, self.d_bc_values, self.local_mem, self.h_force_load_scale)
+        # Time integration step
+        self.cl_kernel_time_integration(
+                self.queue, (model.nnodes * model.max_horizon_length,), (model.max_horizon_length,), 
+                self.d_un,
+                self.d_udn,
+                self.d_vols,
+                self.d_horizons,
+                self.d_coords,
+                self.d_bond_stiffness,
+                self.d_bond_critical_stretch,
+                self.d_force_bc_types,
+                self.d_force_bc_values,
+                self.d_bc_types,
+                self.d_bc_values,
+                self.local_mem_x,
+                self.local_mem_y,
+                self.local_mem_z,
+                self.h_force_load_scale,
+                self.h_displacement_load_scale
+                )
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -3288,6 +3253,9 @@ class EulerOpenCLOptimisedLumped(Integrator):
         if model.num_force_bc_nodes != 0:
             # update the host force load scale
             self.h_force_load_scale = np.float64(load_scale)
+    def incrementDisplacement(self, model, displacement_scale):
+        # update the host force load scale
+        self.h_displacement_load_scale = np.float64(displacement_scale)
 
 def output_device_info(device_id):
             sys.stdout.write("Device is ")

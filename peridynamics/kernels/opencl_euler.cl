@@ -61,7 +61,7 @@ __kernel void
 
 	if (i < PD_NODE_NO)
 	{
-		for (int j = 1; j < MAX_HORIZON_LENGTH; j++)
+		for (int j = 0; j < MAX_HORIZON_LENGTH; j++)
 		{
 			const int n = Horizons[MAX_HORIZON_LENGTH * i + j];
 
@@ -85,7 +85,7 @@ __kernel void
 				const double cz = xi_eta_z / y;
 
 				const double _E = Stiffnesses[MAX_HORIZON_LENGTH * i + j];
-                const double _A = Vols[i];
+                const double _A = Vols[n];
 				const double _L = xi;
 
 				const double _EAL = _E * _A / _L;
@@ -120,7 +120,7 @@ __kernel void
 	const int i = get_global_id(0);
 	const int j = get_global_id(1);
 
-	if ((i < PD_NODE_NO) && (j > 0) && (j < MAX_HORIZON_LENGTH))
+	if ((i < PD_NODE_NO) && (j >= 0) && (j < MAX_HORIZON_LENGTH))
 	{
 		const int n = Horizons[i * MAX_HORIZON_LENGTH + j];
 

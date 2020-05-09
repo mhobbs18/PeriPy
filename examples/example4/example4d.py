@@ -122,7 +122,7 @@ def is_forces_boundary(horizon, x):
     bnd = [2, 2, 2]
     return bnd
 
-def boundary_function(model, displacement_scale_rate):
+def boundary_function(model, displacement_rate):
     """ 
     Initiates displacement boundary conditions,
     also define the 'tip' (for plotting displacements)
@@ -280,10 +280,10 @@ def main():
     model.dt = 1e-14
     model.max_reaction = 0 # in newtons, about 85 times self weight
     model.load_scale_rate = 1
-    displacement_scale_rate = 1e-8
+    displacement_rate = 1e-8
 
     # Set force and displacement boundary conditions
-    boundary_function(model, displacement_scale_rate)
+    boundary_function(model, displacement_rate)
     boundary_forces_function(model)
     
     if args.optimised:
@@ -296,7 +296,7 @@ def main():
     os.mkdir('./output')
 
     damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=1000, integrator=integrator, write=1000, toolbar=0,
-                                                                                  displacement_scale_rate = displacement_scale_rate)
+                                                                                  displacement_rate = displacement_rate)
 # =============================================================================
 #     plt.figure(1)
 #     plt.title('damage over time')
