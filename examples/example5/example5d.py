@@ -12,6 +12,7 @@ from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
 from peridynamics.integrators import EulerOpenCL
 from peridynamics.integrators import EulerOpenCLOptimised
+from peridynamics.integrators import EulerOpenCLOptimisedLumped
 from pstats import SortKey, Stats
 #import matplotlib.pyplot as plt
 import time
@@ -181,6 +182,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("mesh_file_name", help="run example on a given mesh file name")
     parser.add_argument('--optimised', action='store_const', const=True)
+    parser.add_argument('--lumped', action='store_const', const=True)
     parser.add_argument('--profile', action='store_const', const=True)
     args = parser.parse_args()
 
@@ -259,7 +261,10 @@ def main():
     boundary_forces_function(model)
     
     if args.optimised:
-        integrator = EulerOpenCLOptimised(model)
+        if args.lumped:
+            integrator = EulerOpenCLOptimisedLumped(model)
+        else:
+            integrator = EulerOpenCLOptimised(model)
     else:
         integrator = EulerOpenCL(model)
 
