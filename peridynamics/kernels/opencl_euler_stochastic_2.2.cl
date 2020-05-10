@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// opencl_peridynamics.cl (each work item does one bond, but each work group does one node, could be a memory issue with too many bonds)
+// opencl_euler_stochastic_2.2.cl (each work item does one bond, but each work group does one node)
 //
 // OpenCL Peridynamics kernels for Euler integrator
 //
@@ -12,23 +12,25 @@
 #include "opencl_enable_fp64.cl"
 // Macros
 #define DPN 3
-// MAX_HORIZON_LENGTH, PD_DT, PD_NODE_NO, PD_DPN_NODE_NO will be defined on JIT compiler's command line
+// MAX_HORIZON_LENGTH, GLOBAL_DIMENSION, LOCAL_DIMENSION, PD_DT, PD_E, PD_S0, PD_NODE_NO, PD_DPN_NODE_NO, PD_DPN_NODE_NO_ROUNDED will be defined on JIT compiler's command line
 
 // Update displacements
 __kernel void
 	UpdateDisplacement(
-    	__global double const *Udn,
-    	__global double *Un,
+        __global double const *Udn1,
+        __global double *Un,
+		__global double *Pn,
 		__global int const *BCTypes,
 		__global double const *BCValues,
-		double DISPLACEMENT_LOAD_SCALE
+		int step,
+        double DISPLACEMENT_LOAD_SCALE
 	)
 {
 	const int i = get_global_id(0);
 
 	if (i < PD_DPN_NODE_NO)
 	{
-		Un[i] = (BCTypes[i] == 2 ? (Un[i] + PD_DT * Udn[i]) : (Un[i] + DISPLACEMENT_LOAD_SCALE * BCValues[i]));
+		Un[i] = (BCTypes[i] == 2 ? (Un[i] + Pn[step * PD_DPN_NODE_NO + i] + PD_DT * Udn1[i]): (Un[i] + DISPLACEMENT_LOAD_SCALE * BCValues[i]));
 	}
 }
 
@@ -36,7 +38,9 @@ __kernel void
 __kernel void
 	TimeIntegration(
     __global double const * Un,
-    __global double * Udn,
+    __global double * Udn_x,
+    __global double * Udn_y,
+    __global double * Udn_z,
     __global double const * Vols,
 	__global int * Horizons,
 	__global double const * Nodes,
@@ -97,7 +101,7 @@ __kernel void
         local_cache_y[local_id] = _EAL * cy * y_xi;
         local_cache_z[local_id] = _EAL * cz * y_xi;
 
-        // Check for state of bonds here, and break it if necessary
+        // Check for state of bonds here
         const double PD_S0 = FailStretches[global_id];
         const double s = (y - xi) / xi;
         if (s > PD_S0)
@@ -130,9 +134,9 @@ __kernel void
         // node_no == node_id_i
         int node_no = global_id/local_size;
         // Update accelerations in each direction
-        Udn[DPN * node_no + 0] = (FCTypes[DPN * node_no + 0] == 2 ? local_cache_x[0] : (local_cache_x[0] + FORCE_LOAD_SCALE * FCValues[DPN * node_no + 0]));
-        Udn[DPN * node_no + 1] = (FCTypes[DPN * node_no + 1] == 2 ? local_cache_y[0] : (local_cache_y[0] + FORCE_LOAD_SCALE * FCValues[DPN * node_no + 1]));
-        Udn[DPN * node_no + 2] = (FCTypes[DPN * node_no + 2] == 2 ? local_cache_y[0] : (local_cache_y[0] + FORCE_LOAD_SCALE * FCValues[DPN * node_no + 2]));
+        Udn_x[node_no] = (FCTypes[DPN * node_no + 0] == 2 ? local_cache_x[0] : (local_cache_x[0] + FORCE_LOAD_SCALE * FCValues[DPN * node_no + 0]));
+        Udn_y[node_no] = (FCTypes[DPN * node_no + 1] == 2 ? local_cache_y[0] : (local_cache_y[0] + FORCE_LOAD_SCALE * FCValues[DPN * node_no + 1]));
+        Udn_z[node_no] = (FCTypes[DPN * node_no + 2] == 2 ? local_cache_y[0] : (local_cache_y[0] + FORCE_LOAD_SCALE * FCValues[DPN * node_no + 2]));
     }
   }
 }
@@ -171,44 +175,55 @@ __kernel void
     }
 }
 
-__kernel void
-	CheckBonds(
-		__global int *Horizons,
-		__global double const *Un,
-		__global double const *Nodes,
-		__global double const *FailStretches
-	)
+// Matrix vector multiplication
+// One thread per dot product
+__kernel void gemv1(__global const double * a,__global const double * x, 
+                    __global double * y,int m,int n)
 {
-	const int i = get_global_id(0);
-	const int j = get_global_id(1);
+  double sum = 0.0;
+  int i = get_global_id(0); // row index
+  for (int k=0;k<n;k++)
+    {
+      sum += a[i + m*k] * x[k];
+    }
+  y[i] = sum;
+}
 
-	if ((i < PD_NODE_NO) && (j >= 0) && (j < MAX_HORIZON_LENGTH))
-	{
-		const int n = Horizons[i * MAX_HORIZON_LENGTH + j];
 
-		if (n != -1)
-		{
-			const double xi_x = Nodes[DPN * n + 0] - Nodes[DPN * i + 0];  // Optimize later
-			const double xi_y = Nodes[DPN * n + 1] - Nodes[DPN * i + 1];
-			const double xi_z = Nodes[DPN * n + 2] - Nodes[DPN * i + 2];
+// P threads per dot product
+#define ROW_DIM 0
+#define COL_DIM 1
+// P threads per row compute 1/P-th of each dot product.
+// WORK has P columns and get_local_size(0) rows.
+__kernel void gemv2(__global const double * a,
+                    __global const double * x,
+		    __global double * y,
+		    __local double * work,
+		    int m,int n)
+{
+  // Compute partial dot product
+  double sum = (double)0;
+  for (int k=get_global_id(COL_DIM);k<n;k+=get_global_size(COL_DIM))
+    {
+      sum += a[get_global_id(ROW_DIM)+m*k] * x[k];
+    }
 
-			const double xi_eta_x = Un[DPN * n + 0] - Un[DPN * i + 0] + xi_x;
-			const double xi_eta_y = Un[DPN * n + 1] - Un[DPN * i + 1] + xi_y;
-			const double xi_eta_z = Un[DPN * n + 2] - Un[DPN * i + 2] + xi_z;
+  // Each thread stores its partial sum in WORK
+  int rows = get_local_size(ROW_DIM); // rows in group
+  int cols = get_local_size(COL_DIM); // initial cols in group
+  int ii = get_local_id(ROW_DIM); // local row index in group, 0<=ii<rows
+  int jj = get_local_id(COL_DIM); // block index in column, 0<=jj<cols
+  work[ii+rows*jj] = sum;
+  barrier(CLK_LOCAL_MEM_FENCE); // sync group
 
-			const double xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
-			const double y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
+  // Reduce sums in log2(cols) steps
+  while ( cols > 1 )
+    {
+      cols >>= 1;
+      if (jj < cols) work[ii+rows*jj] += work[ii+rows*(jj+cols)];
+      barrier(CLK_LOCAL_MEM_FENCE); // sync group
+    }
 
-			const double PD_S0 = FailStretches[i * MAX_HORIZON_LENGTH + j];
-
-			const double s = (y - xi) / xi;
-
-			// Check for state of the bond
-
-			if (s > PD_S0)
-			{
-				Horizons[i * MAX_HORIZON_LENGTH + j] = -1;  // Break the bond
-			}
-		}
-	}
+  // Write final result in Y
+  if ( jj == 0 ) y[get_global_id(ROW_DIM)] = work[ii];
 }

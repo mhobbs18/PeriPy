@@ -13,7 +13,7 @@
 
 // Macros
 #define DPN 3
-// MAX_HORIZON_LENGTH, PD_DT, PD_E, PD_S0, PD_NODE_NO, PD_DPN_NODE_NO will be defined on JIT compiler's command line
+// MAX_HORIZON_LENGTH, PD_DT, PD_NODE_NO, PD_DPN_NODE_NO will be defined on JIT compiler's command line
 
 // Update displacements
 __kernel void

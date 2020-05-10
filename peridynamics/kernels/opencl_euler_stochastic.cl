@@ -101,7 +101,7 @@ __kernel void
 	}
 }
 
-__kernel void 
+__kernel void
     ReduceForce(
       __global double* Forces,
       __global double *Udn,
@@ -111,7 +111,6 @@ __kernel void
       double FORCE_LOAD_SCALE
    )
 {
-    
   int global_id = get_global_id(0); 
   
   int local_id = get_local_id(0); 
@@ -138,7 +137,7 @@ __kernel void
     int index = global_id/local_size;
     // Update accelerations
     Udn[index] = (FCTypes[index] == 2 ? local_cache[0] : (local_cache[0] + FORCE_LOAD_SCALE * FCValues[index]));
-}
+  }
 }
 
 __kernel void 

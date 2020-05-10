@@ -15,7 +15,6 @@ from peridynamics.integrators import EulerCromerOptimised
 from peridynamics.integrators import EulerCromerOptimisedLumped
 from peridynamics.integrators import EulerCromerOptimisedLumped2
 from pstats import SortKey, Stats
-import matplotlib.pyplot as plt
 import time
 import shutil
 import os
@@ -193,22 +192,49 @@ def main():
         profile = cProfile.Profile()
         profile.enable()
 
-    beams = ['1650beam792t.msh',
-             '1650beam2652t.msh',
-             '1650beam3570t.msh',
-             '1650beam4095t.msh',
-             '1650beam6256t.msh',
-             '1650beam15840t.msh',
-             '1650beam32370t.msh',
-             '1650beam74800t.msh',
-             '1650beam144900t.msh',
-             '1650beam247500t.msh']
+    beams = [
+        '1650beam792.msh',
+        '1650beam2652.msh',
+        '1650beam3570.msh',
+        '1650beam4095.msh',
+        '1650beam6256.msh',
+        '1650beam15840.msh',
+        '1650beam32370.msh',
+        '1650beam74800.msh',
+        '1650beam144900.msh',
+        '1650beam247500.msh',
+        '1650beam792t.msh',
+        '1650beam2652t.msh',
+        '1650beam3570t.msh',
+        '1650beam4095t.msh',
+        '1650beam6256t.msh',
+        '1650beam15840t.msh',
+        '1650beam32370t.msh',
+        '1650beam74800t.msh',
+        '1650beam144900t.msh',
+        '1650beam247500t.msh',
+        '3300beam952.msh',
+        '3300beam2970.msh',
+        '3300beam4392.msh',
+        '3300beam6048.msh',
+        '3300beam11836.msh',
+        '3300beam17600.msh',
+        '3300beam31680.msh',
+        '3300beam64350.msh',
+        '3300beam149600.msh',
+        '3300beam495000.msh',
+        '3300beam952t.msh',
+        '3300beam2970t.msh',
+        '3300beam4392t.msh',
+        '3300beam6048t.msh',
+        '3300beam11836t.msh',
+        '3300beam17600t.msh',
+        '3300beam31680t.msh',
+        '3300beam64350t.msh',
+        '3300beam149600t.msh',
+        '3300beam495000t.msh']
     assert args.mesh_file_name in beams, 'mesh_file_name = {} was not recognised, please check the mesh file is in the directory'.format(args.mesh_file_name)
 
-    if args.optimised:
-        print(args.mesh_file_name, 'EulerCromerOptimised')
-    else:
-        print(args.mesh_file_name, 'EulerCromer')
     mesh_file = pathlib.Path(__file__).parent.absolute() / args.mesh_file_name
     st = time.time()
 
@@ -220,9 +246,87 @@ def main():
     poisson_ratio = 0.25
     strain_energy_release_rate_concrete = 100
     strain_energy_release_rate_steel = 13000
-    networks = {'1650beam792t.msh': 'Network1650beam792t.vtk', '1650beam2652t.msh': 'Network1650beam2652t.vtk', '1650beam3570t.msh': 'Network1650beam3570t.vtk', '1650beam4095t.msh': 'Network1650beam4095t.vtk', '1650beam6256t.msh': 'Network1650beam6256t.vtk', '1650beam15840t.msh': 'Network1650beam15840t.vtk', '1650beam32370t.msh': 'Network1650beam32370t.vtk', '1650beam74800t.msh': 'Network1650beam74800t.vtk', '1650beam144900t.msh': 'Network1650beam144900t.vtk', '1650beam247500t.msh': 'Network1650beam247500t.vtk'}
+    networks = {'1650beam792.msh': 'Network1650beam792.vtk',
+                '1650beam2652.msh': 'Network1650beam2652.vtk',
+                '1650beam3570.msh': 'Network1650beam3570.vtk',
+                '1650beam4095.msh': 'Network1650beam4095.vtk',
+                '1650beam6256.msh': 'Network1650beam6256.vtk',
+                '1650beam15840.msh': 'Network1650beam15840.vtk',
+                '1650beam32370.msh': 'Network1650beam32370.vtk',
+                '1650beam74800.msh': 'Network1650beam74800.vtk',
+                '1650beam144900.msh': 'Network1650beam144900.vtk',
+                '1650beam247500.msh': 'Network1650beam247500.vtk',
+                '1650beam792t.msh': 'Network1650beam792t.vtk',
+                '1650beam2652t.msh': 'Network1650beam2652t.vtk',
+                '1650beam3570t.msh': 'Network1650beam3570t.vtk',
+                '1650beam4095t.msh': 'Network1650beam4095t.vtk',
+                '1650beam6256t.msh': 'Network1650beam6256t.vtk',
+                '1650beam15840t.msh': 'Network1650beam15840t.vtk',
+                '1650beam32370t.msh': 'Network1650beam32370t.vtk',
+                '1650beam74800t.msh': 'Network1650beam74800t.vtk',
+                '1650beam144900t.msh': 'Network1650beam144900t.vtk',
+                '1650beam247500t.msh': 'Network1650beam247500t.vtk',
+                '3300beam952.msh': 'Network3300beam952.vtk',
+                '3300beam2970.msh': 'Network3300beam2970.vtk',
+                '3300beam4392.msh': 'Network3300beam4392.vtk',
+                '3300beam6048.msh': 'Network3300beam6048.vtk',
+                '3300beam11836.msh': 'Network3300beam11836.vtk',
+                '3300beam17600.msh': 'Network3300beam17600.vtk',
+                '3300beam31680.msh': 'Network3300beam31680.vtk',
+                '3300beam64350.msh': 'Network3300beam64350.vtk',
+                '3300beam149600.msh': 'Network3300beam149600.vtk',
+                '3300beam495000.msh': 'Network3300beam495000.vtk',
+                '3300beam952t.msh': 'Network3300beam952t.vtk',
+                '3300beam2970t.msh': 'Network3300beam2970t.vtk',
+                '3300beam4392t.msh': 'Network3300beam4392t.vtk',
+                '3300beam6048t.msh': 'Network3300beam6048t.vtk',
+                '3300beam11836t.msh': 'Network3300beam11836t.vtk',
+                '3300beam17600t.msh': 'Network3300beam17600t.vtk',
+                '3300beam31680t.msh': 'Network3300beam31680t.vtk',
+                '3300beam64350t.msh': 'Network3300beam64350t.vtk',
+                '3300beam149600t.msh': 'Network3300beam149600t.vtk',
+                '3300beam495000t.msh': 'Network3300beam495000t.vtk'}
     network_file_name = networks[args.mesh_file_name]
-    dxs = {'1650beam792t.msh': 0.075, '1650beam2652t.msh': 0.0485, '1650beam3570t.msh': 0.0485, '1650beam4095t.msh': 0.0423, '1650beam6256t.msh': 0.0359, '1650beam15840t.msh': 0.025, '1650beam32370t.msh': 0.020, '1650beam74800t.msh': 0.015, '1650beam144900t.msh': 0.012, '1650beam247500t.msh': 0.010}
+    dxs = {'1650beam792.msh': 0.075,
+           '1650beam2652.msh': 0.0485,
+           '1650beam3570.msh': 0.0485,
+           '1650beam4095.msh': 0.0423,
+           '1650beam6256.msh': 0.0359,
+           '1650beam15840.msh': 0.025,
+           '1650beam32370.msh': 0.020,
+           '1650beam74800.msh': 0.015,
+           '1650beam144900.msh': 0.012,
+           '1650beam247500.msh': 0.010,
+           '1650beam792t.msh': 0.075,
+           '1650beam2652t.msh': 0.0485,
+           '1650beam3570t.msh': 0.0485,
+           '1650beam4095t.msh': 0.0423,
+           '1650beam6256t.msh': 0.0359,
+           '1650beam15840t.msh': 0.025,
+           '1650beam32370t.msh': 0.020,
+           '1650beam74800t.msh': 0.015,
+           '1650beam144900t.msh': 0.012,
+           '1650beam247500t.msh': 0.010,
+           '3300beam952.msh': 0.0971,
+           '3300beam2970.msh': 0.0611,
+           '3300beam4392.msh': 0.0541,
+           '3300beam6048.msh': 0.0458,
+           '3300beam11836.msh': 0.0357,
+           '3300beam17600.msh': 0.0313,
+           '3300beam31680.msh': 0.0250,
+           '3300beam64350.msh': 0.0200,
+           '3300beam149600.msh': 0.0150,
+           '3300beam495000.msh': 0.0100,
+           '3300beam952t.msh': 0.0971,
+           '3300beam2970t.msh': 0.0611,
+           '3300beam4392t.msh': 0.0541,
+           '3300beam6048t.msh': 0.0458,
+           '3300beam11836t.msh': 0.0357,
+           '3300beam17600t.msh': 0.0313,
+           '3300beam31680t.msh': 0.0250,
+           '3300beam64350t.msh': 0.0200,
+           '3300beam149600t.msh': 0.0150,
+           '3300beam495000t.msh': 0.0100}
     dx = dxs[args.mesh_file_name]
     horizon = dx * np.pi 
     # Two materials in this example, that is 'concrete' and 'steel'
@@ -262,9 +366,9 @@ def main():
                    network_file_name = network_file_name,
                    initial_crack=[],
                    dimensions=3,
-                   transfinite=0,
-                   precise_stiffness_correction=1)
-    saf_fac = 0.3 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap) 0.5
+                   transfinite=1,
+                   precise_stiffness_correction=0)
+    saf_fac = 0.5 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap) 0.5
     model.dt = (
      0.8 * np.power( 2.0 * density_concrete * dx / 
      (np.pi * np.power(model.horizon, 2.0) * dx * model.bond_stiffness_concrete), 0.5)
@@ -294,19 +398,9 @@ def main():
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
+
+    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=1000, integrator=integrator, write=1000, toolbar=0)
     print(args.mesh_file_name, method)
-    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=200000, integrator=integrator, write=500, toolbar=0)
-    plt.figure(1)
-    plt.title('damage over time')
-    plt.plot(damage_sum_data)
-    plt.figure(2)
-    plt.title('tip displacement over time')
-    plt.plot(tip_displacement_data)
-    plt.show()
-    plt.figure(3)
-    plt.title('shear force over time')
-    plt.plot(tip_shear_force_data)
-    plt.show()
     print('damage_sum_data', damage_sum_data)
     print('tip_displacement_data', tip_displacement_data)
     print('tip_shear_force_data', tip_shear_force_data)

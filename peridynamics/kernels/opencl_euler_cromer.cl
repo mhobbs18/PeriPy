@@ -13,7 +13,7 @@
 
 // Macros
 #define DPN 3
-// MAX_HORIZON_LENGTH, PD_DT, PD_E, PD_S0, PD_NODE_NO, PD_DPN_NODE_NO will be defined on JIT compiler's command line
+// MAX_HORIZON_LENGTH, PD_DT, PD_RHO, PD_NODE_NO, PD_DPN_NODE_NO will be defined on JIT compiler's command line
 
 // Update displacements
 __kernel void
@@ -21,14 +21,15 @@ __kernel void
         __global double const *Udn,
         __global double *Un,
 		__global int const *BCTypes,
-		__global double const *BCValues
+		__global double const *BCValues,
+		double DISPLACEMENT_LOAD_SCALE
 	)
 {
 	const int i = get_global_id(0);
 
 	if (i < PD_DPN_NODE_NO)
 	{
-		Un[i] = (BCTypes[i] == 2 ? (Un[i] + PD_DT * Udn[i]) : (Un[i] + BCValues[i]));
+		Un[i] = (BCTypes[i] == 2 ? (Un[i] + PD_DT * Udn[i]) : (Un[i] + DISPLACEMENT_LOAD_SCALE * BCValues[i]));
 	}
 }
 
@@ -37,7 +38,7 @@ __kernel void
 __kernel void
 	CalcBondForce(
         __global double *Uddn,
-        __global double *Udn,
+        __global double const *Udn,
         __global double const *Un,
         __global double const *Vols,
 		__global int const *Horizons,
@@ -108,7 +109,7 @@ __kernel void
 __kernel void
 	UpdateVelocity(
         __global double *Udn,
-        __global double *Uddn
+        __global double const *Uddn
 	)
 {
 	const int i = get_global_id(0);

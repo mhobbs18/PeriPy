@@ -12,7 +12,7 @@
 #include "opencl_enable_fp64.cl"
 // Macros
 #define DPN 3
-// MAX_HORIZON_LENGTH, GLOBAL_DIMENSION, LOCAL_DIMENSION, PD_DT, PD_E, PD_S0, PD_NODE_NO, PD_DPN_NODE_NO, PD_DPN_NODE_NO_ROUNDED will be defined on JIT compiler's command line
+// MAX_HORIZON_LENGTH, PD_DT, PD_NODE_NO, PD_DPN_NODE_NO will be defined on JIT compiler's command line
 
 // Time Integration step
 __kernel void
@@ -105,7 +105,7 @@ __kernel void
         local_cache_y[local_id] += local_cache_y[local_id + i];
         local_cache_z[local_id] += local_cache_z[local_id + i];
       } 
-      //Wait for all threads to catch up 
+      //Wait for all threads to catch up
       barrier(CLK_LOCAL_MEM_FENCE);
     }
 
@@ -122,6 +122,9 @@ __kernel void
       Un[DPN * node_no + 1] = (BCTypes[DPN * node_no + 1] == 2 ? (Un[DPN * node_no + 1] + PD_DT * Udn[DPN * node_no + 1]) : (Un[DPN * node_no + 1] + DISPLACEMENT_LOAD_SCALE * BCValues[DPN * node_no + 1]));
       Un[DPN * node_no + 2] = (BCTypes[DPN * node_no + 2] == 2 ? (Un[DPN * node_no + 2] + PD_DT * Udn[DPN * node_no + 2]) : (Un[DPN * node_no + 2] + DISPLACEMENT_LOAD_SCALE * BCValues[DPN * node_no + 2]));
     }
+
+    //Wait for all work-groups to catch up
+    //barrier(CLK_GLOBAL_MEM_FENCE);
   }
 }
 

@@ -32,7 +32,7 @@ os.environ['COMPUTE_PROFILE'] = '1'
 # Choice, comma-separated [0]:0
 # Set the environment variable PYOPENCL_CTX='0:0' to avoid being asked again.
 # =============================================================================
-os.environ['PYOPENCL_CTX'] = '0:1'
+os.environ['PYOPENCL_CTX'] = '0:0'
 
 @initial_crack_helper
 def is_crack(x, y):
@@ -110,6 +110,8 @@ def is_boundary(horizon, x):
         bnd[0] = 0
         bnd[1] = 0
         bnd[2] = 0
+    if x[0] > 1.65 - 0.2* horizon:
+        bnd[2] = -1
     return bnd
 
 def is_forces_boundary(horizon, x):
@@ -120,16 +122,15 @@ def is_forces_boundary(horizon, x):
     1 is force loaded IN +ve direction
     """
     bnd = [2, 2, 2]
-    if x[0] > 1.65 - 0.2 * horizon:
-        bnd[2] = -1
+    #if x[0] > 1.65 - 0.2 * horizon:
+    #    bnd[2] = -1
     return bnd
 
-def boundary_function(model):
+def boundary_function(model, displacement_rate):
     """ 
     Initiates displacement boundary conditions,
     also define the 'tip' (for plotting displacements)
     """
-    load_rate = 0
     # initiate
     model.bc_types = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.intc)
     model.bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
@@ -142,9 +143,9 @@ def boundary_function(model):
         model.bc_types[i, 0] = np.intc(bnd[0])
         model.bc_types[i, 1] = np.intc(bnd[1])
         model.bc_types[i, 2] = np.intc((bnd[2]))
-        model.bc_values[i, 0] = np.float64(bnd[0] * 0.5 * load_rate)
-        model.bc_values[i, 1] = np.float64(bnd[1] * 0.5 * load_rate)
-        model.bc_values[i, 2] = np.float64(bnd[2] * 0.5 * load_rate)
+        model.bc_values[i, 0] = np.float64(bnd[0] * displacement_rate)
+        model.bc_values[i, 1] = np.float64(bnd[1] * displacement_rate)
+        model.bc_values[i, 2] = np.float64(bnd[2] * displacement_rate)
         # Define tip here
         tip = is_tip(model.horizon, model.coords[i][:])
         model.tip_types[i] = np.intc(tip)
@@ -193,16 +194,7 @@ def main():
         profile = cProfile.Profile()
         profile.enable()
 
-    beams = ['1650beam792t.msh',
-             '1650beam2652t.msh',
-             '1650beam3570t.msh',
-             '1650beam4095t.msh',
-             '1650beam6256t.msh',
-             '1650beam15840t.msh',
-             '1650beam32370t.msh',
-             '1650beam74800t.msh',
-             '1650beam144900t.msh',
-             '1650beam247500t.msh']
+    beams = ['1650beam792.msh', '1650beam2652.msh', '1650beam3570.msh', '1650beam4095.msh', '1650beam6256.msh', '1650beam15840.msh', '1650beam32370.msh', '1650beam74800.msh', '1650beam144900.msh', '1650beam247500.msh']
     assert args.mesh_file_name in beams, 'mesh_file_name = {} was not recognised, please check the mesh file is in the directory'.format(args.mesh_file_name)
 
     if args.optimised:
@@ -220,9 +212,9 @@ def main():
     poisson_ratio = 0.25
     strain_energy_release_rate_concrete = 100
     strain_energy_release_rate_steel = 13000
-    networks = {'1650beam792t.msh': 'Network1650beam792t.vtk', '1650beam2652t.msh': 'Network1650beam2652t.vtk', '1650beam3570t.msh': 'Network1650beam3570t.vtk', '1650beam4095t.msh': 'Network1650beam4095t.vtk', '1650beam6256t.msh': 'Network1650beam6256t.vtk', '1650beam15840t.msh': 'Network1650beam15840t.vtk', '1650beam32370t.msh': 'Network1650beam32370t.vtk', '1650beam74800t.msh': 'Network1650beam74800t.vtk', '1650beam144900t.msh': 'Network1650beam144900t.vtk', '1650beam247500t.msh': 'Network1650beam247500t.vtk'}
+    networks = {'1650beam792.msh': 'Network1650beam792.vtk', '1650beam2652.msh': 'Network1650beam2652.vtk', '1650beam3570.msh': 'Network1650beam3570.vtk', '1650beam4095.msh': 'Network1650beam4095.vtk', '1650beam6256.msh': 'Network1650beam6256.vtk', '1650beam15840.msh': 'Network1650beam15840.vtk', '1650beam32370.msh': 'Network1650beam32370.vtk', '1650beam74800.msh': 'Network1650beam74800.vtk', '1650beam144900.msh': 'Network1650beam144900.vtk', '1650beam247500.msh': 'Network1650beam247500.vtk'}
     network_file_name = networks[args.mesh_file_name]
-    dxs = {'1650beam792t.msh': 0.075, '1650beam2652t.msh': 0.0485, '1650beam3570t.msh': 0.0485, '1650beam4095t.msh': 0.0423, '1650beam6256t.msh': 0.0359, '1650beam15840t.msh': 0.025, '1650beam32370t.msh': 0.020, '1650beam74800t.msh': 0.015, '1650beam144900t.msh': 0.012, '1650beam247500t.msh': 0.010}
+    dxs = {'1650beam792.msh': 0.075, '1650beam2652.msh': 0.0485, '1650beam3570.msh': 0.0485, '1650beam4095.msh': 0.0423, '1650beam6256.msh': 0.0359, '1650beam15840.msh': 0.025, '1650beam32370.msh': 0.020, '1650beam74800.msh': 0.015, '1650beam144900.msh': 0.012, '1650beam247500.msh': 0.010}
     dx = dxs[args.mesh_file_name]
     horizon = dx * np.pi 
     # Two materials in this example, that is 'concrete' and 'steel'
@@ -262,19 +254,21 @@ def main():
                    network_file_name = network_file_name,
                    initial_crack=[],
                    dimensions=3,
-                   transfinite=0,
-                   precise_stiffness_correction=1)
-    saf_fac = 0.3 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap) 0.5
+                   transfinite=1,
+                   precise_stiffness_correction=0)
+    saf_fac = 0.7 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap) 0.5
     model.dt = (
      0.8 * np.power( 2.0 * density_concrete * dx / 
      (np.pi * np.power(model.horizon, 2.0) * dx * model.bond_stiffness_concrete), 0.5)
      * saf_fac
      )
-    model.max_reaction = 500000 # in newtons, about 85 times self weight
-    model.load_scale_rate = 1/500000
-
+    model.max_reaction = 0
+    model.load_scale_rate = 1
+    #model.max_reaction = 500000 # in newtons, about 85 times self weight
+    #model.load_scale_rate = 1/500000
+    displacement_rate = 1e-8
     # Set force and displacement boundary conditions
-    boundary_function(model)
+    boundary_function(model, displacement_rate)
     boundary_forces_function(model)
     
     if args.optimised:
@@ -294,8 +288,14 @@ def main():
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
+    
+    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=20000, integrator=integrator, write=1000, toolbar=0, 
+                                                                                  displacement_rate = displacement_rate,
+                                                                                  #build_displacement = 2.0e-4,
+                                                                                  #final_displacement = 2.0e-4
+                                                                                  )
+    #damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=200000, integrator=integrator, write=500, toolbar=0)
     print(args.mesh_file_name, method)
-    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=200000, integrator=integrator, write=500, toolbar=0)
     plt.figure(1)
     plt.title('damage over time')
     plt.plot(damage_sum_data)

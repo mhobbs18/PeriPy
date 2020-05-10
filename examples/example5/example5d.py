@@ -12,11 +12,10 @@ from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
 from peridynamics.integrators import EulerOpenCL
 from peridynamics.integrators import EulerOpenCLOptimised
-from peridynamics.integrators import EulerOpenCLOptimised2
 from peridynamics.integrators import EulerOpenCLOptimisedLumped
 from peridynamics.integrators import EulerOpenCLOptimisedLumped2
 from pstats import SortKey, Stats
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import time
 import shutil
 import os
@@ -33,7 +32,7 @@ os.environ['COMPUTE_PROFILE'] = '1'
 # Choice, comma-separated [0]:0
 # Set the environment variable PYOPENCL_CTX='0:0' to avoid being asked again.
 # =============================================================================
-os.environ['PYOPENCL_CTX'] = '0:1'
+os.environ['PYOPENCL_CTX'] = '0:0'
 
 @initial_crack_helper
 def is_crack(x, y):
@@ -185,6 +184,7 @@ def main():
     parser.add_argument("mesh_file_name", help="run example on a given mesh file name")
     parser.add_argument('--optimised', action='store_const', const=True)
     parser.add_argument('--lumped', action='store_const', const=True)
+    parser.add_argument('--lumped2', action='store_const', const=True)
     parser.add_argument('--profile', action='store_const', const=True)
     args = parser.parse_args()
 
@@ -254,10 +254,10 @@ def main():
                    dimensions=3,
                    transfinite=1,
                    precise_stiffness_correction=0)
-    model.dt = 1e-14
+    model.dt = 2.5e-13
     model.max_reaction = 0 # in newtons, about 85 times self weight
     model.load_scale_rate = 1
-    displacement_rate = 1e-8
+    displacement_rate = 5e-9
     # Set force and displacement boundary conditions
     boundary_function(model, displacement_rate)
     boundary_forces_function(model)
@@ -265,32 +265,41 @@ def main():
     if args.optimised:
         if args.lumped:
             integrator = EulerOpenCLOptimisedLumped(model)
-            #integrator = EulerOpenCLOptimisedLumped2(model)
-            #integrator = EulerOpenCLOptimised2(model)
+            method = 'EulerOpenCLOptimisedLumped'
+        elif args.lumped2:
+            integrator = EulerOpenCLOptimisedLumped2(model)
+            method = 'EulerOpenCLOptimisedLumped2'
         else:
             integrator = EulerOpenCLOptimised(model)
+            method = 'EulerOpenCLOptimised'
     else:
         integrator = EulerOpenCL(model)
+        method = 'EulerOpenCL'
 
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
 
-    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=1000, integrator=integrator, write=1000, toolbar=0, 
-                                                                                  displacement_rate = displacement_rate)
-# =============================================================================
-#     plt.figure(1)
-#     plt.title('damage over time')
-#     plt.plot(damage_sum_data)
-#     plt.figure(2)
-#     plt.title('tip displacement over time')
-#     plt.plot(tip_displacement_data)
-#     plt.show()
-#     plt.figure(3)
-#     plt.title('shear force over time')
-#     plt.plot(tip_shear_force_data)
-#     plt.show()
-# =============================================================================
+    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=80000, integrator=integrator, write=1000, toolbar=0, 
+                                                                                  displacement_rate = displacement_rate,
+                                                                                  build_displacement = 2.0e-4,
+                                                                                  final_displacement = 2.0e-4
+                                                                                  )
+    print(args.mesh_file_name, method)
+    plt.figure(1)
+    plt.title('damage over time')
+    plt.plot(damage_sum_data)
+    plt.figure(2)
+    plt.title('tip displacement over time')
+    plt.plot(tip_displacement_data)
+    plt.show()
+    plt.figure(3)
+    plt.title('shear force over time')
+    plt.plot(tip_shear_force_data)
+    plt.show()
+    plt.figure(4)
+    plt.title('load-displacement')
+    plt.plot(np.multiply(-1.,np.array*(tip_displacement_data)), np.multiply(1./2400,np.array(tip_shear_force_data)))
     print('damage_sum_data', damage_sum_data)
     print('tip_displacement_data', tip_displacement_data)
     print('tip_shear_force_data', tip_shear_force_data)

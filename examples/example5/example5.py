@@ -12,8 +12,10 @@ from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
 from peridynamics.integrators import EulerCromer
 from peridynamics.integrators import EulerCromerOptimised
+from peridynamics.integrators import EulerCromerOptimisedLumped
+from peridynamics.integrators import EulerCromerOptimisedLumped2
 from pstats import SortKey, Stats
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import time
 import shutil
 import os
@@ -183,6 +185,8 @@ def main():
     parser.add_argument("mesh_file_name", help="run example on a given mesh file name")
     parser.add_argument('--optimised', action='store_const', const=True)
     parser.add_argument('--profile', action='store_const', const=True)
+    parser.add_argument('--lumped', action='store_const', const=True)
+    parser.add_argument('--lumped2', action='store_const', const=True)
     args = parser.parse_args()
 
     if args.profile:
@@ -193,9 +197,9 @@ def main():
     assert args.mesh_file_name in beams, 'mesh_file_name = {} was not recognised, please check the mesh file is in the directory'.format(args.mesh_file_name)
 
     if args.optimised:
-        print(args.mesh_file_name, 'EulerCromerOptimisedMarked')
+        print(args.mesh_file_name, 'EulerCromerOptimised')
     else:
-        print(args.mesh_file_name, 'EulerCromerMarked')
+        print(args.mesh_file_name, 'EulerCromer')
     mesh_file = pathlib.Path(__file__).parent.absolute() / args.mesh_file_name
     st = time.time()
 
@@ -251,7 +255,7 @@ def main():
                    dimensions=3,
                    transfinite=1,
                    precise_stiffness_correction=0)
-    saf_fac = 0.5 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap) 0.5
+    saf_fac = 0.7 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap) 0.5
     model.dt = (
      0.8 * np.power( 2.0 * density_concrete * dx / 
      (np.pi * np.power(model.horizon, 2.0) * dx * model.bond_stiffness_concrete), 0.5)
@@ -265,15 +269,25 @@ def main():
     boundary_forces_function(model)
     
     if args.optimised:
-        integrator = EulerCromerOptimised(model)
+        if args.lumped:
+            integrator = EulerCromerOptimisedLumped(model)
+            method = 'EulerCromerOptimisedLumped'
+        elif args.lumped2:
+            integrator = EulerCromerOptimisedLumped2(model)
+            method = 'EulerCromerOptimisedLumped2'
+        else:
+            integrator = EulerCromerOptimised(model)
+            method = 'EulerCromerOptimised'
     else:
         integrator = EulerCromer(model)
+        method = 'EulerCromer'
 
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
 
-    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=1000, integrator=integrator, write=1000, toolbar=0)
+    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=200000, integrator=integrator, write=500, toolbar=0)
+    print(args.mesh_file_name, method)
 # =============================================================================
 #     plt.figure(1)
 #     plt.title('damage over time')
