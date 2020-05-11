@@ -559,6 +559,7 @@ class OpenCL(Model):
                  density = None,
                  horizon = None, 
                  damping = None,
+                 dx = None,
                  bond_stiffness_concrete = None,
                  bond_stiffness_steel = None, 
                  critical_strain_concrete = None,
@@ -637,6 +638,7 @@ class OpenCL(Model):
         self.density = density
         self.horizon = horizon
         self.damping = damping
+        self.dx = dx
         self.bond_stiffness_concrete = bond_stiffness_concrete
         self.bond_stiffness_steel = bond_stiffness_steel
         self.critical_strain_concrete = critical_strain_concrete

@@ -48,18 +48,18 @@ beams = ['1650beam792.msh',
         '3300beam31680t.msh',
         '3300beam64350t.msh',
         '3300beam149600t.msh']
-with open("data_euler_cromer.txt", "w+") as output:
-    for beam in beams:
-        subprocess.call(["python", "./example5.py", beam, "--profile"], stdout=output);
-with open("data_euler_cromer_optimised.txt", "w+") as output:
-    for beam in beams:
-        subprocess.call(["python", "./example5.py", beam, "--optimised", "--profile"], stdout=output);
-with open("data_euler_cromer_lumped.txt", "w+") as output:
-    for beam in beams:
-        subprocess.call(["python", "./example5.py", beam, "--optimised", "--lumped", "--profile"], stdout=output);
-with open("data_euler_cromer_lumped2.txt", "w+") as output:
-    for beam in beams:
-        subprocess.call(["python", "./example5.py", beam, "--optimised", "--lumped2", "--profile"], stdout=output);
-#with open("data_euler.txt", "w+") as output:
+#with open("data_euler_cromer.txt", "w+") as output:
 #    for beam in beams:
-#        subprocess.call(["python", "./example5d.py", beam, "--profile"], stdout=output);
+#        subprocess.call(["python", "./example5.py", beam, "--profile"], stdout=output);
+with open("data_euler.txt", "w+") as output:
+    for beam in beams:
+        subprocess.call(["python", "./example5d.py", beam, "--profile"], stdout=output);
+with open("data_euler_optimised.txt", "w+") as output:
+    for beam in beams:
+        subprocess.call(["python", "./example5d.py", beam, "--optimised", "--profile"], stdout=output);
+with open("data_euler_lumped.txt", "w+") as output:
+    for beam in beams:
+        subprocess.call(["python", "./example5d.py", beam, "--optimised", "--lumped", "--profile"], stdout=output);
+with open("data_euler_lumped2.txt", "w+") as output:
+    for beam in beams:
+        subprocess.call(["python", "./example5d.py", beam, "--optimised", "--lumped", "--profile"], stdout=output);

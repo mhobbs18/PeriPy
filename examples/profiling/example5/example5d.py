@@ -233,7 +233,17 @@ def main():
         '3300beam149600t.msh',
         '3300beam495000t.msh']
     assert args.mesh_file_name in beams, 'mesh_file_name = {} was not recognised, please check the mesh file is in the directory'.format(args.mesh_file_name)
-
+    if args.optimised:
+        if args.lumped:
+            method = 'EulerOpenCLOptimisedLumped'
+        elif args.lumped2:
+            method = 'EulerOpenCLOptimisedLumped2'
+        else:
+            method = 'EulerOpenCLOptimised'
+    else:
+        method = 'EulerOpenCL'
+    print(args.mesh_file_name, method)
+    
     mesh_file = pathlib.Path(__file__).parent.absolute() / args.mesh_file_name
     st = time.time()
 
@@ -388,15 +398,6 @@ def main():
     else:
         integrator = EulerOpenCL(model)
         method = 'EulerOpenCL'
-    if args.optimised:
-        if args.lumped:
-            integrator = EulerOpenCLOptimisedLumped(model)
-            #integrator = EulerOpenCLOptimisedLumped2(model)
-            #integrator = EulerOpenCLOptimised2(model)
-        else:
-            integrator = EulerOpenCLOptimised(model)
-    else:
-        integrator = EulerOpenCL(model)
 
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
@@ -404,7 +405,6 @@ def main():
 
     damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=1000, integrator=integrator, write=1000, toolbar=0, 
                                                                                   displacement_rate = displacement_rate)
-    print(args.mesh_file_name, method)
     print('damage_sum_data', damage_sum_data)
     print('tip_displacement_data', tip_displacement_data)
     print('tip_shear_force_data', tip_shear_force_data)

@@ -243,6 +243,7 @@ def main():
                    density = density_concrete, 
                    horizon = horizon,
                    damping = damping,
+                   dx = dx,
                    bond_stiffness_concrete = bond_stiffness_concrete,
                    bond_stiffness_steel = bond_stiffness_steel, 
                    critical_strain_concrete = critical_strain_concrete,

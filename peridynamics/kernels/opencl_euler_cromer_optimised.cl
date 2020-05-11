@@ -15,6 +15,25 @@
 #define DPN 3
 // MAX_HORIZON_LENGTH, PD_DT, PD_E, PD_S0, PD_NODE_NO, PD_DPN_NODE_NO will be defined on JIT compiler's command line
 
+// Volume correction factor
+double beta(const double xi)
+{
+	if (xi <= PD_R - PD_DX / 2.00)
+	{
+		return 1.00;
+	}
+
+	else if (xi <= PD_R + PD_DX / 2.00)
+	{
+		return (PD_R + PD_DX / 2.00 - xi) / (PD_DX);
+	}
+
+	else
+	{
+		return 0.00;
+	}
+}
+
 // Update displacements
 __kernel void
 	UpdateDisplacement(
@@ -71,7 +90,7 @@ __kernel void
 			const double cz = xi_eta_z / y;
 
 			const double _E = Stiffnesses[MAX_HORIZON_LENGTH * i + j];
-			const double _A = Vols[i];
+			const double _A = beta(xi) * Vols[n];
 			const double _L = xi;
 
 			const double _EAL = _E * _A / _L;

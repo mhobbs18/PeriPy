@@ -234,10 +234,19 @@ def main():
         '3300beam149600t.msh',
         '3300beam495000t.msh']
     assert args.mesh_file_name in beams, 'mesh_file_name = {} was not recognised, please check the mesh file is in the directory'.format(args.mesh_file_name)
-
+    if args.optimised:
+        if args.lumped:
+            method = 'EulerCromerOptimisedLumped'
+        elif args.lumped2:
+            method = 'EulerCromerOptimisedLumped2'
+        else:
+            method = 'EulerCromerOptimised'
+    else:
+        method = 'EulerCromer'
+    print(args.mesh_file_name, method)
     mesh_file = pathlib.Path(__file__).parent.absolute() / args.mesh_file_name
     st = time.time()
-
+    
     # Set simulation parameters
     volume_total = 1.65 * 0.6 * 0.25
     density_concrete = 2400
@@ -400,7 +409,6 @@ def main():
     os.mkdir('./output')
 
     damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=1000, integrator=integrator, write=1000, toolbar=0)
-    print(args.mesh_file_name, method)
     print('damage_sum_data', damage_sum_data)
     print('tip_displacement_data', tip_displacement_data)
     print('tip_shear_force_data', tip_shear_force_data)
