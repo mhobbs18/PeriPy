@@ -122,6 +122,7 @@ __kernel void
 __kernel void 
     ReduceForce(
         __global double const * Forces,
+		__global double * Node_Forces,
         __global double * Uddn,
 		__global double const * Udn,
         __global int const * FCTypes,
@@ -156,6 +157,7 @@ __kernel void
 	if (!local_id) {
 		//Get the reduced forces
 		int index = global_id/local_size;
+		Node_Forces[index] = local_cache[0];
 		// Update accelerations
 		Uddn[index] = (FCTypes[index] == 2 ? ((local_cache[0] - PD_ETA * Udn[index]) / PD_RHO) : ((local_cache[0] + FORCE_LOAD_SCALE * FCValues[index] - PD_ETA * Udn[index]) / PD_RHO));
 	}

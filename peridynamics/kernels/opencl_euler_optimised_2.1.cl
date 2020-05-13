@@ -116,7 +116,7 @@ __kernel void
       // Update accelerations in each direction
       Udn[DPN * node_no + 0] = (FCTypes[DPN * node_no + 0] == 2 ? local_cache_x[0] : (local_cache_x[0] + FORCE_LOAD_SCALE * FCValues[DPN * node_no + 0]));
       Udn[DPN * node_no + 1] = (FCTypes[DPN * node_no + 1] == 2 ? local_cache_y[0] : (local_cache_y[0] + FORCE_LOAD_SCALE * FCValues[DPN * node_no + 1]));
-      Udn[DPN * node_no + 2] = (FCTypes[DPN * node_no + 2] == 2 ? local_cache_y[0] : (local_cache_y[0] + FORCE_LOAD_SCALE * FCValues[DPN * node_no + 2]));
+      Udn[DPN * node_no + 2] = (FCTypes[DPN * node_no + 2] == 2 ? local_cache_z[0] : (local_cache_z[0] + FORCE_LOAD_SCALE * FCValues[DPN * node_no + 2]));
       // Update displacements
       Un[DPN * node_no + 0] = (BCTypes[DPN * node_no + 0] == 2 ? (Un[DPN * node_no + 0] + PD_DT * Udn[DPN * node_no + 0]) : (Un[DPN * node_no + 0] + DISPLACEMENT_LOAD_SCALE * BCValues[DPN * node_no + 0]));
       Un[DPN * node_no + 1] = (BCTypes[DPN * node_no + 1] == 2 ? (Un[DPN * node_no + 1] + PD_DT * Udn[DPN * node_no + 1]) : (Un[DPN * node_no + 1] + DISPLACEMENT_LOAD_SCALE * BCValues[DPN * node_no + 1]));

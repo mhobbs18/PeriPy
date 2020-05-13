@@ -15,6 +15,26 @@
 #define DPN 3
 // MAX_HORIZON_LENGTH, PD_RHO, PD_DT, PD_NODE_NO, PD_DPN_NODE_NO will be defined on JIT compiler's command line
 
+// Utility functions
+// Volume correction factor
+double beta(const double xi)
+{
+	if (xi <= PD_R - PD_DX / 2.00)
+	{
+		return 1.00;
+	}
+
+	else if (xi <= PD_R + PD_DX / 2.00)
+	{
+		return (PD_R + PD_DX / 2.00 - xi) / (PD_DX);
+	}
+
+	else
+	{
+		return 0.00;
+	}
+}
+
 // Update displacements
 __kernel void
 	UpdateDisplacement(
@@ -39,6 +59,7 @@ __kernel void
     __global double const * Un,
     __global double const * Udn,
     __global double * Uddn,
+    __global double * Node_Forces,
     __global double const * Vols,
 	__global int * Horizons,
 	__global double const * Nodes,
@@ -88,7 +109,7 @@ __kernel void
             const double cz = xi_eta_z / y;
 
             const double _E = Stiffnesses[global_id];
-            const double _A = Vols[node_id_j];
+            const double _A = beta(xi) * Vols[node_id_j];
             const double _L = xi;
 
             const double _EAL = _E * _A / _L;
@@ -134,6 +155,10 @@ __kernel void
 			//Get the reduced forces
 			// node_no == node_id_i
 			int node_no = global_id/local_size;
+            // Update body forces in each direction
+            Node_Forces[DPN * node_no + 0] = local_cache_x[0];
+            Node_Forces[DPN * node_no + 1] = local_cache_y[0];
+            Node_Forces[DPN * node_no + 2] = local_cache_z[0];
 			// Update accelerations in each direction
 			Uddn[DPN * node_no + 0] = (FCTypes[DPN * node_no + 0] == 2 ? ((local_cache_x[0] - PD_ETA * Udn[DPN * node_no + 0]) / PD_RHO) : ((local_cache_x[0] + FORCE_LOAD_SCALE * FCValues[DPN * node_no + 0] - PD_ETA * Udn[DPN * node_no + 0]) / PD_RHO));
 			Uddn[DPN * node_no + 1] = (FCTypes[DPN * node_no + 1] == 2 ? ((local_cache_y[0] - PD_ETA * Udn[DPN * node_no + 1]) / PD_RHO) : ((local_cache_y[0] + FORCE_LOAD_SCALE * FCValues[DPN * node_no + 1] - PD_ETA * Udn[DPN * node_no + 1]) / PD_RHO));

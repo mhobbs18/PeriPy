@@ -155,6 +155,8 @@ class EulerCromer(Integrator):
         self.h_udn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
         # Acceleration
         self.h_uddn = np.empty((model.nnodes, model.degrees_freedom), dtype = np.float64)
+        # Acceleration
+        self.h_node_forces = np.empty((model.nnodes, model.degrees_freedom), dtype = np.float64)
 
         # Damage vector
         self.h_damage = np.empty(model.nnodes).astype(np.float64)
@@ -220,13 +222,15 @@ class EulerCromer(Integrator):
         self.d_un = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_un.nbytes)
         self.d_udn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn.nbytes)
         self.d_uddn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_uddn.nbytes)
+
         # Write only
         self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_damage.nbytes)
+        self.d_node_forces = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_node_forces.nbytes)
         # Initialize kernel parameters
         self.cl_kernel_update_displacement.set_scalar_arg_dtypes(
             [None, None, None, None, None])
         self.cl_kernel_calc_bond_force.set_scalar_arg_dtypes(
-            [None, None, None, None, None, None, None, None, None, None])
+            [None, None, None, None, None, None, None, None, None, None, None])
         self.cl_kernel_update_velocity.set_scalar_arg_dtypes([None, None])
         self.cl_kernel_check_bonds.set_scalar_arg_dtypes([None, None, None, None])
         self.cl_kernel_calculate_damage.set_scalar_arg_dtypes([None, None, None])
@@ -260,6 +264,7 @@ class EulerCromer(Integrator):
                                        self.d_uddn,
                                        self.d_udn,
                                        self.d_un,
+                                       self.d_node_forces,
                                        self.d_vols,
                                        self.d_horizons,
                                        self.d_coords,
@@ -288,15 +293,18 @@ class EulerCromer(Integrator):
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
         cl.enqueue_copy(self.queue, self.h_uddn, self.d_uddn)
+        cl.enqueue_copy(self.queue, self.h_node_forces, self.d_node_forces)
         # TODO define a failure criterion, idea: rate of change of damage goes to 0 after it has started increasing
         tip_displacement = 0
-        tip_shear_force = 0
+        tip_acceleration = 0
+        tip_forces = 0
         tmp = 0
         for i in range(model.nnodes):
             if self.h_tip_types[i] == 1:
                 tmp +=1
+                tip_forces += self.h_node_forces[i][2] * model.V[i] # node_forces in force per unit volume as peridynamics
                 tip_displacement += self.h_un[i][2]
-                tip_shear_force += self.h_uddn[i][2]
+                tip_acceleration += self.h_uddn[i][2]
         if tmp != 0:
             tip_displacement /= tmp
         else:
@@ -304,7 +312,7 @@ class EulerCromer(Integrator):
         vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
         #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
-        return self.h_damage, tip_displacement, tip_shear_force
+        return self.h_damage, tip_displacement, tip_acceleration, tip_forces
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
@@ -390,6 +398,8 @@ class EulerCromerOptimised(Integrator):
         self.h_udn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
         # Acceleration
         self.h_uddn = np.empty((model.nnodes, model.degrees_freedom), dtype = np.float64)
+        # Node forces read for plotting
+        self.h_node_forces = np.empty((model.nnodes, model.degrees_freedom), dtype = np.float64)
 
         # Bond forces
         self.h_forces =  np.empty((model.nnodes, model.degrees_freedom, model.max_horizon_length), dtype=np.float64)
@@ -461,6 +471,7 @@ class EulerCromerOptimised(Integrator):
         self.d_forces = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_forces.nbytes)
         # Write only
         self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_damage.nbytes)
+        self.d_node_forces = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_node_forces.nbytes)
         # Initialize kernel parameters
         self.cl_kernel_update_displacement.set_scalar_arg_dtypes(
             [None, None, None, None, None])
@@ -468,7 +479,7 @@ class EulerCromerOptimised(Integrator):
             [None, None, None, None, None, None, None])
         self.cl_kernel_update_velocity.set_scalar_arg_dtypes([None, None])
         self.cl_kernel_reduce_damage.set_scalar_arg_dtypes([None, None, None, None])
-        self.cl_kernel_reduce_force.set_scalar_arg_dtypes([None, None, None, None, None, None, None])
+        self.cl_kernel_reduce_force.set_scalar_arg_dtypes([None, None, None, None, None, None, None, None])
         return None
 
     def __call__(self):
@@ -500,7 +511,7 @@ class EulerCromerOptimised(Integrator):
         self.finish_force()
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
-                                  (model.max_horizon_length,), self.d_forces, self.d_uddn, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
+                                  (model.max_horizon_length,), self.d_forces, self.d_node_forces, self.d_uddn, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
         self.finish_reduce_force()
         # Update velocity
         self.cl_kernel_update_velocity(self.queue, (model.degrees_freedom * model.nnodes,),
@@ -516,15 +527,18 @@ class EulerCromerOptimised(Integrator):
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
         cl.enqueue_copy(self.queue, self.h_uddn, self.d_uddn)
+        cl.enqueue_copy(self.queue, self.h_node_forces, self.d_node_forces)
         # TODO define a failure criterion, idea: rate of change of damage goes to 0 after it has started increasing
         tip_displacement = 0
-        tip_shear_force = 0
+        tip_acceleration = 0
+        tip_force = 0
         tmp = 0
         for i in range(model.nnodes):
             if self.h_tip_types[i] == 1:
                 tmp +=1
                 tip_displacement += self.h_un[i][2]
-                tip_shear_force += self.h_uddn[i][2]
+                tip_acceleration += self.h_uddn[i][2]
+                tip_force += self.h_node_forces[i][2] * model.V[i]
         if tmp != 0:
             tip_displacement /= tmp
         else:
@@ -532,7 +546,7 @@ class EulerCromerOptimised(Integrator):
         vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
         #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
-        return self.h_damage, tip_displacement, tip_shear_force
+        return self.h_damage, tip_displacement, tip_acceleration, tip_force
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
@@ -3368,6 +3382,8 @@ class EulerCromerOptimisedLumped2(Integrator):
         self.h_udn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
         # Acceleration
         self.h_uddn = np.empty((model.nnodes, model.degrees_freedom), dtype = np.float64)
+        # Node Forces
+        self.h_node_forces = np.empty((model.nnodes, model.degrees_freedom), dtype = np.float64)
 
         # Bond forces
         self.local_mem_x = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
@@ -3440,9 +3456,10 @@ class EulerCromerOptimisedLumped2(Integrator):
         self.d_uddn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_uddn.nbytes)
         # Write only
         self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_damage.nbytes)
+        self.d_node_forces = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_node_forces.nbytes)
         # Initialize kernel parameters
         self.cl_kernel_update_acceleration.set_scalar_arg_dtypes(
-            [None, None, None, None, None, None, None, None, None, None, None, None, None, None])
+            [None, None, None, None, None, None, None, None, None, None, None, None, None, None, None])
         self.cl_kernel_update_velocity.set_scalar_arg_dtypes(
             [None, None])
         self.cl_kernel_update_displacement.set_scalar_arg_dtypes(
@@ -3479,6 +3496,7 @@ class EulerCromerOptimisedLumped2(Integrator):
                 self.d_un,
                 self.d_udn,
                 self.d_uddn,
+                self.d_node_forces,
                 self.d_vols,
                 self.d_horizons,
                 self.d_coords,
@@ -3504,15 +3522,18 @@ class EulerCromerOptimisedLumped2(Integrator):
         cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
         cl.enqueue_copy(self.queue, self.h_un, self.d_un)
         cl.enqueue_copy(self.queue, self.h_uddn, self.d_uddn)
+        cl.enqueue_copy(self.queue, self.h_node_forces, self.d_node_forces)
         # TODO define a failure criterion, idea: rate of change of damage goes to 0 after it has started increasing
         tip_displacement = 0
-        tip_shear_force = 0
+        tip_acceleration = 0
+        tip_force = 0
         tmp = 0
         for i in range(model.nnodes):
             if self.h_tip_types[i] == 1:
                 tmp +=1
                 tip_displacement += self.h_un[i][2]
-                tip_shear_force += self.h_uddn[i][2]
+                tip_acceleration += self.h_uddn[i][2]
+                tip_force += self.h_node_forces[i][2] * model.V[i]
         if tmp != 0:
             tip_displacement /= tmp
         else:
@@ -3520,7 +3541,7 @@ class EulerCromerOptimisedLumped2(Integrator):
         vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
         #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
-        return self.h_damage, tip_displacement, tip_shear_force
+        return self.h_damage, tip_displacement, tip_acceleration, tip_force
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
@@ -4312,7 +4333,6 @@ class EulerStochasticOptimised(Integrator):
                 self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
                 hostbuf=self.h_K)
 
-
         # Read and write
         self.d_horizons = cl.Buffer(
                 self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
@@ -4330,9 +4350,9 @@ class EulerStochasticOptimised(Integrator):
     def runtime(self, model, step):
         # Time marching Part 1
         self.cl_kernel_update_displacement(self.queue, (model.nnodes,), None, 
-                                           self.d_udn1_x,
-                                           self.d_udn1_y,
-                                           self.d_udn1_z,
+                                           self.d_udn_x,
+                                           self.d_udn_y,
+                                           self.d_udn_z,
                                            self.d_un, 
                                            self.d_pn,
                                            self.d_bc_types,
@@ -4360,15 +4380,17 @@ class EulerStochasticOptimised(Integrator):
                                            self.h_force_load_scale,
                                            self.h_displacement_load_scale
                                            )
-        # Covariance matrix multiplication of forces
-        self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-                            self.d_K, self.d_udn_x, self.d_udn1_x, self.h_m, self.h_n)
-        # Covariance matrix multiplication of forces
-        self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-                            self.d_K, self.d_udn_y, self.d_udn1_y, self.h_m, self.h_n)
-        # Covariance matrix multiplication of forces
-        self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-                            self.d_K, self.d_udn_z, self.d_udn1_z, self.h_m, self.h_n)
+# =============================================================================
+#         # Covariance matrix multiplication of forces
+#         self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
+#                             self.d_K, self.d_udn_x, self.d_udn1_x, self.h_m, self.h_n)
+#         # Covariance matrix multiplication of forces
+#         self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
+#                             self.d_K, self.d_udn_y, self.d_udn1_y, self.h_m, self.h_n)
+#         # Covariance matrix multiplication of forces
+#         self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
+#                             self.d_K, self.d_udn_z, self.d_udn1_z, self.h_m, self.h_n)
+# =============================================================================
     def write(self, model, t, sample, realisation):
         """ Write a mesh file for the current timestep
         """

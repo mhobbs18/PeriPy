@@ -179,10 +179,10 @@ class Model:
             self.nnodes = self.coords.shape[0]
 
             # Get connectivity, mesh triangle cells
-            self.mesh_connectivity = mesh.cells[self.mesh_elements.connectivity]
+            self.mesh_connectivity = mesh.cells_dict[self.mesh_elements.connectivity]
 
             # Get boundary connectivity, mesh lines
-            self.mesh_boundary = mesh.cells[self.mesh_elements.boundary]
+            self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
 
             # Get number elements on boundary?
             self.nelem_bnd = self.mesh_boundary.shape[0]
@@ -1117,7 +1117,8 @@ class OpenCL(Model):
         # Container for plotting data
         damage_sum_data = []
         tip_displacement_data = []
-        tip_shear_force_data = []
+        tip_acceleration_data = []
+        tip_force_data = []
 
         #Progress bar
         toolbar_width = 40
@@ -1134,9 +1135,10 @@ class OpenCL(Model):
             if write:
                 if step % write == 0:
                     ft = time.time()
-                    damage_data, tip_displacement, tip_shear_force = integrator.write(model, step, sample)
+                    damage_data, tip_displacement, tip_acceleration, tip_force = integrator.write(model, step, sample)
                     tip_displacement_data.append(tip_displacement)
-                    tip_shear_force_data.append(tip_shear_force)
+                    tip_acceleration_data.append(tip_acceleration)
+                    tip_force_data.append(tip_force)
                     damage_sum = np.sum(damage_data)
                     damage_sum_data.append(damage_sum)
                     if damage_sum > 0.03*model.nnodes:
@@ -1176,7 +1178,7 @@ class OpenCL(Model):
         if toolbar:
             sys.stdout.write("]\n")
 
-        return damage_sum_data, tip_displacement_data, tip_shear_force_data
+        return damage_sum_data, tip_displacement_data, tip_acceleration_data, tip_force_data
 class OpenCLProbabilistic(OpenCL):
     """
     A peridynamics model using OpenCL.

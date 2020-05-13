@@ -110,6 +110,8 @@ def is_boundary(horizon, x):
         bnd[0] = 0
         bnd[1] = 0
         bnd[2] = 0
+    if x[0] > 1.65 - 0.2* horizon:
+        bnd[1] = 0
     return bnd
 
 def is_forces_boundary(horizon, x):
@@ -256,18 +258,20 @@ def main():
                    dimensions=3,
                    transfinite=1,
                    precise_stiffness_correction=0)
-    saf_fac = 0.7 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap) 0.5
+    saf_fac = 0.5 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap) 0.5
     model.dt = (
      0.8 * np.power( 2.0 * density_concrete * dx / 
      (np.pi * np.power(model.horizon, 2.0) * dx * model.bond_stiffness_concrete), 0.5)
      * saf_fac
      )
-    model.max_reaction = 500000 # in newtons, about 85 times self weight
-    model.load_scale_rate = 1/500000
+    model.max_reaction = 25000 # in newtons, about 85 times self weight
+    model.load_scale_rate = 1/25000
 
     # Set force and displacement boundary conditions
     boundary_function(model)
     boundary_forces_function(model)
+    print(model.force_bc_types)
+    print(model.force_bc_values)
     
     if args.optimised:
         if args.lumped:
@@ -287,7 +291,7 @@ def main():
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
 
-    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=200000, integrator=integrator, write=500, toolbar=0)
+    damage_sum_data, tip_displacement_data, tip_acceleration_data, tip_force_data = model.simulate(model, sample=1, steps=40000, integrator=integrator, write=500, toolbar=0)
     print(args.mesh_file_name, method)
 # =============================================================================
 #     plt.figure(1)
@@ -304,7 +308,8 @@ def main():
 # =============================================================================
     print('damage_sum_data', damage_sum_data)
     print('tip_displacement_data', tip_displacement_data)
-    print('tip_shear_force_data', tip_shear_force_data)
+    print('tip_acceleration_data', tip_acceleration_data)
+    print('tip_force_data', tip_force_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
     if args.profile:
         profile.disable()

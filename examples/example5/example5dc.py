@@ -32,7 +32,7 @@ os.environ['COMPUTE_PROFILE'] = '1'
 # Choice, comma-separated [0]:0
 # Set the environment variable PYOPENCL_CTX='0:0' to avoid being asked again.
 # =============================================================================
-os.environ['PYOPENCL_CTX'] = '0:0'
+os.environ['PYOPENCL_CTX'] = '0:2'
 
 @initial_crack_helper
 def is_crack(x, y):
@@ -111,6 +111,7 @@ def is_boundary(horizon, x):
         bnd[1] = 0
         bnd[2] = 0
     if x[0] > 1.65 - 0.2* horizon:
+        bnd[1] = 0
         bnd[2] = -1
     return bnd
 
@@ -215,6 +216,7 @@ def main():
     networks = {'1650beam792.msh': 'Network1650beam792.vtk', '1650beam2652.msh': 'Network1650beam2652.vtk', '1650beam3570.msh': 'Network1650beam3570.vtk', '1650beam4095.msh': 'Network1650beam4095.vtk', '1650beam6256.msh': 'Network1650beam6256.vtk', '1650beam15840.msh': 'Network1650beam15840.vtk', '1650beam32370.msh': 'Network1650beam32370.vtk', '1650beam74800.msh': 'Network1650beam74800.vtk', '1650beam144900.msh': 'Network1650beam144900.vtk', '1650beam247500.msh': 'Network1650beam247500.vtk'}
     network_file_name = networks[args.mesh_file_name]
     dxs = {'1650beam792.msh': 0.075, '1650beam2652.msh': 0.0485, '1650beam3570.msh': 0.0485, '1650beam4095.msh': 0.0423, '1650beam6256.msh': 0.0359, '1650beam15840.msh': 0.025, '1650beam32370.msh': 0.020, '1650beam74800.msh': 0.015, '1650beam144900.msh': 0.012, '1650beam247500.msh': 0.010}
+    build_displacements = {'1650beam792.msh': 1.5e-4, '1650beam2652.msh': 1.8e-4, '1650beam3570.msh': 3.4e-4, '1650beam4095.msh': 4e-4, '1650beam6256.msh': 3.1e-4, '1650beam15840.msh': 5e-4, '1650beam32370.msh': 4.5e-4, '1650beam74800.msh': 11e-4, '1650beam144900.msh': 8e-4, '1650beam247500.msh': 5e-4}
     dx = dxs[args.mesh_file_name]
     horizon = dx * np.pi 
     # Two materials in this example, that is 'concrete' and 'steel'
@@ -244,6 +246,7 @@ def main():
                    density = density_concrete, 
                    horizon = horizon,
                    damping = damping,
+                   dx = dx,
                    bond_stiffness_concrete = bond_stiffness_concrete,
                    bond_stiffness_steel = bond_stiffness_steel, 
                    critical_strain_concrete = critical_strain_concrete,
@@ -256,7 +259,7 @@ def main():
                    dimensions=3,
                    transfinite=1,
                    precise_stiffness_correction=0)
-    saf_fac = 0.7 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap) 0.5
+    saf_fac = 0.5 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap) 0.5
     model.dt = (
      0.8 * np.power( 2.0 * density_concrete * dx / 
      (np.pi * np.power(model.horizon, 2.0) * dx * model.bond_stiffness_concrete), 0.5)
@@ -289,11 +292,11 @@ def main():
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
     
-    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=20000, integrator=integrator, write=1000, toolbar=0, 
-                                                                                  displacement_rate = displacement_rate,
-                                                                                  #build_displacement = 2.0e-4,
-                                                                                  #final_displacement = 2.0e-4
-                                                                                  )
+    damage_sum_data, tip_displacement_data, tip_acceleration_data, tip_force_data  = model.simulate(
+            model, sample=1, steps=100000, integrator=integrator, write=500, toolbar=0,
+            displacement_rate = displacement_rate,
+            build_displacement = build_displacements[args.mesh_file_name],
+            final_displacement = build_displacements[args.mesh_file_name])
     #damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=200000, integrator=integrator, write=500, toolbar=0)
     print(args.mesh_file_name, method)
     plt.figure(1)
@@ -304,12 +307,17 @@ def main():
     plt.plot(tip_displacement_data)
     plt.show()
     plt.figure(3)
+    plt.title('tip acceleration over time')
+    plt.plot(tip_acceleration_data)
+    plt.show()
+    plt.figure(4)
     plt.title('shear force over time')
-    plt.plot(tip_shear_force_data)
+    plt.plot(tip_force_data)
     plt.show()
     print('damage_sum_data', damage_sum_data)
     print('tip_displacement_data', tip_displacement_data)
-    print('tip_shear_force_data', tip_shear_force_data)
+    print('tip_acceleration_data', tip_acceleration_data)
+    print('tip_force_data', tip_force_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
     if args.profile:
         profile.disable()

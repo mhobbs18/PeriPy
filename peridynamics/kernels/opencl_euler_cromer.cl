@@ -60,6 +60,7 @@ __kernel void
         __global double *Uddn,
         __global double const *Udn,
         __global double const *Un,
+		__global double * Node_Forces,
         __global double const *Vols,
 		__global int const *Horizons,
 		__global double const *Nodes,
@@ -117,7 +118,12 @@ __kernel void
 		f0 = (FCTypes[DPN*i + 0] == 2 ? f0 : (f0 + FORCE_LOAD_SCALE * FCValues[DPN * i + 0]));
 		f1 = (FCTypes[DPN*i + 1] == 2 ? f1 : (f1 + FORCE_LOAD_SCALE * FCValues[DPN * i + 1]));
 		f2 = (FCTypes[DPN*i + 2] == 2 ? f2 : (f2 + FORCE_LOAD_SCALE * FCValues[DPN * i + 2]));
-		
+
+		// Update Node forces for plotting
+		Node_Forces[DPN * i + 0] = f0;
+        Node_Forces[DPN * i + 1] = f1;
+        Node_Forces[DPN * i + 2] = f2;
+
         // Update accelerations
 		Uddn[DPN * i + 0] = (f0 - PD_ETA * Udn[DPN * i + 0]) / PD_RHO;
 		Uddn[DPN * i + 1] = (f1 - PD_ETA * Udn[DPN * i + 1]) / PD_RHO;
