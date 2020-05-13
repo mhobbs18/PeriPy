@@ -179,10 +179,10 @@ class Model:
             self.nnodes = self.coords.shape[0]
 
             # Get connectivity, mesh triangle cells
-            self.mesh_connectivity = mesh.cells_dict[self.mesh_elements.connectivity]
+            self.mesh_connectivity = mesh.cells[self.mesh_elements.connectivity]
 
             # Get boundary connectivity, mesh lines
-            self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
+            self.mesh_boundary = mesh.cells[self.mesh_elements.boundary]
 
             # Get number elements on boundary?
             self.nelem_bnd = self.mesh_boundary.shape[0]
@@ -571,10 +571,7 @@ class OpenCL(Model):
                  initial_crack=[],
                  dimensions=2,
                  transfinite= None,
-                 precise_stiffness_correction = None,
-                 displacement_scale_rate = None,
-                 build_displacement = None,
-                 final_displacement = None):
+                 precise_stiffness_correction = None):
         """
         Construct a :class:`OpenCL` object, which inherits Model class.
         
@@ -1186,15 +1183,34 @@ class OpenCLProbabilistic(OpenCL):
     This class allows users to define a peridynamics system from parameters and
     a set of initial conditions (coordinates and connectivity).
     """
-    def __init__(self, mesh_file_name, volume_total, sigma, l, bond_type, network_file_name = 'Network.vtk', initial_crack=[], dimensions=2):
+    def __init__(self, mesh_file_name, 
+                 density = None,
+                 horizon = None, 
+                 damping = None,
+                 dx = None,
+                 bond_stiffness_const = None,
+                 critical_stretch_const = None,
+                 sigma = None, 
+                 l = None,
+                 crack_length = None,
+                 volume_total=None,
+                 bond_type=None,
+                 network_file_name = 'Network.vtk',
+                 initial_crack=[],
+                 dimensions=3,
+                 transfinite= None,
+                 precise_stiffness_correction = None):
         """
         Construct a :class:`OpenCL` object, which inherits Model class.
         
-        :arg str mesh_file: Path of the mesh file defining the systems nodes
+        :arg str mesh_file_name: Path of the mesh file defining the systems nodes
             and connectivity.
+        :arg float density: Density of the bulk material in kg/m^3
         :arg float horizon: The horizon radius. Nodes within `horizon` of
             another interact with that node and are said to be within its
             neighbourhood.
+        :arg float family_volume: The spherical volume defined by the horizon
+        radius.
         :arg float critical_strain: The critical strain of the model. Bonds
             which exceed this strain are permanently broken.
         :arg float elastic_modulus: The appropriate elastic modulus of the
@@ -1213,13 +1229,16 @@ class OpenCLProbabilistic(OpenCL):
         :raises DimensionalityError: when an invalid `dimensions` argument is
             provided.
         """
-		# verbose
-        self.v = True
+
+        # verbose
+        self.v = False
 
         if dimensions == 2:
             self.mesh_elements = _mesh_elements_2d
+            self.family_volume = np.pi*np.power(horizon, 2)
         elif dimensions == 3:
             self.mesh_elements = _mesh_elements_3d
+            self.family_volume = (4./3)*np.pi*np.power(horizon, 3)
         else:
             raise DimensionalityError(dimensions)
 
@@ -1229,11 +1248,11 @@ class OpenCLProbabilistic(OpenCL):
         # bb515 Are the stiffness correction factors calculated using mesh element
         # volumes (default 'precise', 1) or average nodal volume of a transfinite
         # mesh (0)      
-        self.precise_stiffness_correction = 1
+        self.precise_stiffness_correction = precise_stiffness_correction
         # bb515 Is the mesh transfinite mesh (support regular grid spacing with 
         # cuboidal (not tetra) elements, look up "gmsh transfinite") (default 0)
         # I'm only planning on using this for validation against literature
-        self.transfinite = 0
+        self.transfinite = transfinite
         # Peridynamics parameters. These parameters will be passed to openCL
         # kernels by command line argument Bond-based peridynamics, known in
         # PDLAMMPS as Prototype Microelastic Brittle (PMB) Model requires a
@@ -1241,15 +1260,17 @@ class OpenCLProbabilistic(OpenCL):
         # in quasi-brittle materials
         self.poisson_ratio = 0.25
         # These are the parameters that the user needs to define
-        self.density = None
-        self.horizon = None
-        self.family_volume = None
-        self.damping = None
-        self.bond_stiffness_concrete = None
-        self.bond_stiffness_steel = None
-        self.critical_strain_concrete = None
-        self.critical_strain_steel = None
-        self.crackLength = None
+        self.density = density
+        self.horizon = horizon
+        self.damping = damping
+        self.dx = dx
+        self.sigma = sigma
+        self.l = l
+        self.bond_stiffness_const = bond_stiffness_const
+        self.critical_stretch_const = critical_stretch_const
+        self.crack_length = crack_length
+        self.volume_total = volume_total
+        self.network_file_name = network_file_name
         self.dt = None
         self.max_reaction = None
         self.load_scale_rate = None
@@ -1262,14 +1283,11 @@ class OpenCLProbabilistic(OpenCL):
         # Set covariance matrix
         self._set_H(l, sigma)
         # If the network has already been written to file, then read, if not, setNetwork
-        self._read_network(network_file_name)
-# =============================================================================
-#         try:
-#             self._read_network(network_file_name)
-#         except:
-#             print('No network file found: writing network file.')
-#             self._set_network(self.horizon, bond_type)
-# =============================================================================
+        try:
+            self._read_network(network_file_name)
+        except:
+            print('No network file found: writing network file.')
+            self._set_network(self.horizon, bond_type)
 
         # Initate crack
         self._set_connectivity(initial_crack)
@@ -1283,10 +1301,12 @@ class OpenCLProbabilistic(OpenCL):
         self.bc_types = np.zeros((self.nnodes, self.degrees_freedom), dtype=np.intc)
         self.bc_values = np.zeros((self.nnodes, self.degrees_freedom), dtype=np.float64)
         self.tip_types = np.zeros(self.nnodes, dtype=np.intc)
-
+        
         if self.v == True:
             print("sum total volume", self.sum_total_volume)
             print("user input volume total", volume_total)
+
+
     def _set_network(self, horizon, bond_type):
         """
         Sets the family matrix, and converts this to a horizons matrix 
@@ -1332,14 +1352,14 @@ class OpenCLProbabilistic(OpenCL):
                         # Determine the material properties for that bond
                         material_flag = bond_type(self.coords[i, :], self.coords[j, :])
                         if material_flag == 'steel':
-                            tmp2.append(self.bond_stiffness_steel)
-                            tmp3.append(self.critical_strain_steel)
+                            tmp2.append(1.0) # stiffness multiplier
+                            tmp3.append(1e10) # critical strain of no-fail zone, a large number
                         elif material_flag == 'interface':
-                            tmp2.append(self.bond_stiffness_concrete) # In the probabilistic examples, "steel" is used for a no-fail-zone to prevent boundary effects
-                            tmp3.append(self.critical_strain_concrete)
+                            tmp2.append(1.0) # In the probabilistic examples, "steel" is used for a no-fail-zone to prevent boundary effects
+                            tmp3.append(1.0)
                         elif material_flag == 'concrete':
-                            tmp2.append(self.bond_stiffness_concrete)
-                            tmp3.append(self.critical_strain_concrete)
+                            tmp2.append(1.0)
+                            tmp3.append(1.0)
 
             family.append(np.zeros(len(tmp), dtype=np.intc))
             bond_stiffness_family.append(np.zeros(len(tmp2), dtype=np.float64))
@@ -1465,14 +1485,15 @@ class OpenCLProbabilistic(OpenCL):
         K_tild = np.add(K, np.multiply(epsilon, I))
         K_tild = np.multiply(pow(sigma, 2), K_tild)
 
-        self.C = np.linalg.cholesky(K_tild)
+        self.C = np.linalg.cholesky(2*K_tild)
 
         #K = np.identity(self.nnodes)
         #self.K = np.multiply(pow(sigma, 2), K)
         #self.C = self.K
         #self.L_0 = np.sqrt(norms_matrix)
 
-    def simulate(self, model, sample, realisation, steps, integrator, write=None, toolbar=0):
+    def simulate(self, model, sample, realisation, steps, integrator, write=None, toolbar=0, 
+                 displacement_rate=None, build_displacement=None, final_displacement=None):
         """
         Simulate the peridynamics model.
         :arg int steps: The number of simulation steps to conduct.
@@ -1498,12 +1519,19 @@ class OpenCLProbabilistic(OpenCL):
         """
         if not isinstance(integrator, Integrator):
             raise InvalidIntegrator(integrator)
-
+        # Calculate number of time steps that displacement load is in the 'build-up' phase
+        if not ((displacement_rate is None) or (build_displacement is None) or (final_displacement is None)):
+            build_time, a, b, c= _calc_build_time(build_displacement, displacement_rate, steps)
+            
         # Container for plotting data
         damage_data = []
 
+        # Ease off displacement loading switch
+        ease_off = 0
+
         #Progress bar
         toolbar_width = 40
+
         if toolbar:    
             sys.stdout.write("[%s]" % (" " * toolbar_width))
             sys.stdout.flush()
@@ -1518,6 +1546,27 @@ class OpenCLProbabilistic(OpenCL):
                     if toolbar == 0:
                         print('Print number {}/{} complete in {} s '.format(int(step/write), int(steps/write), time.time() - st))
                         st = time.time()
+            
+            # Increase load in linear increments
+            if not (model.load_scale_rate is None):
+                load_scale = min(1.0, model.load_scale_rate * step)
+                if load_scale != 1.0:
+                    integrator.incrementLoad(model, load_scale)
+            # Increase dispalcement in 5th order polynomial increments
+            if not ((displacement_rate is None) or (build_displacement is None) or (final_displacement is None)):
+                # 5th order polynomial/ linear curve used to calculate displacement_scale
+                displacement_scale, ease_off = _calc_load_displacement_rate(a, b, c,
+                                                                 final_displacement,
+                                                                 build_time,
+                                                                 displacement_rate,
+                                                                 step, 
+                                                                 build_displacement,
+                                                                 ease_off)
+                if displacement_scale != 0.0:
+                    integrator.incrementDisplacement(model, displacement_scale)
+            # No user specified build up parameters case
+            elif not (displacement_rate is None):
+                integrator.incrementDisplacement(model, 1.0)
 
             # Loading bar update
             if step%(steps/toolbar_width)<1 & toolbar:

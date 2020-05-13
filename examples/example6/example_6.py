@@ -11,16 +11,12 @@ import pathlib
 from peridynamics import OpenCL
 from peridynamics import OpenCLProbabilistic
 from peridynamics.model import initial_crack_helper
-from peridynamics.integrators import DormandPrinceOptimised
-from peridynamics.integrators import DormandPrince
-from peridynamics.integrators import HeunEuler
-from peridynamics.integrators import HeunEulerOptimised
 from peridynamics.integrators import EulerOpenCL
 from peridynamics.integrators import EulerOpenCLOptimised
-from peridynamics.integrators import EulerOpenCLOptimisedLumped
+from peridynamics.integrators import EulerOpenCLOptimisedLumped2
+from peridynamics.integrators import EulerStochasticOptimised
 from peridynamics.integrators import RK4
-from peridynamics.integrators import RK4Optimised
-from peridynamics.integrators import EulerStochastic
+from peridynamics.integrators import DormandPrinceOptimised
 from pstats import SortKey, Stats
 import matplotlib.pyplot as plt
 import time
@@ -30,7 +26,9 @@ import os
 mesh_file_name = 'plate.msh'
 mesh_file = pathlib.Path(__file__).parent.absolute() / mesh_file_name
 
-
+os.environ['PYOPENCL_COMPILER_OUTPUT'] = '1'
+os.environ['COMPUTE_PROFILE'] = '1'
+os.environ['PYOPENCL_CTX'] = '0:0'
 @initial_crack_helper
 def is_crack(x, y):
     output = 0
@@ -126,12 +124,11 @@ def is_forces_boundary(horizon, x):
             #bnd[2] = 1
     return bnd
 
-def boundary_function(model):
+def boundary_function(model, displacement_rate):
     """ 
     Initiates displacement boundary conditions,
     also define the 'tip' (for plotting displacements)
     """
-    load_rate = 2.0e-7 # 1.0e-7
     #initiate containers
     model.bc_types = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.intc)
     model.bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
@@ -144,7 +141,7 @@ def boundary_function(model):
         model.bc_types[i, 0] = np.intc((bnd))
         model.bc_types[i, 1] = np.intc((bnd))
         model.bc_types[i, 2] = np.intc((bnd))
-        model.bc_values[i, 0] = np.float64(bnd * 0.5 * load_rate)
+        model.bc_values[i, 0] = np.float64(bnd * displacement_rate)
 
         # Define tip here
         tip = is_tip(model.horizon, model.coords[i][:])
@@ -187,62 +184,78 @@ def main():
     critical_strain_concrete = 0.005
     horizon = np.pi*1.7e-3
     
-    # Set simulation parameters
-    model = OpenCL(mesh_file_name, 
-               density = 1.0, 
-               horizon = horizon,
-               damping = 1.0,
-               bond_stiffness_concrete = (
-                       np.double((18.00 * bulk_modulus_concrete) /
-                                 (np.pi * np.power(horizon, 4)))
-                       ),
-               bond_stiffness_steel = (
-               np.double((18.00 * bulk_modulus_concrete) /
-                         (np.pi * np.power(horizon, 4)))
-               ),
-               critical_strain_concrete = critical_strain_concrete, # was 0.005
-               critical_strain_steel = 1.0,
-               crack_length = 0.0,
-               volume_total=(0.15*0.1 - np.pi *0.00148**2)*0.0017,
-               bond_type=bond_type,
-               network_file_name = 'Network.vtk',
-               initial_crack=[],
-               dimensions=3,
-               transfinite=0,
-               precise_stiffness_correction=1)
 # =============================================================================
-#     model = OpenCLProbabilistic(mesh_file_name,
-#                                 volume_total=0.02862958696975136,
-#                                 sigma= np.exp(-10.5),
-#                                 l = np.exp(-1.0),
-#                                 bond_type=bond_type,
-#                                 initial_crack=is_crack)
+#     # Set simulation parameters
+#     model = OpenCL(mesh_file_name, 
+#                density = 1.0, 
+#                horizon = horizon,
+#                damping = 1.0,
+#                bond_stiffness_concrete = (
+#                        np.double((18.00 * bulk_modulus_concrete) /
+#                                  (np.pi * np.power(horizon, 4)))
+#                        ),
+#                bond_stiffness_steel = (
+#                np.double((18.00 * bulk_modulus_concrete) /
+#                          (np.pi * np.power(horizon, 4)))
+#                ),
+#                critical_strain_concrete = critical_strain_concrete, # was 0.005
+#                critical_strain_steel = 1.0,
+#                crack_length = 0.0,
+#                volume_total=(0.15*0.1 - np.pi *0.00148**2)*0.0017,
+#                bond_type=bond_type,
+#                network_file_name = 'Network.vtk',
+#                initial_crack=[],
+#                dimensions=3,
+#                transfinite=0,
+#                precise_stiffness_correction=1)
 # =============================================================================
+
+    model = OpenCLProbabilistic(mesh_file_name, 
+                                density = 1.0,
+                                horizon = horizon, 
+                                damping = 1.0,
+                                dx = 0.01,
+                                bond_stiffness_const = 1.0,
+                                critical_stretch_const = 1.0,
+                                sigma = np.exp(-30.5), 
+                                l = np.exp(-10.0),
+                                crack_length = 0.0,
+                                volume_total=(0.15*0.1 - np.pi *0.00148**2)*0.0017,
+                                bond_type=bond_type,
+                                network_file_name = 'Network.vtk',
+                                initial_crack=[],
+                                dimensions=3,
+                                transfinite= 0,
+                                precise_stiffness_correction = 1)
     model.horizon= horizon
-    #model.dt = np.double(2.5e-5)
-    model.dt = np.double(2.5e-5/1.1)
+    # damping
+    #model.dt = np.double(5.0e-5/1.1)
+    model.dt = np.double(4.0e-5)
     # Set force and displacement boundary conditions
-    boundary_function(model)
+    displacement_rate = 5.0e-7
+    boundary_function(model, displacement_rate)
     boundary_forces_function(model)
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
-    integrator = DormandPrinceOptimised(model, error_size_max = 1e-6, error_size_min = 1e-20)
-    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=8000, integrator=integrator, write=100, toolbar=0)
 # =============================================================================
-#     integrator = EulerStochastic(model)
-#     damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, realisation=1, steps=5000, integrator=integrator, write=100, toolbar=0)
-#     integrator.reset(model, steps=5000)
+#     integrator = EulerOpenCLOptimised(model)#, error_size_max = 1e-1, error_size_min = 1e-30)
+#     damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=1500, integrator=integrator, write=50, toolbar=0,
+#                                                                                   displacement_rate = displacement_rate)
 # =============================================================================
+    integrator = EulerStochasticOptimised(model)
+    integrator.reset(model, steps=1000)
+    damage_sum_data= model.simulate(model, sample=1, realisation=1, steps=1000, integrator=integrator, write=50, toolbar=0, displacement_rate = displacement_rate)
+    
     print('damage_sum_data', damage_sum_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
     plt.figure(1)
     plt.title('damage over time')
     plt.plot(damage_sum_data)
-    plt.figure(2)
-    plt.title('tip displacement over time')
-    plt.plot(tip_displacement_data)
-    plt.show()
+    #plt.figure(2)
+    #plt.title('tip displacement over time')
+    #plt.plot(tip_displacement_data)
+    #plt.show()
     if args.profile:
         profile.disable()
         s = StringIO()

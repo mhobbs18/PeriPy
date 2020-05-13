@@ -9,6 +9,7 @@ from io import StringIO
 import numpy as np
 import pathlib
 from peridynamics import OpenCL
+from peridynamics import OpenCLProbabilistic
 from peridynamics.model import initial_crack_helper
 from peridynamics.integrators import DormandPrinceOptimised
 from peridynamics.integrators import DormandPrince
@@ -18,6 +19,7 @@ from peridynamics.integrators import EulerOpenCL
 from peridynamics.integrators import EulerOpenCLOptimised
 from peridynamics.integrators import EulerOpenCLOptimisedLumped
 from peridynamics.integrators import EulerOpenCLOptimisedLumped2
+from peridynamics.integrators import EulerStochasticOptimised
 from peridynamics.integrators import RK4
 from peridynamics.integrators import RK4Optimised
 from pstats import SortKey, Stats
@@ -176,34 +178,58 @@ def main():
     
     horizon = 0.1
     # Set simulation parameters
-    model = OpenCL(mesh_file_name, 
-               density = 1.0, 
-               horizon = horizon,
-               damping = 1.0,
-               bond_stiffness_concrete = (
-                       np.double((18.00 * 0.05) /
-                                 (np.pi * np.power(horizon, 4)))
-                       ),
-               critical_strain_concrete = 0.005,
-               crack_length = 0.3,
-               volume_total=1.0,
-               bond_type=bond_type,
-               network_file_name = 'Network.vtk',
-               initial_crack=[],
-               dimensions=2,
-               transfinite=0,
-               precise_stiffness_correction=1)
+    model = OpenCLProbabilistic(mesh_file_name, 
+                                density = 1.0,
+                                horizon = horizon, 
+                                damping = 1.0,
+                                dx = 0.01,
+                                bond_stiffness_const = 1.0,
+                                critical_stretch_const = 1.0,
+                                sigma = np.exp(-10.5), 
+                                l = np.exp(-1.0),
+                                crack_length = 0.3,
+                                volume_total=1.0,
+                                bond_type=bond_type,
+                                network_file_name = 'Network.vtk',
+                                initial_crack=[],
+                                dimensions=2,
+                                transfinite= 0,
+                                precise_stiffness_correction = 1)
+# =============================================================================
+#     model = OpenCL(mesh_file_name, 
+#                density = 1.0, 
+#                horizon = horizon,
+#                damping = 1.0,
+#                bond_stiffness_concrete = (
+#                        np.double((18.00 * 0.05) /
+#                                  (np.pi * np.power(horizon, 4)))
+#                        ),
+#                critical_strain_concrete = 0.005,
+#                crack_length = 0.3,
+#                volume_total=1.0,
+#                bond_type=bond_type,
+#                network_file_name = 'Network.vtk',
+#                initial_crack=[],
+#                dimensions=2,
+#                transfinite=0,
+#                precise_stiffness_correction=1)
+# =============================================================================
     model.dt = np.double(0.5e-3 / (1.1))
-    displacement_rate = 1e-6
+    displacement_rate = 1e-5
     # Set force and displacement boundary conditions
     boundary_function(model, displacement_rate)
     boundary_forces_function(model)
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
-    integrator = EulerOpenCLOptimisedLumped2(model)#, error_size_max=1e-6, error_size_min=1e-20)
-    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=4000, integrator=integrator, write=100, toolbar=0,
-                                                                                  displacement_rate = displacement_rate)
+    integrator = EulerStochasticOptimised(model)#, error_size_max=1e-6, error_size_min=1e-20)
+    samples = 10
+    
+    for sample in range(samples):
+        integrator.reset(model, steps=500)
+        damage_sum_data= model.simulate(model, sample=sample, realisation=1, steps=500, integrator=integrator, write=1, toolbar=0, displacement_rate = displacement_rate)
+    #damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=4000, integrator=integrator, write=1, toolbar=0,
+                                                                                  #displacement_rate = displacement_rate)
     print('damage_sum_data', damage_sum_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
     plt.figure(1)

@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// opencl_euler_stochastic_2.2.cl (each work item does one bond, but each work group does one node)
+// opencl_euler_stochastic_optimised.cl (each work item does one bond, but each work group does one node)
 //
 // OpenCL Peridynamics kernels for Euler integrator
 //
@@ -17,7 +17,9 @@
 // Update displacements
 __kernel void
 	UpdateDisplacement(
-        __global double const *Udn1,
+        __global double const *Udn1_x,
+        __global double const *Udn1_y,
+        __global double const *Udn1_z,
         __global double *Un,
 		__global double *Pn,
 		__global int const *BCTypes,
@@ -28,15 +30,17 @@ __kernel void
 {
 	const int i = get_global_id(0);
 
-	if (i < PD_DPN_NODE_NO)
+	if (i < PD_NODE_NO)
 	{
-		Un[i] = (BCTypes[i] == 2 ? (Un[i] + Pn[step * PD_DPN_NODE_NO + i] + PD_DT * Udn1[i]): (Un[i] + DISPLACEMENT_LOAD_SCALE * BCValues[i]));
+		Un[DPN*i+0] = (BCTypes[DPN*i+0] == 2 ? (Un[DPN*i+0] + Pn[step * PD_DPN_NODE_NO + DPN*i + 0] + PD_DT * Udn1_x[i]): (Un[DPN*i+0] + DISPLACEMENT_LOAD_SCALE * BCValues[DPN*i+0]));
+        Un[DPN*i+1] = (BCTypes[DPN*i+1] == 2 ? (Un[DPN*i+1] + Pn[step * PD_DPN_NODE_NO + DPN*i + 1] + PD_DT * Udn1_y[i]): (Un[DPN*i+1] + DISPLACEMENT_LOAD_SCALE * BCValues[DPN*i+1]));
+        Un[DPN*i+2] = (BCTypes[DPN*i+2] == 2 ? (Un[DPN*i+2] + Pn[step * PD_DPN_NODE_NO + DPN*i + 2] + PD_DT * Udn1_z[i]): (Un[DPN*i+2] + DISPLACEMENT_LOAD_SCALE * BCValues[DPN*i+2]));
 	}
 }
 
 // Time Integration step
 __kernel void
-	TimeIntegration(
+	UpdateAcceleration(
     __global double const * Un,
     __global double * Udn_x,
     __global double * Udn_y,
@@ -51,6 +55,8 @@ __kernel void
     __local double * local_cache_x,
     __local double * local_cache_y,
     __local double * local_cache_z,
+    double PD_STIFFNESS,
+    double PD_STRETCH,
     double FORCE_LOAD_SCALE,
     double DISPLACEMENT_LOAD_SCALE
 	)
@@ -90,7 +96,7 @@ __kernel void
         const double cy = xi_eta_y / y;
         const double cz = xi_eta_z / y;
 
-        const double _E = Stiffnesses[global_id];
+        const double _E = PD_STIFFNESS * Stiffnesses[global_id];
         const double _A = Vols[node_id_j];
         const double _L = xi;
 
@@ -102,7 +108,7 @@ __kernel void
         local_cache_z[local_id] = _EAL * cz * y_xi;
 
         // Check for state of bonds here
-        const double PD_S0 = FailStretches[global_id];
+        const double PD_S0 = PD_STRETCH * FailStretches[global_id];
         const double s = (y - xi) / xi;
         if (s > PD_S0)
         {
