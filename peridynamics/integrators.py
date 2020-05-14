@@ -4097,12 +4097,6 @@ class EulerStochasticOptimised(Integrator):
         self.h_bdn1_y = np.empty((model.nnodes), dtype=np.float64)
         self.h_bdn1_z = np.empty((model.nnodes), dtype=np.float64)
 
-        # Bond forces
-        self.local_mem = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
-        self.local_mem_x = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
-        self.local_mem_y = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
-        self.local_mem_z = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
-
         # Damage vector
         self.h_damage = np.empty(model.nnodes).astype(np.float64)
         # For applying force in incriments
@@ -4111,10 +4105,27 @@ class EulerStochasticOptimised(Integrator):
         self.h_displacement_load_scale = np.float64(0.0)
 
         # dimensions for matrix-vector multiplication
+        # local (work group) size
+        self.h_mdash = np.intc(64)
+        self.h_p = np.intc(4)
         self.h_m = np.intc(
         1<<(model.nnodes-1).bit_length()
         )
-        self.h_n = np.intc(model.nnodes)
+        #self.h_n = np.intc(model.nnodes) # mvul1
+        self.h_n = np.intc(np.ceil(model.nnodes/self.h_p)*self.h_p) #muvl2
+
+        # Bond forces
+        #local_mem_mvmul2 = np.empty((self.h_p * self.h_mdash), dtype=np.float64)
+        self.local_mem_mvmul2_1 = cl.LocalMemory(np.dtype(np.float64).itemsize * self.h_p * self.h_mdash)
+        self.local_mem_mvmul2_2 = cl.LocalMemory(np.dtype(np.float64).itemsize * self.h_p * self.h_mdash)
+        self.local_mem_mvmul2_3 = cl.LocalMemory(np.dtype(np.float64).itemsize * self.h_p * self.h_mdash)
+        self.local_mem_mvmul2_4 = cl.LocalMemory(np.dtype(np.float64).itemsize * self.h_p * self.h_mdash)
+        self.local_mem_mvmul2_5 = cl.LocalMemory(np.dtype(np.float64).itemsize * self.h_p * self.h_mdash)
+        self.local_mem_mvmul2_6 = cl.LocalMemory(np.dtype(np.float64).itemsize * self.h_p * self.h_mdash)
+        self.local_mem = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
+        self.local_mem_x = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
+        self.local_mem_y = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
+        self.local_mem_z = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
 
         # Build OpenCL data structures
 
@@ -4317,20 +4328,38 @@ class EulerStochasticOptimised(Integrator):
                                            self.h_force_load_scale,
                                            self.h_displacement_load_scale
                                            )
+# =============================================================================
+#         # Covariance matrix multiplication of forces
+#         self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
+#                             self.d_K, self.d_udn_x, self.d_udn1_x, self.h_m, self.h_n)
+#         self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
+#                             self.d_K, self.d_udn_y, self.d_udn1_y, self.h_m, self.h_n)
+#         self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
+#                             self.d_K, self.d_udn_z, self.d_udn1_z, self.h_m, self.h_n)
+#         # Sampling of correlated Brownian noise
+#         self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
+#                             self.d_C, self.d_bdn_x, self.d_bdn1_x, self.h_m, self.h_n)
+#         self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
+#                             self.d_C, self.d_bdn_y, self.d_bdn1_y, self.h_m, self.h_n)
+#         self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
+#                             self.d_C, self.d_bdn_z, self.d_bdn1_z, self.h_m, self.h_n)
+# =============================================================================
         # Covariance matrix multiplication of forces
-        self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-                            self.d_K, self.d_udn_x, self.d_udn1_x, self.h_m, self.h_n)
-        self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-                            self.d_K, self.d_udn_y, self.d_udn1_y, self.h_m, self.h_n)
-        self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-                            self.d_K, self.d_udn_z, self.d_udn1_z, self.h_m, self.h_n)
+        self.cl_kernel_matrix_vector_mul2(self.queue, (self.h_m,self.h_p), (self.h_mdash, self.h_p),
+                            self.d_K, self.d_udn_x, self.d_udn1_x, self.local_mem_mvmul2_1, self.h_m, self.h_n)
+        self.cl_kernel_matrix_vector_mul2(self.queue, (self.h_m,self.h_p), (self.h_mdash, self.h_p),
+                            self.d_K, self.d_udn_y, self.d_udn1_y, self.local_mem_mvmul2_2, self.h_m, self.h_n)
+        self.cl_kernel_matrix_vector_mul2(self.queue, (self.h_m,self.h_p), (self.h_mdash, self.h_p),
+                            self.d_K, self.d_udn_z, self.d_udn1_z, self.local_mem_mvmul2_3, self.h_m, self.h_n)
+
         # Sampling of correlated Brownian noise
-        self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-                            self.d_C, self.d_bdn_x, self.d_bdn1_x, self.h_m, self.h_n)
-        self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-                            self.d_C, self.d_bdn_y, self.d_bdn1_y, self.h_m, self.h_n)
-        self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-                            self.d_C, self.d_bdn_z, self.d_bdn1_z, self.h_m, self.h_n)
+        self.cl_kernel_matrix_vector_mul2(self.queue, (self.h_m,self.h_p), (self.h_mdash, self.h_p),
+                            self.d_C, self.d_bdn_x, self.d_bdn1_x, self.local_mem_mvmul2_4, self.h_m, self.h_n)
+        self.cl_kernel_matrix_vector_mul2(self.queue, (self.h_m,self.h_p), (self.h_mdash, self.h_p),
+                            self.d_C, self.d_bdn_y, self.d_bdn1_y, self.local_mem_mvmul2_5, self.h_m, self.h_n)
+        self.cl_kernel_matrix_vector_mul2(self.queue, (self.h_m,self.h_p), (self.h_mdash, self.h_p),
+                            self.d_C, self.d_udn_z, self.d_udn1_z, self.local_mem_mvmul2_6, self.h_m, self.h_n)
+        
     def write(self, model, t, sample, realisation):
         """ Write a mesh file for the current timestep
         """

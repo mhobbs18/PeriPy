@@ -185,12 +185,12 @@ def main():
                                 dx = 0.01,
                                 bond_stiffness_const = 1.0,
                                 critical_stretch_const = 1.0,
-                                sigma = np.exp(-7.5), 
-                                l = np.exp(-20.0),
+                                sigma = np.exp(-5.5), 
+                                l = np.exp(-10.0),
                                 crack_length = 0.3,
                                 volume_total=1.0,
                                 bond_type=bond_type,
-                                network_file_name = 'Network.vtk',
+                                network_file_name = 'Network_2.vtk',
                                 initial_crack=[],
                                 dimensions=2,
                                 transfinite= 0,
@@ -226,7 +226,7 @@ def main():
     samples = 10
     for sample in range(samples):
         integrator.reset(model, steps=500)
-        damage_sum_data= model.simulate(model, sample=sample, realisation=1, steps=500, integrator=integrator, write=500, toolbar=0, displacement_rate = displacement_rate)
+        damage_sum_data= model.simulate(model, sample=sample, realisation=1, steps=500, integrator=integrator, write=1, toolbar=0, displacement_rate = displacement_rate)
     #damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=4000, integrator=integrator, write=1, toolbar=0,
                                                                                   #displacement_rate = displacement_rate)
     print('damage_sum_data', damage_sum_data)
