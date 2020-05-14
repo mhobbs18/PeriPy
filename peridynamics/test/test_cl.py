@@ -1,6 +1,6 @@
 """Tests for the OpenCL kernels."""
 from .conftest import context_available
-from ..cl import kernel_source, get_context, pad
+from ..cl import kernel_source, integrator_source, get_context, pad
 from ..cl.utilities import DOUBLE_FP_SUPPORT
 import numpy as np
 from peridynamics.neighbour_list import create_neighbour_list
@@ -287,3 +287,59 @@ def test_break_bonds(context, queue, program):
 
     assert np.all(nl == nl_expected)
     assert np.all(n_neigh == n_neigh_expected)
+
+
+@context_available
+@pytest.fixture(scope="module")
+def integrators_program(context):
+    """Create a program object from the integrator kernels."""
+    return cl.Program(context, integrator_source).build()
+
+
+class TestEuler():
+    """Tests for the Euler integrator kernel."""
+
+    def test_basic_integration(self, context, queue, integrators_program):
+        """Test integration."""
+        u = np.zeros(3, dtype=np.float64)
+        f = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+
+        u_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=u)
+        f_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=f)
+
+        integrator = integrators_program.euler
+        integrator(queue, (3,), None, u_d, f_d, np.float64(1.0),
+                   np.float64(1.0))
+        cl.enqueue_copy(queue, u, u_d)
+
+        assert np.all(u == f)
+
+    def test_basic_integration2(self, context, queue, integrators_program):
+        """Test integration."""
+        u = np.zeros(3, dtype=np.float64)
+        f = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+
+        u_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=u)
+        f_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=f)
+
+        integrator = integrators_program.euler
+        integrator(queue, (3,), None, u_d, f_d, np.float64(2.0),
+                   np.float64(1.0))
+        cl.enqueue_copy(queue, u, u_d)
+
+        assert np.all(u == 2.0*f)
+
+    def test_basic_integration3(self, context, queue, integrators_program):
+        """Test integration with dampening."""
+        u = np.zeros(3, dtype=np.float64)
+        f = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+
+        u_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=u)
+        f_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=f)
+
+        integrator = integrators_program.euler
+        integrator(queue, (3,), None, u_d, f_d, np.float64(2.0),
+                   np.float64(0.7))
+        cl.enqueue_copy(queue, u, u_d)
+
+        assert np.all(u == 2.0*0.7*f)

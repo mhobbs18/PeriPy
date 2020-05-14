@@ -15,4 +15,14 @@ kernel_source = "".join(
     [open(source).read() for source in kernel_source_files]
     )
 
-__all__ = ["kernel_source", "double_fp_support", "get_context", "pad"]
+integrator_source = "".join(open(
+    pathlib.Path(__file__).parent.absolute()/"integrators.cl"
+    ).read())
+
+__all__ = [
+    "kernel_source",
+    "integrator_source",
+    "double_fp_support",
+    "get_context",
+    "pad"
+    ]
