@@ -185,8 +185,8 @@ def main():
                                 dx = 0.01,
                                 bond_stiffness_const = 1.0,
                                 critical_stretch_const = 1.0,
-                                sigma = np.exp(-10.5), 
-                                l = np.exp(-1.0),
+                                sigma = np.exp(-7.5), 
+                                l = np.exp(-20.0),
                                 crack_length = 0.3,
                                 volume_total=1.0,
                                 bond_type=bond_type,
@@ -214,7 +214,7 @@ def main():
 #                transfinite=0,
 #                precise_stiffness_correction=1)
 # =============================================================================
-    model.dt = np.double(0.5e-3 / (1.1))
+    model.dt = np.double(0.5e-3)
     displacement_rate = 1e-5
     # Set force and displacement boundary conditions
     boundary_function(model, displacement_rate)
@@ -224,21 +224,20 @@ def main():
     os.mkdir('./output')
     integrator = EulerStochasticOptimised(model)#, error_size_max=1e-6, error_size_min=1e-20)
     samples = 10
-    
     for sample in range(samples):
         integrator.reset(model, steps=500)
-        damage_sum_data= model.simulate(model, sample=sample, realisation=1, steps=500, integrator=integrator, write=1, toolbar=0, displacement_rate = displacement_rate)
+        damage_sum_data= model.simulate(model, sample=sample, realisation=1, steps=500, integrator=integrator, write=500, toolbar=0, displacement_rate = displacement_rate)
     #damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=4000, integrator=integrator, write=1, toolbar=0,
                                                                                   #displacement_rate = displacement_rate)
     print('damage_sum_data', damage_sum_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
-    plt.figure(1)
-    plt.title('damage over time')
-    plt.plot(damage_sum_data)
-    plt.figure(2)
-    plt.title('tip displacement over time')
-    plt.plot(tip_displacement_data)
-    plt.show()
+    #plt.figure(1)
+    #plt.title('damage over time')
+    #plt.plot(damage_sum_data)
+    #plt.figure(2)
+    #plt.title('tip displacement over time')
+    #plt.plot(tip_displacement_data)
+    #plt.show()
     if args.profile:
         profile.disable()
         s = StringIO()

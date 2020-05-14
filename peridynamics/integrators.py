@@ -257,7 +257,7 @@ class EulerCromer(Integrator):
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values, self.h_displacement_load_scale)
-        self.finish_displacement()
+        #self.finish_displacement()
         # Time marching Part 2
         # Scalars like self.h_force_load_scale can live on the host memory
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes,), None,
@@ -273,16 +273,16 @@ class EulerCromer(Integrator):
                                        self.d_force_bc_values,
                                        self.h_force_load_scale)
         
-        self.finish_force()
+        #self.finish_force()
         # Time marching Part 3
         self.cl_kernel_update_velocity(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_uddn)
-        self.finish_velocity()
+        #self.finish_velocity()
         # Check for broken bonds
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
-        self.finish_check()
+        #self.finish_check()
         
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
@@ -504,19 +504,19 @@ class EulerCromerOptimised(Integrator):
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values, self.h_displacement_load_scale)
-        self.finish_displacement()
+        #self.finish_displacement()
         # Calc bond forces
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes, model.max_horizon_length), None, self.d_forces,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
-        self.finish_force()
+        #self.finish_force()
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
                                   (model.max_horizon_length,), self.d_forces, self.d_node_forces, self.d_uddn, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
-        self.finish_reduce_force()
+        #self.finish_reduce_force()
         # Update velocity
         self.cl_kernel_update_velocity(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_uddn)
-        self.finish_velocity()
+        #self.finish_velocity()
 
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
@@ -709,16 +709,16 @@ class EulerOpenCL(Integrator):
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn1, self.d_un, self.d_bc_types,
                                   self.d_bc_values, self.h_displacement_load_scale)
-        self.finish_displacement()
+        #self.finish_displacement()
         # Time marching Part 2
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes,), None, self.d_udn1,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
-        self.finish_force()
+        #self.finish_force()
         # Check for broken bonds
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
-        self.finish_check()
+        #self.finish_check()
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -916,15 +916,15 @@ class EulerOpenCLOptimised(Integrator):
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values, self.h_displacement_load_scale)
-        self.finish_displacement()
+        #self.finish_displacement()
         # Calc bond forces
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes, model.max_horizon_length), None, self.d_forces,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
-        self.finish_force()
+        #self.finish_force()
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
                                   (model.max_horizon_length,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
-        self.finish_reduce_force()
+        #self.finish_reduce_force()
         # Check for broken bonds not needed, since check bonds is done in "CalcBondForce"
         #self.cl_kernel_check_bonds(self.queue,
                                    #(model.nnodes, model.max_horizon_length),
@@ -3272,7 +3272,7 @@ class EulerCromerOptimisedLumped(Integrator):
                 self.local_mem_z,
                 self.h_force_load_scale,
                 self.h_displacement_load_scale)
-        self.finish_time()
+        #self.finish_time()
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -3489,7 +3489,7 @@ class EulerCromerOptimisedLumped2(Integrator):
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values, self.h_displacement_load_scale)
-        self.finish_displacement()
+        #self.finish_displacement()
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_update_acceleration(
                 self.queue, (model.max_horizon_length * model.nnodes,), (model.max_horizon_length,),
@@ -3508,11 +3508,11 @@ class EulerCromerOptimisedLumped2(Integrator):
                 self.local_mem_y,
                 self.local_mem_z,
                 self.h_force_load_scale)
-        self.finish_time()
+        #self.finish_time()
         # Update velocity
         self.cl_kernel_update_velocity(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_uddn)
-        self.finish_velocity()
+        #self.finish_velocity()
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -3733,7 +3733,7 @@ class EulerOpenCLOptimisedLumped(Integrator):
                 self.h_force_load_scale,
                 self.h_displacement_load_scale
                 )
-        self.finish_time()
+        #self.finish_time()
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -3947,7 +3947,7 @@ class EulerOpenCLOptimisedLumped2(Integrator):
                 self.d_bc_values,
                 self.h_displacement_load_scale
                 )
-        self.finish_displacement()
+        #self.finish_displacement()
         # Time integration step
         self.cl_kernel_time_integration(
                 self.queue, (model.nnodes * model.max_horizon_length,), (model.max_horizon_length,), 
@@ -3966,7 +3966,7 @@ class EulerOpenCLOptimisedLumped2(Integrator):
                 self.h_force_load_scale,
                 self.h_displacement_load_scale
                 )
-        self.finish_time()
+        #self.finish_time()
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -4043,7 +4043,8 @@ class EulerStochasticOptimised(Integrator):
         self.cl_kernel_reduce_damage = program.ReduceDamage
         self.cl_kernel_matrix_vector_mul1 = program.gemv1
         self.cl_kernel_matrix_vector_mul2 = program.gemv2
-
+        self.cl_kernel_matrix_vector_mul3 = program.gemv3
+        self.cl_kernel_reduce_rows = program.reduce_rows
         # Set initial values in host memory
 
         # horizons and horizons lengths
@@ -4081,10 +4082,20 @@ class EulerStochasticOptimised(Integrator):
         self.h_udn_y = np.empty((model.nnodes), dtype=np.float64)
         self.h_udn_z = np.empty((model.nnodes), dtype=np.float64)
 
+        # Brownian motion
+        self.h_bdn_x = np.empty((model.nnodes), dtype=np.float64)
+        self.h_bdn_y = np.empty((model.nnodes), dtype=np.float64)
+        self.h_bdn_z = np.empty((model.nnodes), dtype=np.float64)
+
         # Updated forces
         self.h_udn1_x = np.empty((model.nnodes), dtype=np.float64)
         self.h_udn1_y = np.empty((model.nnodes), dtype=np.float64)
         self.h_udn1_z = np.empty((model.nnodes), dtype=np.float64)
+
+        # Updated brownian motion (sampled with a length scale)
+        self.h_bdn1_x = np.empty((model.nnodes), dtype=np.float64)
+        self.h_bdn1_y = np.empty((model.nnodes), dtype=np.float64)
+        self.h_bdn1_z = np.empty((model.nnodes), dtype=np.float64)
 
         # Bond forces
         self.local_mem = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
@@ -4142,18 +4153,28 @@ class EulerStochasticOptimised(Integrator):
                 self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
                 hostbuf=self.h_horizons)
         self.d_un = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_un.nbytes)
+
         self.d_udn_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn_x.nbytes)
         self.d_udn_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn_y.nbytes)
         self.d_udn_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn_z.nbytes)
+
         self.d_udn1_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1_x.nbytes)
         self.d_udn1_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1_y.nbytes)
         self.d_udn1_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1_z.nbytes)
+
+        self.d_bdn_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_bdn_x.nbytes)
+        self.d_bdn_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_bdn_y.nbytes)
+        self.d_bdn_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_bdn_z.nbytes)
+
+        self.d_bdn1_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_bdn1_x.nbytes)
+        self.d_bdn1_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_bdn1_y.nbytes)
+        self.d_bdn1_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_bdn1_z.nbytes)
 
         # Write only
         self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_damage.nbytes)
         # Initialize kernel parameters
         self.cl_kernel_update_displacement.set_scalar_arg_dtypes(
-            [None, None, None, None, None, None, None, None, None])
+            [None, None, None, None, None, None, None, None, None, None, None, None, None, None, None])
         self.cl_kernel_update_acceleration.set_scalar_arg_dtypes(
             [None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None])
         self.cl_kernel_reduce_damage.set_scalar_arg_dtypes([None, None, None, None])
@@ -4161,6 +4182,10 @@ class EulerStochasticOptimised(Integrator):
             [None, None, None, None, None])
         self.cl_kernel_matrix_vector_mul2.set_scalar_arg_dtypes(
             [None, None, None, None, None, None])
+        self.cl_kernel_matrix_vector_mul3.set_scalar_arg_dtypes(
+            [None, None, None, None, None, None])
+        self.cl_kernel_reduce_rows.set_scalar_arg_dtypes(
+            [None, None, None])
     def __call__(self):
         """
         Conduct one iteration of the integrator.
@@ -4175,7 +4200,8 @@ class EulerStochasticOptimised(Integrator):
         :returns: The new displacements after integration.
         :rtype: :class:`numpy.ndarray`
         """
-    def noise(self, C, num_nodes, num_steps, degrees_freedom = 3):
+
+    def noise(self, num_nodes, num_steps, degrees_freedom = 3):
         """Takes sample from multivariate normal distribution 
         with covariance matrix whith Cholesky factor, L
         :arg C: Cholesky factor, C
@@ -4185,137 +4211,30 @@ class EulerStochasticOptimised(Integrator):
         :returns: num_nodes * 3 * num_steps array of BROWNIAN noise
         :rtype: np.array dtype=float64
         """
-
-        def multivar_normal(self, transpose_padded_C, C, num_nodes):
-            """ Fn for taking a single multivar normal sample covariance matrix with Cholesky factor, L
-            """
-            print('noise step start')
-            # OpenCL kernel reads L in column major not row major order, so must be transposed
-            #h_C = np.ascontiguousarray(transpose_padded_C, dtype=np.float64)
-
-            h_x = np.ascontiguousarray(np.random.normal(0, 1, size = num_nodes), dtype=np.float64)
-# =============================================================================
-#             h_y = np.empty((self.h_n), dtype=np.float64)
-#             # Read only
-#             d_x = cl.Buffer(self.context,
-#                              cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-#                              hostbuf=h_x)
-#             d_C = cl.Buffer(self.context,
-#                 cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-#                 hostbuf=h_C)
-#             # Write only
-#             d_y = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, h_y.nbytes)
-#             self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-#                             d_C, d_x, d_y, self.h_m, self.h_n)
-#             # Device to host
-#             cl.enqueue_copy(self.queue, h_y, d_y)
-# =============================================================================
-            # CPU version
-            h_y = np.dot(C, h_x) #vector
-            #zeros = np.subtract(h_y, y)
-            #error = abs(np.max(zeros))
-            #print(error)
-            #assert (error < 1e-13), 'error was too large, something is wrong, error was {}'.format(error)
-            print('noise step complete')
-            return h_y
-        
-        # Pad C
-        shape = np.shape(C)
-        padded_C = np.zeros((self.h_m, self.h_n))
-        padded_C[:shape[0],:shape[1]] = C
-        transpose_padded_C = np.transpose(padded_C)
-        
-        noise = []
-        for i in range(num_steps * degrees_freedom):
-            noise.append(multivar_normal(self, transpose_padded_C, C, num_nodes))
-        return np.ascontiguousarray(noise, dtype=np.float64)
-    def brownian_noise(self, C, num_nodes, num_steps, degrees_freedom = 3):
-        """Takes sample from multivariate normal distribution 
-        with covariance matrix whith Cholesky factor, L
-        :arg C: Cholesky factor, C
-        :arg K: Covariance matrix, K
-        :arg samples: The number of degrees of freedom (read: dimensions) the
-        noise is generated in, degault 3 i.e. x,y and z directions.
-        :returns: num_nodes * 3 * num_steps array of BROWNIAN noise
-        :rtype: np.array dtype=float64
-        """
-
-        def multivar_normal(self, transpose_padded_C, C, num_nodes):
-            """ Fn for taking a single multivar normal sample covariance matrix with Cholesky factor, L
-            """
-            print('noise step start')
-            # OpenCL kernel reads L in column major not row major order, so must be transposed
-            #h_C = np.ascontiguousarray(transpose_padded_C, dtype=np.float64)
-
-            h_x = np.ascontiguousarray(np.random.normal(0, 1, size = num_nodes), dtype=np.float64)
-# =============================================================================
-#             h_y = np.empty((self.h_n), dtype=np.float64)
-#             # Read only
-#             d_x = cl.Buffer(self.context,
-#                              cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-#                              hostbuf=h_x)
-#             d_C = cl.Buffer(self.context,
-#                 cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-#                 hostbuf=h_C)
-#             # Write only
-#             d_y = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, h_y.nbytes)
-#             self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-#                             d_C, d_x, d_y, self.h_m, self.h_n)
-#             # Device to host
-#             cl.enqueue_copy(self.queue, h_y, d_y)
-# =============================================================================
-            # CPU version
-            h_y = np.dot(C, h_x) #vector
-            #zeros = np.subtract(h_y, y)
-            #error = abs(np.max(zeros))
-            #print(error)
-            #assert (error < 1e-13), 'error was too large, something is wrong, error was {}'.format(error)
-            print('noise step complete')
-            return h_y
-        
-        # Pad C
-        shape = np.shape(C)
-        padded_C = np.zeros((self.h_m, self.h_n))
-        padded_C[:shape[0],:shape[1]] = C
-        transpose_padded_C = np.transpose(padded_C)
-        
-        noise = []
-        noise_x = np.zeros((self.h_n))
-        noise_y = np.zeros((self.h_n))
-        noise_z = np.zeros((self.h_n))
-        
-        for i in range(num_steps):
-            tmp_x = multivar_normal(self, transpose_padded_C, C, num_nodes)
-            tmp_y = multivar_normal(self, transpose_padded_C, C, num_nodes)
-            tmp_z = multivar_normal(self, transpose_padded_C, C, num_nodes)
-            noise_x += tmp_x
-            noise_y += tmp_y
-            noise_z += tmp_z
-            noise.append(noise_x)
-            noise.append(noise_y)
-            noise.append(noise_z)
+        print('numpy random sample start')
+        noise = np.random.normal(0, 1, size = (num_nodes, num_steps * degrees_freedom))
+        print('numpy random sample end')
         return np.ascontiguousarray(noise, dtype=np.float64)
 
     def reset(self, model, steps):
         # Displacements
         self.h_un = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
-        # Forces dont need this?
-        self.h_udn_x = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
-        self.h_udn_y = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
-        self.h_udn_z = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        # Reset initial brownian forcing and forces to 0
         self.h_udn1_x = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
         self.h_udn1_y = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
         self.h_udn1_z = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_bdn1_x = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_bdn1_y = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_bdn1_z = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
         # Damage vector
         self.h_damage = np.zeros(model.nnodes).astype(np.float64)
 
-        # Sample random noise vector using openCL
-        #self.h_pn = self.brownian_noise(model.C, model.nnodes, steps)
-        self.h_pn = self.noise(model.C, model.nnodes, steps)
+        # Gaussian noise vectors
+        self.h_noises = self.noise(model.nnodes, steps)
+
         # Covariance matrix
-        #self.h_K = model.K
         # Pad K
         shape = np.shape(model.K)
         padded_K = np.zeros((self.h_m, self.h_n))
@@ -4323,38 +4242,56 @@ class EulerStochasticOptimised(Integrator):
         # OpenCL kernel reads L in column major not row major order
         self.h_K = np.ascontiguousarray(np.transpose(padded_K), dtype=np.float64)
 
-        # Build OpenCL data structures
+        # Cholesky decomposition
+        padded_C = np.zeros((self.h_m, self.h_n))
+        padded_C[:shape[0],:shape[1]] = model.C
+        # OpenCL kernel reads L in column major not row major order
+        self.h_C = np.ascontiguousarray(np.transpose(padded_C), dtype=np.float64)
 
-        # Read only
-        self.d_pn = cl.Buffer(self.context,
+        # Build OpenCL data structures
+            # Read only
+                # Brownian motion
+        self.d_noises = cl.Buffer(self.context,
                              cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                             hostbuf=self.h_pn)
+                             hostbuf=self.h_noises)
         self.d_K = cl.Buffer(
                 self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
                 hostbuf=self.h_K)
-
-        # Read and write
+        self.d_C = cl.Buffer(
+                self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                hostbuf=self.h_C)
+            # Read and write
         self.d_horizons = cl.Buffer(
                 self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
                 hostbuf=self.h_horizons)
         self.d_un = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_un)
-        self.d_udn_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn_x)
-        self.d_udn_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn_y)
-        self.d_udn_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn_z)
+        # might not need these
+        #self.d_udn_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn_x)
+        #self.d_udn_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn_y)
+        #self.d_udn_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn_z)
         self.d_udn1_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1_x.nbytes)
         self.d_udn1_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1_y.nbytes)
         self.d_udn1_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1_z.nbytes)
-        # Write only
+        self.d_bdn1_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1_x.nbytes)
+        self.d_bdn1_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1_y.nbytes)
+        self.d_bdn1_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1_z.nbytes)
+            # Write only
         self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_damage)
-        # Initialize kernel parameters
+
     def runtime(self, model, step):
         # Time marching Part 1
         self.cl_kernel_update_displacement(self.queue, (model.nnodes,), None, 
-                                           self.d_udn_x,
-                                           self.d_udn_y,
-                                           self.d_udn_z,
-                                           self.d_un, 
-                                           self.d_pn,
+                                           self.d_udn1_x,
+                                           self.d_udn1_y,
+                                           self.d_udn1_z,
+                                           self.d_un,
+                                           self.d_bdn1_x,
+                                           self.d_bdn1_y,
+                                           self.d_bdn1_z,
+                                           self.d_bdn_x,
+                                           self.d_bdn_y,
+                                           self.d_bdn_z,
+                                           self.d_noises,
                                            self.d_bc_types,
                                            self.d_bc_values,
                                            np.intc(step),
@@ -4380,17 +4317,20 @@ class EulerStochasticOptimised(Integrator):
                                            self.h_force_load_scale,
                                            self.h_displacement_load_scale
                                            )
-# =============================================================================
-#         # Covariance matrix multiplication of forces
-#         self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-#                             self.d_K, self.d_udn_x, self.d_udn1_x, self.h_m, self.h_n)
-#         # Covariance matrix multiplication of forces
-#         self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-#                             self.d_K, self.d_udn_y, self.d_udn1_y, self.h_m, self.h_n)
-#         # Covariance matrix multiplication of forces
-#         self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-#                             self.d_K, self.d_udn_z, self.d_udn1_z, self.h_m, self.h_n)
-# =============================================================================
+        # Covariance matrix multiplication of forces
+        self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
+                            self.d_K, self.d_udn_x, self.d_udn1_x, self.h_m, self.h_n)
+        self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
+                            self.d_K, self.d_udn_y, self.d_udn1_y, self.h_m, self.h_n)
+        self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
+                            self.d_K, self.d_udn_z, self.d_udn1_z, self.h_m, self.h_n)
+        # Sampling of correlated Brownian noise
+        self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
+                            self.d_C, self.d_bdn_x, self.d_bdn1_x, self.h_m, self.h_n)
+        self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
+                            self.d_C, self.d_bdn_y, self.d_bdn1_y, self.h_m, self.h_n)
+        self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
+                            self.d_C, self.d_bdn_z, self.d_bdn1_z, self.h_m, self.h_n)
     def write(self, model, t, sample, realisation):
         """ Write a mesh file for the current timestep
         """

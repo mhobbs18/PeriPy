@@ -17,13 +17,19 @@
 // Update displacements
 __kernel void
 	UpdateDisplacement(
-        __global double const *Udn1_x,
-        __global double const *Udn1_y,
-        __global double const *Udn1_z,
-        __global double *Un,
-		__global double *Pn,
-		__global int const *BCTypes,
-		__global double const *BCValues,
+        __global double const * Udn1_x,
+        __global double const * Udn1_y,
+        __global double const * Udn1_z,
+        __global double * Un,
+		__global double * const Bdn1_x,
+        __global double * const Bdn1_y,
+        __global double * const Bdn1_z,
+        __global double * Bdn_x,
+        __global double * Bdn_y,
+        __global double * Bdn_z,
+        __global double * const Noises,
+		__global int const * BCTypes,
+		__global double const * BCValues,
 		int step,
         double DISPLACEMENT_LOAD_SCALE
 	)
@@ -32,10 +38,15 @@ __kernel void
 
 	if (i < PD_NODE_NO)
 	{
-		Un[DPN*i+0] = (BCTypes[DPN*i+0] == 2 ? (Un[DPN*i+0] + Pn[step * PD_DPN_NODE_NO + DPN*i + 0] + PD_DT * Udn1_x[i]): (Un[DPN*i+0] + DISPLACEMENT_LOAD_SCALE * BCValues[DPN*i+0]));
-        Un[DPN*i+1] = (BCTypes[DPN*i+1] == 2 ? (Un[DPN*i+1] + Pn[step * PD_DPN_NODE_NO + DPN*i + 1] + PD_DT * Udn1_y[i]): (Un[DPN*i+1] + DISPLACEMENT_LOAD_SCALE * BCValues[DPN*i+1]));
-        Un[DPN*i+2] = (BCTypes[DPN*i+2] == 2 ? (Un[DPN*i+2] + Pn[step * PD_DPN_NODE_NO + DPN*i + 2] + PD_DT * Udn1_z[i]): (Un[DPN*i+2] + DISPLACEMENT_LOAD_SCALE * BCValues[DPN*i+2]));
-	}
+        // Update acceleration with Brownian forcing
+		Un[DPN*i+0] = (BCTypes[DPN*i+0] == 2 ? (Un[DPN*i+0] + Bdn1_x[i] + PD_DT * Udn1_x[i]): (Un[DPN*i+0] + DISPLACEMENT_LOAD_SCALE * BCValues[DPN*i+0]));
+        Un[DPN*i+1] = (BCTypes[DPN*i+1] == 2 ? (Un[DPN*i+1] + Bdn1_y[i] + PD_DT * Udn1_y[i]): (Un[DPN*i+1] + DISPLACEMENT_LOAD_SCALE * BCValues[DPN*i+1]));
+        Un[DPN*i+2] = (BCTypes[DPN*i+2] == 2 ? (Un[DPN*i+2] + Bdn1_z[i] + PD_DT * Udn1_z[i]): (Un[DPN*i+2] + DISPLACEMENT_LOAD_SCALE * BCValues[DPN*i+2]));
+        // Load new Brownian noise into global memory
+        Bdn_x[i] = Noises[step * PD_DPN_NODE_NO + DPN*i + 0];
+        Bdn_y[i] = Noises[step * PD_DPN_NODE_NO + DPN*i + 1];
+        Bdn_z[i] = Noises[step * PD_DPN_NODE_NO + DPN*i + 2]; 
+    }
 }
 
 // Time Integration step
@@ -130,7 +141,7 @@ __kernel void
             local_cache_x[local_id] += local_cache_x[local_id + i];
             local_cache_y[local_id] += local_cache_y[local_id + i];
             local_cache_z[local_id] += local_cache_z[local_id + i];
-        } 
+        }
         //Wait for all threads to catch up 
         barrier(CLK_LOCAL_MEM_FENCE);
     }
@@ -203,9 +214,9 @@ __kernel void gemv1(__global const double * a,__global const double * x,
 // WORK has P columns and get_local_size(0) rows.
 __kernel void gemv2(__global const double * a,
                     __global const double * x,
-		    __global double * y,
-		    __local double * work,
-		    int m,int n)
+		            __global double * y,
+		            __local double * work,
+		            int m,int n)
 {
   // Compute partial dot product
   double sum = (double)0;
@@ -232,4 +243,44 @@ __kernel void gemv2(__global const double * a,
 
   // Write final result in Y
   if ( jj == 0 ) y[get_global_id(ROW_DIM)] = work[ii];
+}
+
+
+
+// P threads per row compute 1/P-th of each dot product.
+// WORK has N/P entries.
+__kernel void gemv3(__global const double * a,__global const double * x,
+		    __global double * y,
+		    __local double * work,
+		    int m,int n)
+{
+  // Load a slice of X in WORK, using all available threads
+  int ncols = n / get_global_size(COL_DIM); // nb values to load
+  int col0 = ncols * get_global_id(COL_DIM); // first value to load
+  for (int k=0;k<ncols;k+=get_local_size(ROW_DIM))
+    {
+      int col = k+get_local_id(ROW_DIM);
+      if (col < ncols) work[col] = x[col0+col];
+    }
+  barrier(CLK_LOCAL_MEM_FENCE); // sync group
+
+  // Compute partial dot product
+  double sum = (double)0;
+  for (int k=0;k<ncols;k++)
+    {
+      sum += a[get_global_id(ROW_DIM)+m*(col0+k)] * work[k];
+    }
+
+  // Store in Y (P columns per row)
+  y[get_global_id(ROW_DIM)+m*get_global_id(COL_DIM)] = sum;
+}
+
+// Reduce M = get_global_size(0) rows of P values in matrix Y.
+// Stores the result in first column of Y.
+__kernel void reduce_rows(__global double * y,int m,int p)
+{
+  int row = get_global_id(0);
+  double sum = (double)0;
+  for (int col=0;col<p;col++) sum += y[row + m*col];
+  y[row] = sum;
 }

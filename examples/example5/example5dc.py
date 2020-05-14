@@ -15,7 +15,6 @@ from peridynamics.integrators import EulerCromerOptimised
 from peridynamics.integrators import EulerCromerOptimisedLumped
 from peridynamics.integrators import EulerCromerOptimisedLumped2
 from pstats import SortKey, Stats
-import matplotlib.pyplot as plt
 import time
 import shutil
 import os
@@ -197,11 +196,18 @@ def main():
 
     beams = ['1650beam792.msh', '1650beam2652.msh', '1650beam3570.msh', '1650beam4095.msh', '1650beam6256.msh', '1650beam15840.msh', '1650beam32370.msh', '1650beam74800.msh', '1650beam144900.msh', '1650beam247500.msh']
     assert args.mesh_file_name in beams, 'mesh_file_name = {} was not recognised, please check the mesh file is in the directory'.format(args.mesh_file_name)
-
+    
     if args.optimised:
-        print(args.mesh_file_name, 'EulerCromerOptimised')
+        if args.lumped:
+            method = 'EulerCromerOptimisedLumped'
+        elif args.lumped2:
+            method = 'EulerCromerOptimisedLumped2'
+        else:
+            method = 'EulerCromerOptimised'
     else:
-        print(args.mesh_file_name, 'EulerCromer')
+        method = 'EulerCromer'
+    print(args.mesh_file_name, method)
+
     mesh_file = pathlib.Path(__file__).parent.absolute() / args.mesh_file_name
     st = time.time()
 
@@ -216,7 +222,8 @@ def main():
     networks = {'1650beam792.msh': 'Network1650beam792.vtk', '1650beam2652.msh': 'Network1650beam2652.vtk', '1650beam3570.msh': 'Network1650beam3570.vtk', '1650beam4095.msh': 'Network1650beam4095.vtk', '1650beam6256.msh': 'Network1650beam6256.vtk', '1650beam15840.msh': 'Network1650beam15840.vtk', '1650beam32370.msh': 'Network1650beam32370.vtk', '1650beam74800.msh': 'Network1650beam74800.vtk', '1650beam144900.msh': 'Network1650beam144900.vtk', '1650beam247500.msh': 'Network1650beam247500.vtk'}
     network_file_name = networks[args.mesh_file_name]
     dxs = {'1650beam792.msh': 0.075, '1650beam2652.msh': 0.0485, '1650beam3570.msh': 0.0485, '1650beam4095.msh': 0.0423, '1650beam6256.msh': 0.0359, '1650beam15840.msh': 0.025, '1650beam32370.msh': 0.020, '1650beam74800.msh': 0.015, '1650beam144900.msh': 0.012, '1650beam247500.msh': 0.010}
-    build_displacements = {'1650beam792.msh': 1.5e-4, '1650beam2652.msh': 1.8e-4, '1650beam3570.msh': 3.4e-4, '1650beam4095.msh': 4e-4, '1650beam6256.msh': 3.1e-4, '1650beam15840.msh': 5e-4, '1650beam32370.msh': 4.5e-4, '1650beam74800.msh': 11e-4, '1650beam144900.msh': 8e-4, '1650beam247500.msh': 5e-4}
+    build_displacements = {'1650beam792.msh': 0.00021, '1650beam2652.msh': 0.000172, '1650beam3570.msh': 0.000359, '1650beam4095.msh': 0.000390, '1650beam6256.msh':  0.0003819, '1650beam15840.msh': 0.000554, '1650beam32370.msh': 0.0004999, '1650beam74800.msh': 0.0009464, '1650beam144900.msh': 0.0005, '1650beam247500.msh': 0.0005}
+    time_steps = {'1650beam792.msh': 100000, '1650beam2652.msh': 100000, '1650beam3570.msh': 100000, '1650beam4095.msh': 100000, '1650beam6256.msh': 150000, '1650beam15840.msh': 150000, '1650beam32370.msh': 150000, '1650beam74800.msh': 200000, '1650beam144900.msh': 100000, '1650beam247500.msh': 100000}
     dx = dxs[args.mesh_file_name]
     horizon = dx * np.pi 
     # Two materials in this example, that is 'concrete' and 'steel'
@@ -277,43 +284,39 @@ def main():
     if args.optimised:
         if args.lumped:
             integrator = EulerCromerOptimisedLumped(model)
-            method = 'EulerCromerOptimisedLumped'
         elif args.lumped2:
             integrator = EulerCromerOptimisedLumped2(model)
-            method = 'EulerCromerOptimisedLumped2'
         else:
             integrator = EulerCromerOptimised(model)
-            method = 'EulerCromerOptimised'
     else:
         integrator = EulerCromer(model)
-        method = 'EulerCromer'
 
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
     
     damage_sum_data, tip_displacement_data, tip_acceleration_data, tip_force_data  = model.simulate(
-            model, sample=1, steps=100000, integrator=integrator, write=500, toolbar=0,
+            model, sample=1, steps=time_steps[args.mesh_file_name], integrator=integrator, write=500, toolbar=0,
             displacement_rate = displacement_rate,
             build_displacement = build_displacements[args.mesh_file_name],
             final_displacement = build_displacements[args.mesh_file_name])
-    #damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=200000, integrator=integrator, write=500, toolbar=0)
-    print(args.mesh_file_name, method)
-    plt.figure(1)
-    plt.title('damage over time')
-    plt.plot(damage_sum_data)
-    plt.figure(2)
-    plt.title('tip displacement over time')
-    plt.plot(tip_displacement_data)
-    plt.show()
-    plt.figure(3)
-    plt.title('tip acceleration over time')
-    plt.plot(tip_acceleration_data)
-    plt.show()
-    plt.figure(4)
-    plt.title('shear force over time')
-    plt.plot(tip_force_data)
-    plt.show()
+# =============================================================================
+#     plt.figure(1)
+#     plt.title('damage over time')
+#     plt.plot(damage_sum_data)
+#     plt.figure(2)
+#     plt.title('tip displacement over time')
+#     plt.plot(tip_displacement_data)
+#     plt.show()
+#     plt.figure(3)
+#     plt.title('tip acceleration over time')
+#     plt.plot(tip_acceleration_data)
+#     plt.show()
+#     plt.figure(4)
+#     plt.title('shear force over time')
+#     plt.plot(tip_force_data)
+#     plt.show()
+# =============================================================================
     print('damage_sum_data', damage_sum_data)
     print('tip_displacement_data', tip_displacement_data)
     print('tip_acceleration_data', tip_acceleration_data)

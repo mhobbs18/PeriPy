@@ -1475,24 +1475,18 @@ class OpenCLProbabilistic(OpenCL):
         # radial basis functions
         rbf = np.multiply(inv_length_scale, norms_matrix)
 
-        # Exponential of radial basis functions
-        K = np.exp(rbf)
-        # Multiply by the vertical scale to get covariance matrix, K
-        self.K = np.multiply (pow(sigma, 2), K)
+        # Exponential of radial basis functions, Covariance matrix
+        self.K = np.exp(rbf)
 
-        # Create C matrix for sampling perturbations
-
-        # add epsilon before scaling by a vertical variance scale, sigma
+        # Create C matrix for sampling perturbations:
+        # add epsilon, a numerical trick so that is semi postive definite
         I = np.identity(self.nnodes)
-        K_tild = np.add(K, np.multiply(epsilon, I))
+        K_tild = np.add(self.K, np.multiply(epsilon, I))
         K_tild = np.multiply(pow(sigma, 2), K_tild)
-
-        self.C = np.linalg.cholesky(2*K_tild)
-
-        #K = np.identity(self.nnodes)
-        #self.K = np.multiply(pow(sigma, 2), K)
-        #self.C = self.K
-        #self.L_0 = np.sqrt(norms_matrix)
+        # Cholesky decomposition
+        C = np.linalg.cholesky(2*K_tild)
+        # Multiply by a standard deviation (vertical scale), sigma
+        self.C = np.multiply (pow(sigma, 2), C)
 
     def simulate(self, model, sample, realisation, steps, integrator, write=None, toolbar=0, 
                  displacement_rate=None, build_displacement=None, final_displacement=None):
