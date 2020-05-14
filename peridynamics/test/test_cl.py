@@ -299,6 +299,7 @@ def integrators_program(context):
 class TestEuler():
     """Tests for the Euler integrator kernel."""
 
+    @context_available
     def test_basic_integration(self, context, queue, integrators_program):
         """Test integration."""
         u = np.zeros(3, dtype=np.float64)
@@ -314,6 +315,7 @@ class TestEuler():
 
         assert np.all(u == f)
 
+    @context_available
     def test_basic_integration2(self, context, queue, integrators_program):
         """Test integration."""
         u = np.zeros(3, dtype=np.float64)
@@ -329,6 +331,7 @@ class TestEuler():
 
         assert np.all(u == 2.0*f)
 
+    @context_available
     def test_basic_integration3(self, context, queue, integrators_program):
         """Test integration with dampening."""
         u = np.zeros(3, dtype=np.float64)
