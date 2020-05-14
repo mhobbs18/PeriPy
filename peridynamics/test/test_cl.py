@@ -302,14 +302,17 @@ class TestEuler():
     @context_available
     def test_basic_integration(self, context, queue, integrators_program):
         """Test integration."""
-        u = np.zeros(3, dtype=np.float64)
-        f = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+        u = np.zeros((2, 3), dtype=np.float64)
+        f = np.array([
+            [1.0, 2.0, 3.0],
+            [2.0, 4.0, 6.0]
+            ], dtype=np.float64)
 
         u_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=u)
         f_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=f)
 
         integrator = integrators_program.euler
-        integrator(queue, (3,), None, u_d, f_d, np.float64(1.0),
+        integrator(queue, (2,), None, u_d, f_d, np.float64(1.0),
                    np.float64(1.0))
         cl.enqueue_copy(queue, u, u_d)
 
@@ -318,31 +321,37 @@ class TestEuler():
     @context_available
     def test_basic_integration2(self, context, queue, integrators_program):
         """Test integration."""
-        u = np.zeros(3, dtype=np.float64)
-        f = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+        u = np.full((2, 3), 1.0, dtype=np.float64)
+        f = np.array([
+            [1.0, 2.0, 3.0],
+            [2.0, 4.0, 6.0]
+            ], dtype=np.float64)
 
         u_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=u)
         f_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=f)
 
         integrator = integrators_program.euler
-        integrator(queue, (3,), None, u_d, f_d, np.float64(2.0),
+        integrator(queue, (2,), None, u_d, f_d, np.float64(2.0),
                    np.float64(1.0))
         cl.enqueue_copy(queue, u, u_d)
 
-        assert np.all(u == 2.0*f)
+        assert np.all(u == 2.0*f+1.0)
 
     @context_available
     def test_basic_integration3(self, context, queue, integrators_program):
         """Test integration with dampening."""
-        u = np.zeros(3, dtype=np.float64)
-        f = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+        u = np.full((2, 3), 2.5, dtype=np.float64)
+        f = np.array([
+            [1.0, 2.0, 3.0],
+            [2.0, 4.0, 6.0]
+            ], dtype=np.float64)
 
         u_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=u)
         f_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=f)
 
         integrator = integrators_program.euler
-        integrator(queue, (3,), None, u_d, f_d, np.float64(2.0),
+        integrator(queue, (2,), None, u_d, f_d, np.float64(2.0),
                    np.float64(0.7))
         cl.enqueue_copy(queue, u, u_d)
 
-        assert np.all(u == 2.0*0.7*f)
+        assert np.all(u == 2.0*0.7*f+2.5)

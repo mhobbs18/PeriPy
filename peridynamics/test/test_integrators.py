@@ -19,8 +19,11 @@ class TestEuler:
     def test_basic_integration(self):
         """Test integration."""
         integrator = Euler(1)
-        u = np.zeros(3)
-        f = np.array([1.0, 2.0, 3.0])
+        u = np.zeros((2, 3))
+        f = np.array([
+            [1.0, 2.0, 3.0],
+            [2.0, 4.0, 6.0]
+            ])
 
         u = integrator(u, f)
 
@@ -29,19 +32,25 @@ class TestEuler:
     def test_basic_integration2(self):
         """Test integration."""
         integrator = Euler(2.0)
-        u = np.zeros(3)
-        f = np.array([1.0, 2.0, 3.0])
+        u = np.full((2, 3), 1.0)
+        f = np.array([
+            [1.0, 2.0, 3.0],
+            [2.0, 4.0, 6.0]
+            ])
 
         u = integrator(u, f)
 
-        assert np.all(u == 2.0*f)
+        assert np.all(u == 2.0*f+1.0)
 
     def test_basic_integration3(self):
         """Test integration with dampening."""
         integrator = Euler(2.0, dampening=0.7)
-        u = np.zeros(3)
-        f = np.array([1.0, 2.0, 3.0])
+        u = np.full((2, 3), 2.5)
+        f = np.array([
+            [1.0, 2.0, 3.0],
+            [2.0, 4.0, 6.0]
+            ])
 
         u = integrator(u, f)
 
-        assert np.all(u == 2.0*0.7*f)
+        assert np.all(u == 2.0*0.7*f+2.5)
