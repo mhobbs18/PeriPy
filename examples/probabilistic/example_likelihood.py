@@ -10,7 +10,7 @@ import numpy as np
 import pathlib
 from peridynamics import OpenCLProbabilistic
 from peridynamics.model import initial_crack_helper
-from peridynamics.integrators import EulerStochastic
+from peridynamics.integrators import EulerStochasticOptimised
 from pstats import SortKey, Stats
 #from matplotlib import cm
 #from matplotlib.ticker import LinearLocator, FormatStrFormatter
@@ -104,14 +104,12 @@ def is_forces_boundary(horizon, x):
     bnd = 2
     return bnd
 
-def boundary_function(model):
+def boundary_function(model, displacement_rate):
     """ 
     Initiates displacement boundary conditions,
     also define the 'tip' (for plotting displacements)
     """
-    load_rate = 1e-5
-    #theta = 18.75
-    # initiate
+    #initiate containers
     model.bc_types = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.intc)
     model.bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
     model.tip_types = np.zeros(model.nnodes, dtype=np.intc)
@@ -123,13 +121,11 @@ def boundary_function(model):
         model.bc_types[i, 0] = np.intc((bnd))
         model.bc_types[i, 1] = np.intc((bnd))
         model.bc_types[i, 2] = np.intc((bnd))
-        model.bc_values[i, 0] = np.float64(bnd * 0.5 * load_rate)
-        #model.bc_values[i, 0] = np.float64(bnd * -0.5/theta * load_rate)
+        model.bc_values[i, 0] = np.float64(bnd * 0.5 * displacement_rate)
 
         # Define tip here
         tip = is_tip(model.horizon, model.coords[i][:])
         model.tip_types[i] = np.intc(tip)
-    print(np.max(model.tip_types), 'max_tip_types')
 
 def boundary_forces_function(model):
     """ 
@@ -224,53 +220,44 @@ def main():
         profile = cProfile.Profile()
         profile.enable()
 
-    volume_total = 1.0
-    density_concrete = 1
-    self_weight = 1.*density_concrete * volume_total * 9.81
-    # Sength scale for covariance matrix
-    l = 1e-2
-    # Vertical scale of the covariance matrix
-    sigma = 9e-4
-    model = OpenCLProbabilistic(mesh_file_name, volume_total, sigma, l, bond_type=bond_type, initial_crack=is_crack)
-    #dx = np.power(1.*volume_total/model.nnodes,1./(model.dimensions))
     # Set simulation parameters
-    # not a transfinite mesh
-    model.transfinite = 0
-    # do precise stiffness correction factors
-    model.precise_stiffness_correction = 1
-    # Only one material in this example, that is 'concrete'
-    model.density = density_concrete
-    #self.horizon = dx * np.pi 
-    model.horizon = 0.1
-    model.family_volume = np.pi * np.power(model.horizon, 2)
-    model.damping = 1 # damping term
-    # Peridynamic bond stiffness, c
-    model.bond_stiffness_concrete = (
-            np.double((18.00 * 0.05) /
-            (np.pi * np.power(model.horizon, 4)))
-            )
-    model.critical_strain_concrete = 0.005
-    model.crackLength = np.double(0.3)
-    model.dt = np.double(1e-3)
-    model.max_reaction = 1.* self_weight
-    model.load_scale_rate = 1
+    model = OpenCLProbabilistic(mesh_file_name, 
+                                density = 1.0,
+                                horizon = 0.1, 
+                                damping = 1.0,
+                                dx = 0.01,
+                                bond_stiffness_const = 1.0,
+                                critical_stretch_const = 1.0,
+                                sigma = np.exp(-3.8), 
+                                l = np.exp(-4.8),
+                                crack_length = 0.3,
+                                volume_total=1.0,
+                                bond_type=bond_type,
+                                network_file_name = 'Network_2.vtk',
+                                initial_crack=[],
+                                dimensions=2,
+                                transfinite= 0,
+                                precise_stiffness_correction = 1)
+    model.dt = np.double(1.2e-3)
+    displacement_rate = 1e-5
     # Set force and displacement boundary conditions
-    boundary_function(model)
+    boundary_function(model, displacement_rate)
     boundary_forces_function(model)
+
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
-    # MCMC wrapper function
+    # Parameter grid search wrapper function
     # read the data
     damage_data = read_data(model)
     sigma_shape = 30
     lengths_shape = 30
-    realisations = 20
-    sigmas = np.linspace(-9.5, -11.5, sigma_shape)
-    lengths = np.linspace(-2.0, 1.5, lengths_shape)
+    realisations = 40
+    sigmas = np.linspace(-5.8, -3.8, sigma_shape)
+    lengths = np.linspace(-4.8, 2.8, lengths_shape)
     samples = len(sigmas)*len(lengths)
-    
-    integrator = EulerStochastic(model)
+
+    integrator = EulerStochasticOptimised(model)
     sample = 0
 
     # Evaluate the pdf of the distribution we want to sample from
@@ -285,14 +272,14 @@ def main():
         for y in range(len(lengths)):
             total_samples += 1
             print('Sample {}/{} Complete'.format(total_samples, samples))
-            model._set_H(np.exp(lengths[y]), np.exp(sigmas[x]))
+            model._set_H(np.exp(lengths[y]), np.exp(sigmas[x]), bond_stiffness_const = 1.0, critical_stretch_const = 1.0)
             row = [sigmas[x], lengths[y]]
             row0 = [sigmas[x], lengths[y]]
             # Get the likelihood
             likelihood_sum = 0
             for realisation in range(realisations):
                 integrator.reset(model, steps=350)
-                sample_data = model.simulate(model, sample, realisation, steps=350, integrator=integrator, write=350, toolbar=0)
+                sample_data = model.simulate(model, sample, realisation, steps=350, integrator=integrator, write=350, toolbar=0, displacement_rate = displacement_rate)
                 print(np.sum(sample_data), 'sum of damage, realisation #', realisation)
                 likelihood = mcmc.get_likelihood(damage_data, sample_data)
                 likelihood_sum += likelihood
@@ -305,8 +292,6 @@ def main():
             with open(pathlib.Path(__file__).parent.absolute() / "likelihood.csv", 'a') as output:
                 writer = csv.writer(output, lineterminator='\n')
                 writer.writerow(row)
-    
-    
 # =============================================================================
 #     data, data_smooth = read_csv('nll.csv')
 #     

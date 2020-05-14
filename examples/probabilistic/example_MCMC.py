@@ -10,7 +10,7 @@ import numpy as np
 import pathlib
 from peridynamics import OpenCLProbabilistic
 from peridynamics.model import initial_crack_helper
-from peridynamics.integrators import EulerStochastic
+from peridynamics.integrators import EulerStochasticOptimised
 from pstats import SortKey, Stats
 import scipy.stats as sp
 import shutil
@@ -100,13 +100,12 @@ def is_forces_boundary(horizon, x):
     bnd = 2
     return bnd
 
-def boundary_function(model):
+def boundary_function(model, displacement_rate):
     """ 
     Initiates displacement boundary conditions,
     also define the 'tip' (for plotting displacements)
     """
-    load_rate = 1e-5
-    # initiate
+    #initiate containers
     model.bc_types = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.intc)
     model.bc_values = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
     model.tip_types = np.zeros(model.nnodes, dtype=np.intc)
@@ -118,12 +117,11 @@ def boundary_function(model):
         model.bc_types[i, 0] = np.intc((bnd))
         model.bc_types[i, 1] = np.intc((bnd))
         model.bc_types[i, 2] = np.intc((bnd))
-        model.bc_values[i, 0] = np.float64(bnd * 0.5 * load_rate)
+        model.bc_values[i, 0] = np.float64(bnd * 0.5 * displacement_rate)
 
         # Define tip here
         tip = is_tip(model.horizon, model.coords[i][:])
         model.tip_types[i] = np.intc(tip)
-    print(np.max(model.tip_types), 'max_tip_types')
 
 def boundary_forces_function(model):
     """ 
@@ -246,22 +244,22 @@ def main():
     realisations = 1
     
     # Define start point of the Metropolis Hastings sampler w[1] is l, w[0] is sigma
-    w_prev = [-6.51, -5.05]
+    w_prev = [1.0, 1.0]
     
     # Define proposal density of the MCMC sampler
-    w_cov = [[0.100, 0.0],[0.0, 0.100]]
+    w_cov = [[0.050, 0.0],[0.0, 0.050]]
     
     # Get the intial likelihood
     # update (l, sigma)
-    model._set_H(np.exp(w_prev[1]), np.exp(w_prev[0]))
+    model._set_H(np.exp(-4.8), np.exp(-3.8), w_prev[0], w_prev[1])
     integrator = EulerStochastic(model)
     likelihood_prev = 0
     sample = 0
-    for realisation in range(realisations):
-        integrator.reset(model, steps=350)
-        sample_data = model.simulate(model, sample, realisation, steps=350, integrator=integrator, write=350, toolbar=0)
-        print(np.sum(sample_data), 'sum of damage, realisation #', realisation)
-        likelihood_prev += mcmc.get_fast_likelihood(damage_data, sample_data)
+
+    integrator.reset(model, steps=350)
+    sample_data = model.simulate(model, sample, realisation, steps=350, integrator=integrator, write=350, toolbar=0)
+    print(np.sum(sample_data), 'sum of damage, realisation #', realisation)
+    likelihood_prev = mcmc.get_fast_likelihood(damage_data, sample_data)
     assert likelihood_prev != 0, 'Floating point error on first likelihood value: likelihood must be more than 0'
 
     # Evaluate the pdf of the distribution we want to sample from

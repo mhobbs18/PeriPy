@@ -1283,7 +1283,7 @@ class OpenCLProbabilistic(OpenCL):
 
         self._set_volume(volume_total)
         # Set covariance matrix
-        self._set_H(l, sigma)
+        self._set_H(l, sigma, bond_stiffness_const, critical_stretch_const)
         # If the network has already been written to file, then read, if not, setNetwork
         try:
             self._read_network(network_file_name)
@@ -1440,13 +1440,16 @@ class OpenCLProbabilistic(OpenCL):
         vtk.writeNetwork(self.network_file_name, "Network",
                       self.max_horizon_length, self.horizons_lengths,
                       self.family, self.bond_stiffness_family, self.bond_critical_stretch_family)
-    def _set_H(self, l, sigma, epsilon=1e-5):
+    def _set_H(self, l, sigma, bond_stiffness_const, critical_stretch_const, epsilon=1e-5):
         """
         Constructs the failure strains matrix and H matrix, which is a sparse
         matrix containing distances.
         :returns: None
         :rtype: NoneType
         """
+        # Set model parameters
+        self.bond_stiffness_const = bond_stiffness_const
+        self.critical_stretch_const = critical_stretch_const
         # TODO: How much of this could be done in OpenCL?
         # These are all element-wise operations so cost is with O(n^2), so not too bad
         # Apart from choleshky decomp

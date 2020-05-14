@@ -4107,7 +4107,7 @@ class EulerStochasticOptimised(Integrator):
         # dimensions for matrix-vector multiplication
         # local (work group) size
         self.h_mdash = np.intc(64)
-        self.h_p = np.intc(4)
+        self.h_p = np.intc(16)
         self.h_m = np.intc(
         1<<(model.nnodes-1).bit_length()
         )
@@ -4328,22 +4328,7 @@ class EulerStochasticOptimised(Integrator):
                                            self.h_force_load_scale,
                                            self.h_displacement_load_scale
                                            )
-# =============================================================================
-#         # Covariance matrix multiplication of forces
-#         self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-#                             self.d_K, self.d_udn_x, self.d_udn1_x, self.h_m, self.h_n)
-#         self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-#                             self.d_K, self.d_udn_y, self.d_udn1_y, self.h_m, self.h_n)
-#         self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-#                             self.d_K, self.d_udn_z, self.d_udn1_z, self.h_m, self.h_n)
-#         # Sampling of correlated Brownian noise
-#         self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-#                             self.d_C, self.d_bdn_x, self.d_bdn1_x, self.h_m, self.h_n)
-#         self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-#                             self.d_C, self.d_bdn_y, self.d_bdn1_y, self.h_m, self.h_n)
-#         self.cl_kernel_matrix_vector_mul1(self.queue, (self.h_m,), (128,),
-#                             self.d_C, self.d_bdn_z, self.d_bdn1_z, self.h_m, self.h_n)
-# =============================================================================
+
         # Covariance matrix multiplication of forces
         self.cl_kernel_matrix_vector_mul2(self.queue, (self.h_m,self.h_p), (self.h_mdash, self.h_p),
                             self.d_K, self.d_udn_x, self.d_udn1_x, self.local_mem_mvmul2_1, self.h_m, self.h_n)

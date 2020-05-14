@@ -28,7 +28,7 @@ mesh_file = pathlib.Path(__file__).parent.absolute() / mesh_file_name
 
 os.environ['PYOPENCL_COMPILER_OUTPUT'] = '1'
 os.environ['COMPUTE_PROFILE'] = '1'
-os.environ['PYOPENCL_CTX'] = '0:0'
+os.environ['PYOPENCL_CTX'] = '0:3'
 @initial_crack_helper
 def is_crack(x, y):
     output = 0
@@ -218,11 +218,11 @@ def main():
                                 bond_stiffness_const = 1.0,
                                 critical_stretch_const = 1.0,
                                 sigma = np.exp(-30.5), 
-                                l = np.exp(-10.0),
+                                l = np.exp(-30.0),
                                 crack_length = 0.0,
                                 volume_total=(0.15*0.1 - np.pi *0.00148**2)*0.0017,
                                 bond_type=bond_type,
-                                network_file_name = 'Network.vtk',
+                                network_file_name = 'Network_6.vtk',
                                 initial_crack=[],
                                 dimensions=3,
                                 transfinite= 0,
@@ -243,9 +243,14 @@ def main():
 #     damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=1500, integrator=integrator, write=50, toolbar=0,
 #                                                                                   displacement_rate = displacement_rate)
 # =============================================================================
+    l = [-30, -30, -30, -30, -30, -30, -30, -30, -30, -30]
+    s = [-5.0, -4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0]
     integrator = EulerStochasticOptimised(model)
     integrator.reset(model, steps=1000)
-    damage_sum_data= model.simulate(model, sample=1, realisation=1, steps=1000, integrator=integrator, write=50, toolbar=0, displacement_rate = displacement_rate)
+    samples = 10
+    for sample in range(samples):
+        model._set_H(np.exp(l[sample]), np.exp(s[sample]))
+        damage_sum_data= model.simulate(model, sample=sample, realisation=1, steps=1000, integrator=integrator, write=1000, toolbar=0, displacement_rate = displacement_rate)
     
     print('damage_sum_data', damage_sum_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
