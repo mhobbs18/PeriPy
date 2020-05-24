@@ -17,6 +17,7 @@ from peridynamics.integrators import EulerOpenCLOptimisedLumped2
 from peridynamics.integrators import EulerStochasticOptimised
 from peridynamics.integrators import RK4
 from peridynamics.integrators import DormandPrinceOptimised
+from peridynamics.post_processing import vtk
 from pstats import SortKey, Stats
 import matplotlib.pyplot as plt
 import time
@@ -217,8 +218,8 @@ def main():
                                 dx = 0.01,
                                 bond_stiffness_const = 1.0,
                                 critical_stretch_const = 1.0,
-                                sigma = np.exp(-30.5), 
-                                l = np.exp(-30.0),
+                                sigma = np.exp(-4.0), 
+                                l = np.exp(-5.0),
                                 crack_length = 0.0,
                                 volume_total=(0.15*0.1 - np.pi *0.00148**2)*0.0017,
                                 bond_type=bond_type,
@@ -243,20 +244,26 @@ def main():
 #     damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=1500, integrator=integrator, write=50, toolbar=0,
 #                                                                                   displacement_rate = displacement_rate)
 # =============================================================================
-    l = [-30, -30, -30, -30, -30, -30, -30, -30, -30, -30]
-    s = [-5.0, -4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0]
     integrator = EulerStochasticOptimised(model)
     integrator.reset(model, steps=1000)
     samples = 10
+    mean_damage = np.zeros(model.nnodes)
+    mean_displacement = np.zeros((model.nnodes, model.degrees_freedom))
+    model._set_H(np.exp(-5.0), np.exp(-4.0), 1.0, 1.0)
     for sample in range(samples):
-        model._set_H(np.exp(l[sample]), np.exp(s[sample]))
-        damage_sum_data= model.simulate(model, sample=sample, realisation=1, steps=1000, integrator=integrator, write=1000, toolbar=0, displacement_rate = displacement_rate)
-    
-    print('damage_sum_data', damage_sum_data)
+        integrator.reset_sample(model, 1000)
+        damage_data, displacement_data= model.simulate(model, sample=sample, realisation=1, steps=1000, integrator=integrator, write=1000, toolbar=0, displacement_rate = displacement_rate)
+        mean_damage += damage_data
+        mean_displacement += displacement_data
+    mean_damage = np.divide(mean_damage, samples)
+    mean_displacement = np.divide(mean_displacement, samples)
+    vtk.write("output/U_"+"samples" + str(samples) +"mean" + "t" + str(1000) + ".vtk", "Solution time step = "+str(1000),
+                  model.coords, mean_damage, mean_displacement)
+    vtk.writeDamage("output/damage_" + "samples" + str(samples)+ "mean"+ ".vtk", "Title", mean_damage)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
     plt.figure(1)
     plt.title('damage over time')
-    plt.plot(damage_sum_data)
+    #plt.plot(damage_sum_data)
     #plt.figure(2)
     #plt.title('tip displacement over time')
     #plt.plot(tip_displacement_data)

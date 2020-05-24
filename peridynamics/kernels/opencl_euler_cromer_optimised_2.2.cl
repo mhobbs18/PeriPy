@@ -109,7 +109,7 @@ __kernel void
             const double cz = xi_eta_z / y;
 
             const double _E = Stiffnesses[global_id];
-            const double _A = beta(xi) * Vols[node_id_j];
+            const double _A = beta(xi)*Vols[node_id_j];
             const double _L = xi;
 
             const double _EAL = _E * _A / _L;

@@ -607,7 +607,7 @@ class OpenCL(Model):
 
         if dimensions == 2:
             self.mesh_elements = _mesh_elements_2d
-            self.family_volume = np.pi*np.power(horizon, 2)
+            self.family_volume = np.pi*np.power(horizon, 2) * 0.001
         elif dimensions == 3:
             self.mesh_elements = _mesh_elements_3d
             self.family_volume = (4./3)*np.pi*np.power(horizon, 3)
@@ -1080,6 +1080,16 @@ class OpenCL(Model):
 #                 if self.horizons[j][k] == i:
 #                     self.horizons[j][k] = np.intc(-1)
 # =============================================================================
+    def _set_D(self, bond_stiffness_const, critical_stretch_const):
+        """
+        Constructs the failure strains matrix and H matrix, which is a sparse
+        matrix containing distances.
+        :returns: None
+        :rtype: NoneType
+        """
+        # Set model parameters
+        self.bond_stiffness_const = bond_stiffness_const
+        self.critical_stretch_const = critical_stretch_const
 
     def simulate(self, model, sample, steps, integrator, write=None, toolbar=0,
                  displacement_rate = None,
@@ -1117,7 +1127,6 @@ class OpenCL(Model):
         # Container for plotting data
         damage_sum_data = []
         tip_displacement_data = []
-        tip_acceleration_data = []
         tip_force_data = []
 
         #Progress bar
@@ -1135,15 +1144,15 @@ class OpenCL(Model):
             if write:
                 if step % write == 0:
                     ft = time.time()
-                    damage_data, tip_displacement, tip_acceleration, tip_force = integrator.write(model, step, sample)
+                    damage_data, tip_displacement, tip_force = integrator.write(model, step, sample)
                     tip_displacement_data.append(tip_displacement)
-                    tip_acceleration_data.append(tip_acceleration)
                     tip_force_data.append(tip_force)
                     damage_sum = np.sum(damage_data)
                     damage_sum_data.append(damage_sum)
-                    if damage_sum > 0.03*model.nnodes:
-                        #print('Warning: over 5% of bonds have broken! -- PERIDYNAMICS SIMULATION CONTINUING')
-                        print('Warning: over 3% of bonds have broken! -- PERIDYNAMICS SIMULATION STOPPING')
+                    if damage_sum > 0.02*model.nnodes:
+                        print('Warning: over 2% of bonds have broken! -- PERIDYNAMICS SIMULATION CONTINUING')
+                    elif damage_sum > 0.7*model.nnodes:
+                        print('Warning: over 7% of bonds have broken! -- PERIDYNAMICS SIMULATION STOPPING')
                         break
                     if toolbar == 0:
                         print('Print number {}/{} complete in {} s '.format(int(step/write), int(steps/write), time.time() - st))
@@ -1178,7 +1187,7 @@ class OpenCL(Model):
         if toolbar:
             sys.stdout.write("]\n")
 
-        return damage_sum_data, tip_displacement_data, tip_acceleration_data, tip_force_data
+        return damage_data, tip_displacement_data, tip_force
 class OpenCLProbabilistic(OpenCL):
     """
     A peridynamics model using OpenCL.
@@ -1397,7 +1406,6 @@ class OpenCLProbabilistic(OpenCL):
                 for j in range(len(family_list)):
                     nodej_family_volume = self.family_v[j]
                     stiffening_factor = 2.* self.family_volume /  (nodej_family_volume + nodei_family_volume)
-                    print('Stiffening factor {}'.format(stiffening_factor))
                     bond_stiffness_family[i][j] *= stiffening_factor
         elif self.precise_stiffness_correction == 0:
             # TODO: check this code, it was 23:52pm
@@ -1440,6 +1448,7 @@ class OpenCLProbabilistic(OpenCL):
         vtk.writeNetwork(self.network_file_name, "Network",
                       self.max_horizon_length, self.horizons_lengths,
                       self.family, self.bond_stiffness_family, self.bond_critical_stretch_family)
+
     def _set_H(self, l, sigma, bond_stiffness_const, critical_stretch_const, epsilon=1e-5):
         """
         Constructs the failure strains matrix and H matrix, which is a sparse

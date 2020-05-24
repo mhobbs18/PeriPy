@@ -103,7 +103,7 @@ __kernel void
 				const double cz = xi_eta_z / y;
 
 				const double _E = Stiffnesses[MAX_HORIZON_LENGTH * i + j];
-                const double _A = beta(xi) * Vols[n];
+                const double _A = Vols[n];
 				const double _L = xi;
 
 				const double _EAL = _E * _A / _L;

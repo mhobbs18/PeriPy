@@ -312,7 +312,7 @@ class EulerCromer(Integrator):
         vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
         #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
-        return self.h_damage, tip_displacement, tip_acceleration, tip_forces
+        return self.h_damage, tip_displacement, tip_forces
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
@@ -546,7 +546,7 @@ class EulerCromerOptimised(Integrator):
         vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
         #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
-        return self.h_damage, tip_displacement, tip_acceleration, tip_force
+        return self.h_damage, tip_displacement, tip_force
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
@@ -3531,17 +3531,17 @@ class EulerCromerOptimisedLumped2(Integrator):
         for i in range(model.nnodes):
             if self.h_tip_types[i] == 1:
                 tmp +=1
-                tip_displacement += self.h_un[i][2]
-                tip_acceleration += self.h_uddn[i][2]
-                tip_force += self.h_node_forces[i][2] * model.V[i]
+                tip_displacement += self.h_un[i][0]
+                tip_acceleration += self.h_uddn[i][0]
+                tip_force += self.h_node_forces[i][0] * model.V[i]
         if tmp != 0:
             tip_displacement /= tmp
         else:
             tip_displacement = None
-        vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
+        vtk.write("output2/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
         #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
-        return self.h_damage, tip_displacement, tip_acceleration, tip_force
+        return self.h_damage, tip_displacement, tip_force
 
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
@@ -3769,6 +3769,271 @@ class EulerOpenCLOptimisedLumped(Integrator):
         # update the host force load scale
         self.h_displacement_load_scale = np.float64(displacement_scale)
 
+class EulerOpenCLMCMC(Integrator):
+    r"""
+    Static Euler integrator for quasi-static loading, using OpenCL kernels.
+
+    The Euler method is a first-order numerical integration method. The
+    integration is given by,
+
+    .. math::
+        u(t + \delta t) = u(t) + \delta t f(t) d
+
+    where :math:`u(t)` is the displacement at time :math:`t`, :math:`f(t)` is
+    the force at time :math:`t`, :math:`\delta t` is the time step and
+    :math:`d` is a dampening factor.
+    """
+    def __init__(self, model):
+        """ Initialise the integration scheme
+        """
+
+        # Initializing OpenCL
+        self.context = cl.create_some_context()
+        self.queue = cl.CommandQueue(self.context)   
+
+        # Print out device info
+        output_device_info(self.context.devices[0])
+
+        # Build the OpenCL program from file
+        kernelsource = open(pathlib.Path(__file__).parent.absolute() / "kernels/opencl_euler_optimised_2.3.cl").read()
+        SEP = " "
+
+        options_string = (
+            "-cl-fast-relaxed-math" + SEP
+            + "-DPD_DPN_NODE_NO=" + str(model.degrees_freedom * model.nnodes) + SEP
+            + "-DPD_NODE_NO=" + str(model.nnodes) + SEP
+            + "-DMAX_HORIZON_LENGTH=" + str(model.max_horizon_length) + SEP
+            + "-DPD_DT=" + str(model.dt) + SEP)
+
+        program = cl.Program(self.context, kernelsource).build([options_string])
+        self.cl_kernel_time_integration = program.TimeIntegration
+        self.cl_kernel_update_displacement = program.UpdateDisplacement
+        self.cl_kernel_reduce_damage = program.ReduceDamage
+
+        # Set initial values in host memory
+        # horizons and horizons lengths
+        self.h_horizons = model.horizons
+        self.h_horizons_lengths = model.horizons_lengths
+
+        # Nodal coordinates
+        self.h_coords = np.ascontiguousarray(model.coords, dtype=np.float64)
+
+        # Displacement boundary conditions types and delta values
+        self.h_bc_types = model.bc_types
+        self.h_bc_values = model.bc_values
+
+        self.h_tip_types = model.tip_types
+
+        # Force boundary conditions types and values
+        self.h_force_bc_types = model.force_bc_types
+        self.h_force_bc_values = model.force_bc_values
+
+        # Nodal volumes
+        self.h_vols = model.V
+
+        # Bond stiffnesses
+        self.h_bond_stiffness =  np.ascontiguousarray(model.bond_stiffness, dtype=np.float64)
+        self.h_bond_critical_stretch = np.ascontiguousarray(model.bond_critical_stretch, dtype=np.float64)
+
+        # Constants
+        self.h_bond_stiffness_const = np.float64(model.bond_stiffness_const)
+        self.h_bond_critical_stretch_const = np.float64(model.critical_stretch_const)
+
+        # Displacements
+        self.h_un = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
+
+        # Forces
+        self.h_udn = np.empty((model.nnodes, model.degrees_freedom), dtype=np.float64)
+
+        # Bond forces
+        self.local_mem_x = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
+        self.local_mem_y = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
+        self.local_mem_z = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
+
+        # Damage vector
+        self.h_damage = np.empty(model.nnodes).astype(np.float64)
+        self.local_mem = cl.LocalMemory(np.dtype(np.float64).itemsize * model.max_horizon_length)
+
+        # For applying force in incriments
+        self.h_force_load_scale = np.float64(0.0)
+        # For applying displacement in incriments
+        self.h_displacement_load_scale = np.float64(0.0)
+
+        # Build OpenCL data structures
+
+        # Read only
+        self.d_coords = cl.Buffer(self.context,
+                             cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                             hostbuf=self.h_coords)
+        self.d_bc_types = cl.Buffer(self.context,
+                              cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                              hostbuf=self.h_bc_types)
+        self.d_bc_values = cl.Buffer(self.context,
+                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                               hostbuf=self.h_bc_values)
+        self.d_force_bc_types = cl.Buffer(self.context,
+                              cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                              hostbuf=self.h_force_bc_types)
+        self.d_force_bc_values = cl.Buffer(self.context,
+                               cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                               hostbuf=self.h_force_bc_values)
+        self.d_vols = cl.Buffer(self.context,
+                           cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                           hostbuf=self.h_vols)
+        self.d_bond_stiffness = cl.Buffer(self.context,
+                           cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                           hostbuf=self.h_bond_stiffness)
+        self.d_bond_critical_stretch = cl.Buffer(self.context,
+                           cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                           hostbuf=self.h_bond_critical_stretch)
+        self.d_horizons_lengths = cl.Buffer(
+                self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                hostbuf=self.h_horizons_lengths)
+
+        # Read and write
+        self.d_horizons = cl.Buffer(
+                self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
+                hostbuf=self.h_horizons)
+        self.d_un = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_un.nbytes)
+        self.d_udn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn.nbytes)
+
+        # Write only
+        self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, self.h_damage.nbytes)
+        # Initialize kernel parameters
+        self.cl_kernel_time_integration.set_scalar_arg_dtypes(
+            [None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None
+             ])
+        # Initialize kernel parameters
+        self.cl_kernel_update_displacement.set_scalar_arg_dtypes(
+            [None,
+             None,
+             None,
+             None,
+             None
+             ])
+        self.cl_kernel_reduce_damage.set_scalar_arg_dtypes(
+            [None, None, None, None])
+    def __call__(self):
+        """
+        Conduct one iteration of the integrator.
+
+        :arg u: A (`nnodes`, 3) array containing the displacements of all
+            nodes.
+        :type u: :class:`numpy.ndarray`
+        :arg f: A (`nnodes`, 3) array containing the components of the force
+            acting on each node.
+        :type f: :class:`numpy.ndarray`
+
+        :returns: The new displacements after integration.
+        :rtype: :class:`numpy.ndarray`
+        """
+
+    def reset(self, model):
+        # Displacements
+        self.h_un = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+
+        self.h_udn = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+
+        # Damage vector
+        self.h_damage = np.zeros(model.nnodes).astype(np.float64)
+
+        # Horizons
+        self.h_horizons = model.horizons
+
+            # Read and write
+        self.d_horizons = cl.Buffer(
+                self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
+                hostbuf=self.h_horizons)
+        self.d_un = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_un)
+
+        # NOTE we must use COPY_HOST_PTR here
+        self.d_udn = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn)
+
+        # Write only
+        self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_damage)
+
+    def runtime(self, model):
+        # Update displacements
+        self.cl_kernel_update_displacement(
+                self.queue, (model.degrees_freedom * model.nnodes,), None,
+                self.d_udn,
+                self.d_un,
+                self.d_bc_types,
+                self.d_bc_values,
+                self.h_displacement_load_scale
+                )
+        #self.finish_displacement()
+        # Time integration step
+        self.cl_kernel_time_integration(
+                self.queue, (model.nnodes * model.max_horizon_length,), (model.max_horizon_length,), 
+                self.d_un,
+                self.d_udn,
+                self.d_vols,
+                self.d_horizons,
+                self.d_coords,
+                self.d_bond_stiffness,
+                self.d_bond_critical_stretch,
+                self.d_force_bc_types,
+                self.d_force_bc_values,
+                self.local_mem_x,
+                self.local_mem_y,
+                self.local_mem_z,
+                self.h_force_load_scale,
+                self.h_displacement_load_scale,
+                self.h_bond_stiffness_const,
+                self.h_bond_critical_stretch_const
+                )
+        #self.finish_time()
+    def write(self, model, t, sample):
+        """ Write a mesh file for the current timestep
+        """
+        self.cl_kernel_reduce_damage(self.queue, (model.nnodes * model.max_horizon_length,),
+                                  (model.max_horizon_length,), self.d_horizons,
+                                           self.d_horizons_lengths, self.d_damage, self.local_mem)
+        cl.enqueue_copy(self.queue, self.h_damage, self.d_damage)
+        cl.enqueue_copy(self.queue, self.h_un, self.d_un)
+        cl.enqueue_copy(self.queue, self.h_udn, self.d_udn)
+        # TODO define a failure criterion, idea: rate of change of damage goes to 0 after it has started increasing
+        tip_displacement = 0
+        tip_shear_force = 0
+        tmp = 0
+        for i in range(model.nnodes):
+            if self.h_tip_types[i] == 1:
+                tmp +=1
+                tip_displacement += self.h_un[i][2]
+                tip_shear_force += self.h_udn[i][2]
+        if tmp != 0:
+            tip_displacement /= tmp
+        else:
+            tip_displacement = None
+        vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
+                  model.coords, self.h_damage, self.h_un)
+        #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
+        return self.h_damage, tip_displacement, tip_shear_force
+
+    def incrementLoad(self, model, load_scale):
+        if model.num_force_bc_nodes != 0:
+            # update the host force load scale
+            self.h_force_load_scale = np.float64(load_scale)
+    def incrementDisplacement(self, model, displacement_scale):
+        # update the host force load scale
+        self.h_displacement_load_scale = np.float64(displacement_scale)
+        
 class EulerOpenCLOptimisedLumped2(Integrator):
     r"""
     Static Euler integrator for quasi-static loading, using OpenCL kernels.
@@ -4106,8 +4371,8 @@ class EulerStochasticOptimised(Integrator):
 
         # dimensions for matrix-vector multiplication
         # local (work group) size
-        self.h_mdash = np.intc(64)
-        self.h_p = np.intc(16)
+        self.h_mdash = np.intc(16) #64
+        self.h_p = np.intc(4) #16
         self.h_m = np.intc(
         1<<(model.nnodes-1).bit_length()
         )
@@ -4232,6 +4497,9 @@ class EulerStochasticOptimised(Integrator):
         self.h_un = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
         # Reset initial brownian forcing and forces to 0
+        #self.h_udn_x = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        #self.h_udn_y = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        #self.h_udn_z = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
         self.h_udn1_x = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
         self.h_udn1_y = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
         self.h_udn1_z = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
@@ -4241,6 +4509,9 @@ class EulerStochasticOptimised(Integrator):
 
         # Damage vector
         self.h_damage = np.zeros(model.nnodes).astype(np.float64)
+
+        # Horizons
+        self.h_horizons = model.horizons
 
         # Gaussian noise vectors
         self.h_noises = self.noise(model.nnodes, steps)
@@ -4280,12 +4551,57 @@ class EulerStochasticOptimised(Integrator):
         #self.d_udn_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn_x)
         #self.d_udn_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn_y)
         #self.d_udn_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn_z)
-        self.d_udn1_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1_x.nbytes)
-        self.d_udn1_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1_y.nbytes)
-        self.d_udn1_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1_z.nbytes)
-        self.d_bdn1_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1_x.nbytes)
-        self.d_bdn1_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1_y.nbytes)
-        self.d_bdn1_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, self.h_udn1_z.nbytes)
+        # NOTE we must use COPY_HOST_PTR here
+        self.d_udn1_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn1_x)
+        self.d_udn1_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn1_y)
+        self.d_udn1_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn1_z)
+
+        self.d_bdn1_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_bdn1_x)
+        self.d_bdn1_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_bdn1_y)
+        self.d_bdn1_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_bdn1_z)
+            # Write only
+        self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_damage)
+
+    def reset_sample(self, model, steps):
+        # Displacements
+        self.h_un = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+
+        # Reset initial brownian forcing and forces to 0
+        self.h_udn1_x = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_udn1_y = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_udn1_z = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_bdn1_x = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_bdn1_y = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_bdn1_z = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+
+        # Damage vector
+        self.h_damage = np.zeros(model.nnodes).astype(np.float64)
+
+        # Horizons
+        self.h_horizons = model.horizons
+
+        # Gaussian noise vectors
+        self.h_noises = self.noise(model.nnodes, steps)
+
+        # Build OpenCL data structures
+            # Read only
+                # Brownian motion
+        self.d_noises = cl.Buffer(self.context,
+                             cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                             hostbuf=self.h_noises)
+            # Read and write
+        self.d_horizons = cl.Buffer(
+                self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
+                hostbuf=self.h_horizons)
+        self.d_un = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_un)
+        # NOTE we must use COPY_HOST_PTR here
+        self.d_udn1_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn1_x)
+        self.d_udn1_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn1_y)
+        self.d_udn1_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn1_z)
+
+        self.d_bdn1_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_bdn1_x)
+        self.d_bdn1_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_bdn1_y)
+        self.d_bdn1_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_bdn1_z)
             # Write only
         self.d_damage = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_damage)
 
@@ -4356,7 +4672,7 @@ class EulerStochasticOptimised(Integrator):
         vtk.write("output/U_"+"sample" + str(sample) +"realisation" +str(realisation) + "t" + str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
         vtk.writeDamage("output/damage_" + "sample" + str(sample)+ "realisation" +str(realisation) + ".vtk", "Title", self.h_damage)
-        return self.h_damage
+        return self.h_damage, self.h_un
     def incrementLoad(self, model, load_scale):
         if model.num_force_bc_nodes != 0:
             # update the host force load scale
@@ -4364,6 +4680,8 @@ class EulerStochasticOptimised(Integrator):
     def incrementDisplacement(self, model, displacement_scale):
         # update the host force load scale
         self.h_displacement_load_scale = np.float64(displacement_scale)
+
+
 
 def output_device_info(device_id):
             sys.stdout.write("Device is ")

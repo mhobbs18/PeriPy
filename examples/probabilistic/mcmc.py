@@ -18,6 +18,15 @@ def gamma_prior_pdf(x, alpha =1., beta=100.0):
     
     return(NUM1*NUM2*pow(np.e, EXP))
 
+def trunc_normal_prior_pdf(x, mean, sigma):
+    """ pdf of zeta rv with values of alpha and beta
+    """
+    if x < 0:
+        return 0.0
+    else:
+        NUM1 = pow((x - mean), 2)
+        NUM2 = -2* pow(sigma, 2)
+        return(pow(np.e, (NUM1/NUM2)))
 
 def get_fast_likelihood(damage_data, model_sample):
     # Assume idependent, identically distributed with a variance of 1

@@ -22,16 +22,6 @@ import os
 
 os.environ['PYOPENCL_COMPILER_OUTPUT'] = '1'
 os.environ['COMPUTE_PROFILE'] = '1'
-# =============================================================================
-# Choose platform:
-# [0] <pyopencl.Platform 'Intel(R) OpenCL' at 0x1fc79552690>
-# Choice [0]:0
-# Choose device(s):
-# [0] <pyopencl.Device 'Intel(R) UHD Graphics 620' on 'Intel(R) OpenCL' at 0x1fc793c5350>
-# [1] <pyopencl.Device 'Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz' on 'Intel(R) OpenCL' at 0x1fc79479ac0>
-# Choice, comma-separated [0]:0
-# Set the environment variable PYOPENCL_CTX='0:0' to avoid being asked again.
-# =============================================================================
 os.environ['PYOPENCL_CTX'] = '0:1'
 
 @initial_crack_helper
@@ -213,9 +203,47 @@ def main():
     poisson_ratio = 0.25
     strain_energy_release_rate_concrete = 100
     strain_energy_release_rate_steel = 13000
-    networks = {'1650beam792.msh': 'Network1650beam792.vtk', '1650beam2652.msh': 'Network1650beam2652.vtk', '1650beam3570.msh': 'Network1650beam3570.vtk', '1650beam4095.msh': 'Network1650beam4095.vtk', '1650beam6256.msh': 'Network1650beam6256.vtk', '1650beam15840.msh': 'Network1650beam15840.vtk', '1650beam32370.msh': 'Network1650beam32370.vtk', '1650beam74800.msh': 'Network1650beam74800.vtk', '1650beam144900.msh': 'Network1650beam144900.vtk', '1650beam247500.msh': 'Network1650beam247500.vtk'}
+    networks = {'1650beam792.msh': 'Network1650beam792.vtk',
+                '1650beam2652.msh': 'Network1650beam2652.vtk',
+                '1650beam3570.msh': 'Network1650beam3570.vtk',
+                '1650beam4095.msh': 'Network1650beam4095.vtk',
+                '1650beam6256.msh': 'Network1650beam6256.vtk',
+                '1650beam15840.msh': 'Network1650beam15840.vtk',
+                '1650beam32370.msh': 'Network1650beam32370.vtk',
+                '1650beam74800.msh': 'Network1650beam74800.vtk',
+                '1650beam144900.msh': 'Network1650beam144900.vtk',
+                '1650beam247500.msh': 'Network1650beam247500.vtk',
+                '1650beam792t.msh': 'Network1650beam792t.vtk',
+                '1650beam2652t.msh': 'Network1650beam2652t.vtk',
+                '1650beam3570t.msh': 'Network1650beam3570t.vtk',
+                '1650beam4095t.msh': 'Network1650beam4095t.vtk',
+                '1650beam6256t.msh': 'Network1650beam6256t.vtk',
+                '1650beam15840t.msh': 'Network1650beam15840t.vtk',
+                '1650beam32370t.msh': 'Network1650beam32370t.vtk',
+                '1650beam74800t.msh': 'Network1650beam74800t.vtk',
+                '1650beam144900t.msh': 'Network1650beam144900t.vtk',
+                '1650beam247500t.msh': 'Network1650beam247500t.vtk'}
     network_file_name = networks[args.mesh_file_name]
-    dxs = {'1650beam792.msh': 0.075, '1650beam2652.msh': 0.0485, '1650beam3570.msh': 0.0485, '1650beam4095.msh': 0.0423, '1650beam6256.msh': 0.0359, '1650beam15840.msh': 0.025, '1650beam32370.msh': 0.020, '1650beam74800.msh': 0.015, '1650beam144900.msh': 0.012, '1650beam247500.msh': 0.010}
+    dxs = {'1650beam792.msh': 0.075,
+           '1650beam2652.msh': 0.0485,
+           '1650beam3570.msh': 0.0485,
+           '1650beam4095.msh': 0.0423,
+           '1650beam6256.msh': 0.0359,
+           '1650beam15840.msh': 0.025,
+           '1650beam32370.msh': 0.020,
+           '1650beam74800.msh': 0.015,
+           '1650beam144900.msh': 0.012,
+           '1650beam247500.msh': 0.010,
+           '1650beam792t.msh': 0.075,
+           '1650beam2652t.msh': 0.0485,
+           '1650beam3570t.msh': 0.0485,
+           '1650beam4095t.msh': 0.0423,
+           '1650beam6256t.msh': 0.0359,
+           '1650beam15840t.msh': 0.025,
+           '1650beam32370t.msh': 0.020,
+           '1650beam74800t.msh': 0.015,
+           '1650beam144900t.msh': 0.012,
+           '1650beam247500t.msh': 0.010}
     dx = dxs[args.mesh_file_name]
     horizon = dx * np.pi 
     # Two materials in this example, that is 'concrete' and 'steel'
@@ -293,24 +321,19 @@ def main():
 
     damage_sum_data, tip_displacement_data, tip_acceleration_data, tip_force_data = model.simulate(model, sample=1, steps=40000, integrator=integrator, write=500, toolbar=0)
     print(args.mesh_file_name, method)
-# =============================================================================
-#     plt.figure(1)
-#     plt.title('damage over time')
-#     plt.plot(damage_sum_data)
-#     plt.figure(2)
-#     plt.title('tip displacement over time')
-#     plt.plot(tip_displacement_data)
-#     plt.show()
-#     plt.figure(3)
-#     plt.title('shear force over time')
-#     plt.plot(tip_shear_force_data)
-#     plt.show()
-# =============================================================================
     print('damage_sum_data', damage_sum_data)
     print('tip_displacement_data', tip_displacement_data)
     print('tip_acceleration_data', tip_acceleration_data)
     print('tip_force_data', tip_force_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
+    # Determine how many of the nodes were interface, rebar and concrete
+    nnodes_rebar = 0
+    for i in range(0, model.nnodes):
+        if is_rebar(model.coords[i][:]):
+            nnodes_rebar += 1
+    nnodes_concrete = model.nnodes - nnodes_rebar
+    print('no. steel nodes', nnodes_rebar)
+    print('no concrete nodes', nnodes_concrete)
     if args.profile:
         profile.disable()
         s = StringIO()

@@ -12,8 +12,10 @@ from peridynamics import OpenCL
 from peridynamics.model import initial_crack_helper
 from peridynamics.integrators import EulerCromer
 from peridynamics.integrators import EulerCromerOptimised
+from peridynamics.integrators import EulerCromerOptimisedLumped
+from peridynamics.integrators import EulerCromerOptimisedLumped2
 from pstats import SortKey, Stats
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import time
 import shutil
 import os
@@ -108,6 +110,8 @@ def is_boundary(horizon, x):
         bnd[0] = 0
         bnd[1] = 0
         bnd[2] = 0
+    if x[0] > 3.3 - 0.2* horizon:
+        bnd[1] = 0
     return bnd
 
 def is_forces_boundary(horizon, x):
@@ -156,9 +160,9 @@ def boundary_function(model):
         model.bc_types[i, 0] = np.intc(bnd[0])
         model.bc_types[i, 1] = np.intc(bnd[1])
         model.bc_types[i, 2] = np.intc((bnd[2]))
-        model.bc_values[i, 0] = np.float64(bnd[0] * 0.5 * load_rate)
-        model.bc_values[i, 1] = np.float64(bnd[1] * 0.5 * load_rate)
-        model.bc_values[i, 2] = np.float64(bnd[2] * 0.5 * load_rate)
+        model.bc_values[i, 0] = np.float64(bnd[0] * load_rate)
+        model.bc_values[i, 1] = np.float64(bnd[1] * load_rate)
+        model.bc_values[i, 2] = np.float64(bnd[2] * load_rate)
         # Define tip here
         tip = is_tip(model.horizon, model.coords[i][:])
         model.tip_types[i] = np.intc(tip)
@@ -199,6 +203,8 @@ def main():
     parser.add_argument("mesh_file_name", help="run example on a given mesh file name")
     parser.add_argument('--optimised', action='store_const', const=True)
     parser.add_argument('--profile', action='store_const', const=True)
+    parser.add_argument('--lumped', action='store_const', const=True)
+    parser.add_argument('--lumped2', action='store_const', const=True)
     args = parser.parse_args()
 
     if args.profile:
@@ -214,13 +220,23 @@ def main():
              '3300beam31680.msh',
              '3300beam64350.msh',
              '3300beam149600.msh',
-             '3300beam495000.msh']
+             '3300beam495000.msh',
+             '3300beam952t.msh',
+             '3300beam2970t.msh',
+             '3300beam4392t.msh',
+             '3300beam6048t.msh',
+             '3300beam11836t.msh',
+             '3300beam17600t.msh',
+             '3300beam31680t.msh',
+             '3300beam64350t.msh',
+             '3300beam149600t.msh',
+             '3300beam495000t.msh']
     assert args.mesh_file_name in beams, 'mesh_file_name = {} was not recognised, please check the mesh file is in the directory'.format(args.mesh_file_name)
 
     if args.optimised:
-        print(args.mesh_file_name, 'EulerCromerOptimisedMarked')
+        print(args.mesh_file_name, 'EulerCromerOptimised')
     else:
-        print(args.mesh_file_name, 'EulerCromerMarked')
+        print(args.mesh_file_name, 'EulerCromer')
     mesh_file = pathlib.Path(__file__).parent.absolute() / args.mesh_file_name
     st = time.time()
 
@@ -241,7 +257,17 @@ def main():
                 '3300beam31680.msh': 'Network3300beam31680.vtk',
                 '3300beam64350.msh': 'Network3300beam64350.vtk',
                 '3300beam149600.msh': 'Network3300beam149600.vtk',
-                '3300beam495000.msh': 'Network3300beam495000.vtk'}
+                '3300beam495000.msh': 'Network3300beam495000.vtk',
+                '3300beam952t.msh': 'Network3300beam952t.vtk',
+                '3300beam2970t.msh': 'Network3300beam2970t.vtk',
+                '3300beam4392t.msh': 'Network3300beam4392t.vtk',
+                '3300beam6048t.msh': 'Network3300beam6048t.vtk',
+                '3300beam11836t.msh': 'Network3300beam11836t.vtk',
+                '3300beam17600t.msh': 'Network3300beam17600t.vtk',
+                '3300beam31680t.msh': 'Network3300beam31680t.vtk',
+                '3300beam64350t.msh': 'Network3300beam64350t.vtk',
+                '3300beam149600t.msh': 'Network3300beam149600t.vtk',
+                '3300beam495000t.msh': 'Network3300beam495000t.vtk'}
     network_file_name = networks[args.mesh_file_name]
     dxs = {'3300beam952.msh': 0.0971,
            '3300beam2970.msh': 0.0611,
@@ -252,7 +278,37 @@ def main():
            '3300beam31680.msh': 0.0250,
            '3300beam64350.msh': 0.0200,
            '3300beam149600.msh': 0.0150,
-           '3300beam495000.msh': 0.0100}
+           '3300beam495000.msh': 0.0100,
+           '3300beam952t.msh': 0.0971,
+           '3300beam2970t.msh': 0.0611,
+           '3300beam4392t.msh': 0.0541,
+           '3300beam6048t.msh': 0.0458,
+           '3300beam11836t.msh': 0.0357,
+           '3300beam17600t.msh': 0.0313,
+           '3300beam31680t.msh': 0.0250,
+           '3300beam64350t.msh': 0.0200,
+           '3300beam149600t.msh': 0.0150,
+           '3300beam495000t.msh': 0.0100}
+    dts = {'3300beam952.msh': 0.8,
+           '3300beam2970.msh': 0.8,
+           '3300beam4392.msh': 0.8,
+           '3300beam6048.msh': 0.8,
+           '3300beam11836.msh': 0.6,
+           '3300beam17600.msh': 0.6,
+           '3300beam31680.msh': 0.5,
+           '3300beam64350.msh': 0.4,
+           '3300beam149600.msh': 0.4,
+           '3300beam495000.msh': 0.3,
+           '3300beam952t.msh': 0.8,
+           '3300beam2970t.msh': 0.8,
+           '3300beam4392t.msh': 0.8,
+           '3300beam6048t.msh': 0.8,
+           '3300beam11836t.msh': 0.6,
+           '3300beam17600t.msh': 0.6,
+           '3300beam31680t.msh': 0.5,
+           '3300beam64350t.msh': 0.4,
+           '3300beam149600t.msh': 0.4,
+           '3300beam495000t.msh': 0.3}
     dx = dxs[args.mesh_file_name]
     horizon = dx * np.pi 
     # Two materials in this example, that is 'concrete' and 'steel'
@@ -297,7 +353,7 @@ def main():
                    precise_stiffness_correction=0)
     # If time step is too large, instability
     # if time step is too small, overdamped
-    saf_fac = 0.6 # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
+    saf_fac = dts[args.mesh_file_name] # Typical values 0.70 to 0.95 (Sandia PeridynamicSoftwareRoadmap)
     model.dt = (
      0.8 * np.power( 2.0 * density_concrete * dx / 
      (np.pi * np.power(model.horizon, 2.0) * dx * model.bond_stiffness_concrete), 0.5)
@@ -311,7 +367,12 @@ def main():
     boundary_forces_function(model)
     
     if args.optimised:
-        integrator = EulerCromerOptimised(model)
+        if args.lumped:
+            integrator = EulerCromerOptimisedLumped(model)
+        elif args.lumped2:
+            integrator = EulerCromerOptimisedLumped2(model)
+        else:
+            integrator = EulerCromerOptimised(model)
     else:
         integrator = EulerCromer(model)
 
@@ -319,23 +380,25 @@ def main():
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
 
-    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=500000, integrator=integrator, write=500, toolbar=0)
-# =============================================================================
-#     plt.figure(1)
-#     plt.title('damage over time')
-#     plt.plot(damage_sum_data)
-#     plt.figure(2)
-#     plt.title('tip displacement over time')
-#     plt.plot(tip_displacement_data)
-#     plt.show()
-#     plt.figure(3)
-#     plt.title('shear force over time')
-#     plt.plot(tip_shear_force_data)
-#     plt.show()
-# =============================================================================
+    damage_sum_data, tip_displacement_data, tip_acceleration_data, tip_force_data = model.simulate(model, sample=1, steps=400000, integrator=integrator, write=500, toolbar=0)
+    plt.figure(1)
+    plt.title('damage over time')
+    plt.plot(damage_sum_data)
+    plt.figure(2)
+    plt.title('tip displacement over time')
+    plt.plot(tip_displacement_data)
+    plt.show()
+    plt.figure(3)
+    plt.title('acceleration over time')
+    plt.plot(tip_acceleration_data)
+    plt.figure(3)
+    plt.title('shear force over time')
+    plt.plot(tip_force_data)
+    plt.show()
     print('damage_sum_data', damage_sum_data)
     print('tip_displacement_data', tip_displacement_data)
-    print('tip_shear_force_data', tip_shear_force_data)
+    print('tip_acceleration_data', tip_acceleration_data)
+    print('tip_force_data', tip_force_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
     # Determine how many of the nodes were interface, rebar and concrete
     nnodes_rebar = 0
@@ -343,8 +406,8 @@ def main():
         if is_rebar(model.coords[i][:]):
             nnodes_rebar += 1
     nnodes_concrete = model.nnodes - nnodes_rebar
-    print(nnodes_rebar)
-    print(nnodes_concrete)       
+    print('no. steel nodes', nnodes_rebar)
+    print('no concrete nodes', nnodes_concrete)       
     if args.profile:
         profile.disable()
         s = StringIO()
