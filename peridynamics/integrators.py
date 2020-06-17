@@ -22,20 +22,6 @@ class Integrator(ABC):
 
         This method should be implemennted in every concrete integrator.
         """
-    def finish_displacement(self):
-        self.queue.finish()
-    def finish_force(self):
-        self.queue.finish()
-    def finish_time(self):
-        self.queue.finish()
-    def finish_velocity(self):
-        self.queue.finish()
-    def finish_check(self):
-        self.queue.finish()
-    def finish_reduce_force(self):
-        self.queue.finish()
-    def finish_reduce_damage(self):
-        self.queue.finish()
 class Euler(Integrator):
     r"""
     Euler integrator.
@@ -257,7 +243,6 @@ class EulerCromer(Integrator):
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values, self.h_displacement_load_scale)
-        #self.finish_displacement()
         # Time marching Part 2
         # Scalars like self.h_force_load_scale can live on the host memory
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes,), None,
@@ -272,18 +257,14 @@ class EulerCromer(Integrator):
                                        self.d_force_bc_types,
                                        self.d_force_bc_values,
                                        self.h_force_load_scale)
-        
-        #self.finish_force()
         # Time marching Part 3
         self.cl_kernel_update_velocity(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_uddn)
-        #self.finish_velocity()
         # Check for broken bonds
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
-        #self.finish_check()
-        
+
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -504,19 +485,15 @@ class EulerCromerOptimised(Integrator):
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values, self.h_displacement_load_scale)
-        #self.finish_displacement()
         # Calc bond forces
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes, model.max_horizon_length), None, self.d_forces,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
-        #self.finish_force()
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
                                   (model.max_horizon_length,), self.d_forces, self.d_node_forces, self.d_uddn, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
-        #self.finish_reduce_force()
         # Update velocity
         self.cl_kernel_update_velocity(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_uddn)
-        #self.finish_velocity()
 
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
@@ -709,16 +686,13 @@ class EulerOpenCL(Integrator):
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn1, self.d_un, self.d_bc_types,
                                   self.d_bc_values, self.h_displacement_load_scale)
-        #self.finish_displacement()
         # Time marching Part 2
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes,), None, self.d_udn1,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_force_bc_types, self.d_force_bc_values, self.h_force_load_scale)
-        #self.finish_force()
         # Check for broken bonds
         self.cl_kernel_check_bonds(self.queue,
                               (model.nnodes, model.max_horizon_length),
                               None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
-        #self.finish_check()
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -916,20 +890,17 @@ class EulerOpenCLOptimised(Integrator):
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values, self.h_displacement_load_scale)
-        #self.finish_displacement()
         # Calc bond forces
         self.cl_kernel_calc_bond_force(self.queue, (model.nnodes, model.max_horizon_length), None, self.d_forces,
                                   self.d_un, self.d_vols, self.d_horizons, self.d_coords, self.d_bond_stiffness, self.d_bond_critical_stretch)
-        #self.finish_force()
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_reduce_force(self.queue, (model.max_horizon_length * model.degrees_freedom * model.nnodes,),
                                   (model.max_horizon_length,), self.d_forces, self.d_udn, self.d_force_bc_types, self.d_force_bc_values, self.local_mem, self.h_force_load_scale)
-        #self.finish_reduce_force()
         # Check for broken bonds not needed, since check bonds is done in "CalcBondForce"
         #self.cl_kernel_check_bonds(self.queue,
                                    #(model.nnodes, model.max_horizon_length),
                                    #None, self.d_horizons, self.d_un, self.d_coords, self.d_bond_critical_stretch)
-        #self.finish_check()
+
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -3272,7 +3243,7 @@ class EulerCromerOptimisedLumped(Integrator):
                 self.local_mem_z,
                 self.h_force_load_scale,
                 self.h_displacement_load_scale)
-        #self.finish_time()
+
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -3489,7 +3460,6 @@ class EulerCromerOptimisedLumped2(Integrator):
         self.cl_kernel_update_displacement(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_un, self.d_bc_types,
                                   self.d_bc_values, self.h_displacement_load_scale)
-        #self.finish_displacement()
         # Reduction of bond forces onto nodal forces
         self.cl_kernel_update_acceleration(
                 self.queue, (model.max_horizon_length * model.nnodes,), (model.max_horizon_length,),
@@ -3508,11 +3478,10 @@ class EulerCromerOptimisedLumped2(Integrator):
                 self.local_mem_y,
                 self.local_mem_z,
                 self.h_force_load_scale)
-        #self.finish_time()
         # Update velocity
         self.cl_kernel_update_velocity(self.queue, (model.degrees_freedom * model.nnodes,),
                                   None, self.d_udn, self.d_uddn)
-        #self.finish_velocity()
+
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -3527,6 +3496,7 @@ class EulerCromerOptimisedLumped2(Integrator):
         tip_displacement = 0
         tip_acceleration = 0
         tip_force = 0
+        sum_damage = []
         tmp = 0
         for i in range(model.nnodes):
             if self.h_tip_types[i] == 1:
@@ -3534,6 +3504,7 @@ class EulerCromerOptimisedLumped2(Integrator):
                 tip_displacement += self.h_un[i][0]
                 tip_acceleration += self.h_uddn[i][0]
                 tip_force += self.h_node_forces[i][0] * model.V[i]
+                sum_damage.append(np.sum(self.h_damage))
         if tmp != 0:
             tip_displacement /= tmp
         else:
@@ -3733,7 +3704,7 @@ class EulerOpenCLOptimisedLumped(Integrator):
                 self.h_force_load_scale,
                 self.h_displacement_load_scale
                 )
-        #self.finish_time()
+
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -3948,6 +3919,10 @@ class EulerOpenCLMCMC(Integrator):
         self.h_un = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
         self.h_udn = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        
+        # Update parameters
+        self.h_bond_stiffness_const = np.float64(model.bond_stiffness_const)
+        self.h_bond_critical_stretch_const= np.float64(model.critical_stretch_const)
 
         # Damage vector
         self.h_damage = np.zeros(model.nnodes).astype(np.float64)
@@ -3977,7 +3952,6 @@ class EulerOpenCLMCMC(Integrator):
                 self.d_bc_values,
                 self.h_displacement_load_scale
                 )
-        #self.finish_displacement()
         # Time integration step
         self.cl_kernel_time_integration(
                 self.queue, (model.nnodes * model.max_horizon_length,), (model.max_horizon_length,), 
@@ -3998,7 +3972,7 @@ class EulerOpenCLMCMC(Integrator):
                 self.h_bond_stiffness_const,
                 self.h_bond_critical_stretch_const
                 )
-        #self.finish_time()
+
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -4021,7 +3995,7 @@ class EulerOpenCLMCMC(Integrator):
             tip_displacement /= tmp
         else:
             tip_displacement = None
-        vtk.write("output/U_"+"sample" + str(sample) +"t"+str(t) + ".vtk", "Solution time step = "+str(t),
+        vtk.write("output/U_"+"sample" + str(sample) + "t" + str(t) + ".vtk", "Solution time step = "+str(t),
                   model.coords, self.h_damage, self.h_un)
         #vtk.writeDamage("output/damage_" + str(t)+ "sample" + str(sample) + ".vtk", "Title", self.h_damage)
         return self.h_damage, tip_displacement, tip_shear_force
@@ -4212,7 +4186,6 @@ class EulerOpenCLOptimisedLumped2(Integrator):
                 self.d_bc_values,
                 self.h_displacement_load_scale
                 )
-        #self.finish_displacement()
         # Time integration step
         self.cl_kernel_time_integration(
                 self.queue, (model.nnodes * model.max_horizon_length,), (model.max_horizon_length,), 
@@ -4231,7 +4204,7 @@ class EulerOpenCLOptimisedLumped2(Integrator):
                 self.h_force_load_scale,
                 self.h_displacement_load_scale
                 )
-        #self.finish_time()
+
     def write(self, model, t, sample):
         """ Write a mesh file for the current timestep
         """
@@ -4497,9 +4470,9 @@ class EulerStochasticOptimised(Integrator):
         self.h_un = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
         # Reset initial brownian forcing and forces to 0
-        #self.h_udn_x = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
-        #self.h_udn_y = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
-        #self.h_udn_z = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_udn_x = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_udn_y = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_udn_z = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
         self.h_udn1_x = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
         self.h_udn1_y = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
         self.h_udn1_z = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
@@ -4548,9 +4521,9 @@ class EulerStochasticOptimised(Integrator):
                 hostbuf=self.h_horizons)
         self.d_un = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_un)
         # might not need these
-        #self.d_udn_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn_x)
-        #self.d_udn_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn_y)
-        #self.d_udn_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn_z)
+        self.d_udn_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn_x)
+        self.d_udn_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn_y)
+        self.d_udn_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn_z)
         # NOTE we must use COPY_HOST_PTR here
         self.d_udn1_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn1_x)
         self.d_udn1_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn1_y)
@@ -4567,6 +4540,9 @@ class EulerStochasticOptimised(Integrator):
         self.h_un = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
 
         # Reset initial brownian forcing and forces to 0
+        self.h_udn_x = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_udn_y = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
+        self.h_udn_z = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
         self.h_udn1_x = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
         self.h_udn1_y = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
         self.h_udn1_z = np.zeros((model.nnodes, model.degrees_freedom), dtype=np.float64)
@@ -4595,6 +4571,9 @@ class EulerStochasticOptimised(Integrator):
                 hostbuf=self.h_horizons)
         self.d_un = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_un)
         # NOTE we must use COPY_HOST_PTR here
+        self.d_udn_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn_x)
+        self.d_udn_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn_y)
+        self.d_udn_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn_z)
         self.d_udn1_x = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn1_x)
         self.d_udn1_y = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn1_y)
         self.d_udn1_z = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.h_udn1_z)

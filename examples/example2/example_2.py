@@ -22,6 +22,7 @@ from peridynamics.integrators import EulerOpenCLOptimisedLumped2
 from peridynamics.integrators import EulerStochasticOptimised
 from peridynamics.integrators import RK4
 from peridynamics.integrators import RK4Optimised
+from peridynamics.integrators import EulerOpenCLMCMC
 from pstats import SortKey, Stats
 import matplotlib.pyplot as plt
 import time
@@ -232,8 +233,10 @@ def main():
 #         integrator.reset(model, steps=350)
 #         damage_sum_data= model.simulate(model, sample=sample, realisation=1, steps=350, integrator=integrator, write=350, toolbar=0, displacement_rate = displacement_rate)
 # =============================================================================
-    integrator = EulerOpenCLOptimisedLumped2(model)
-    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=350, integrator=integrator, write=350, toolbar=0,
+    model._set_D(1.0, 1.5)
+    integrator = EulerOpenCLMCMC(model)
+    integrator.reset(model)
+    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=350, integrator=integrator, write=10, toolbar=0,
                                                                                   displacement_rate = displacement_rate)
     print('damage_sum_data', damage_sum_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))

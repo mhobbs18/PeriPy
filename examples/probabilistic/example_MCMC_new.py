@@ -228,13 +228,13 @@ def main():
     # MCMC wrapper function
     # read the data
     damage_data = read_data(model)
-    samples = 1000
+    samples = 10
     
     # Define start point of the Metropolis Hastings sampler w[1] is l, w[0] is sigma
     w_prev = [1.0, 1.0]
     
     # Define proposal density of the MCMC sampler
-    w_cov = [[0.050, 0.0],[0.0, 0.050]]
+    w_cov = [[0.01, 0.0],[0.0, 0.01]]
     
     # Get the intial likelihood
     # update (l, sigma)
@@ -247,7 +247,7 @@ def main():
     sample_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=350, integrator=integrator, write=350, toolbar=0,
                                                                                   displacement_rate = displacement_rate)
     print(np.sum(sample_data), 'sum of damage, realisation #', realisation)
-    likelihood_prev = mcmc.get_fast_likelihood(damage_data, sample_data)
+    likelihood_prev = mcmc.get_likelihood(damage_data, sample_data)
     assert likelihood_prev != 0, 'Floating point error on first likelihood value: likelihood must be more than 0'
 
     # Evaluate the pdf of the distribution we want to sample from
@@ -270,10 +270,10 @@ def main():
 
             # Get the likelihood
             integrator.reset(model)
-            sample_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=350, integrator=integrator, write=350, toolbar=0,
+            sample_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=sample, steps=350, integrator=integrator, write=350, toolbar=0,
                                                                                   displacement_rate = displacement_rate)
             print(np.sum(sample_data), 'sum of damage, realisation #', realisation)
-            likelihood = mcmc.get_fast_likelihood(damage_data, sample_data)
+            likelihood = mcmc.get_likelihood(damage_data, sample_data)
 
             # compute acceptance ratio
             r = (prior * likelihood)/ (prior_prev * likelihood_prev)

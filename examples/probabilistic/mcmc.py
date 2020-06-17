@@ -28,15 +28,6 @@ def trunc_normal_prior_pdf(x, mean, sigma):
         NUM2 = -2* pow(sigma, 2)
         return(pow(np.e, (NUM1/NUM2)))
 
-def get_fast_likelihood(damage_data, model_sample):
-    # Assume idependent, identically distributed with a variance of 1
-    l2 = np.dot(damage_data, model_sample)
-    nll = 1./2 * l2
-    print(nll)
-    likelihood = np.exp(-1.*nll)
-    print(likelihood)
-    return nll
-
 def get_log_likelihood(damage_data, model_sample):
     # Assume idependent, identically distributed with a variance of 1
     error = np.subtract(model_sample, damage_data)

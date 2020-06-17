@@ -259,7 +259,7 @@ def main():
     integrator.reset(model, steps=350)
     sample_data = model.simulate(model, sample, realisation, steps=350, integrator=integrator, write=350, toolbar=0)
     print(np.sum(sample_data), 'sum of damage, realisation #', realisation)
-    likelihood_prev = mcmc.get_fast_likelihood(damage_data, sample_data)
+    likelihood_prev = mcmc.get_likelihood(damage_data, sample_data)
     assert likelihood_prev != 0, 'Floating point error on first likelihood value: likelihood must be more than 0'
 
     # Evaluate the pdf of the distribution we want to sample from
@@ -285,7 +285,7 @@ def main():
                 integrator.reset(model, steps=350)
                 sample_data = model.simulate(model, sample, realisation, steps=350, integrator=integrator, write=350, toolbar=0)
                 print(np.sum(sample_data), 'sum of damage, realisation #', realisation)
-                likelihood += mcmc.get_fast_likelihood(damage_data, sample_data)
+                likelihood += mcmc.get_likelihood(damage_data, sample_data)
             # unnecessary to divide by realisations since we are doing a sum.
 
             # compute acceptance ratio

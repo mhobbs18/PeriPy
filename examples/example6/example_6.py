@@ -14,6 +14,7 @@ from peridynamics.model import initial_crack_helper
 from peridynamics.integrators import EulerOpenCL
 from peridynamics.integrators import EulerOpenCLOptimised
 from peridynamics.integrators import EulerOpenCLOptimisedLumped2
+from peridynamics.integrators import EulerOpenCLMCMC
 from peridynamics.integrators import EulerStochasticOptimised
 from peridynamics.integrators import RK4
 from peridynamics.integrators import DormandPrinceOptimised
@@ -29,7 +30,7 @@ mesh_file = pathlib.Path(__file__).parent.absolute() / mesh_file_name
 
 os.environ['PYOPENCL_COMPILER_OUTPUT'] = '1'
 os.environ['COMPUTE_PROFILE'] = '1'
-os.environ['PYOPENCL_CTX'] = '0:3'
+os.environ['PYOPENCL_CTX'] = '0:0'
 @initial_crack_helper
 def is_crack(x, y):
     output = 0
@@ -185,8 +186,8 @@ def main():
     critical_strain_concrete = 0.005
     horizon = np.pi*1.7e-3
     
+    # Set simulation parameters
 # =============================================================================
-#     # Set simulation parameters
 #     model = OpenCL(mesh_file_name, 
 #                density = 1.0, 
 #                horizon = horizon,
@@ -204,7 +205,7 @@ def main():
 #                crack_length = 0.0,
 #                volume_total=(0.15*0.1 - np.pi *0.00148**2)*0.0017,
 #                bond_type=bond_type,
-#                network_file_name = 'Network.vtk',
+#                network_file_name = 'Network_6.vtk',
 #                initial_crack=[],
 #                dimensions=3,
 #                transfinite=0,
@@ -239,14 +240,14 @@ def main():
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
-# =============================================================================
-#     integrator = EulerOpenCLOptimised(model)#, error_size_max = 1e-1, error_size_min = 1e-30)
-#     damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=1500, integrator=integrator, write=50, toolbar=0,
-#                                                                                   displacement_rate = displacement_rate)
-# =============================================================================
+    model._set_D(0.9, 1.0)
+    #integrator = EulerOpenCLMCMC(model)#, error_size_max = 1e-1, error_size_min = 1e-30)
+    #integrator.reset(model)
+    #damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=1000, integrator=integrator, write=1000, toolbar=0,
+                                                                                  #displacement_rate = displacement_rate)
     integrator = EulerStochasticOptimised(model)
     integrator.reset(model, steps=1000)
-    samples = 10
+    samples = 4
     mean_damage = np.zeros(model.nnodes)
     mean_displacement = np.zeros((model.nnodes, model.degrees_freedom))
     model._set_H(np.exp(-5.0), np.exp(-4.0), 1.0, 1.0)
@@ -257,13 +258,17 @@ def main():
         mean_displacement += displacement_data
     mean_damage = np.divide(mean_damage, samples)
     mean_displacement = np.divide(mean_displacement, samples)
-    vtk.write("output/U_"+"samples" + str(samples) +"mean" + "t" + str(1000) + ".vtk", "Solution time step = "+str(1000),
-                  model.coords, mean_damage, mean_displacement)
-    vtk.writeDamage("output/damage_" + "samples" + str(samples)+ "mean"+ ".vtk", "Title", mean_damage)
+# =============================================================================
+#     vtk.write("output/U_"+"samples" + str(samples) +"mean" + "t" + str(1000) + ".vtk", "Solution time step = "+str(1000),
+#                   model.coords, mean_damage, mean_displacement)
+#     vtk.writeDamage("output/damage_" + "samples" + str(samples)+ "mean"+ ".vtk", "Title", mean_damage)
+# =============================================================================
+    
+    #vtk.writeDamage("output/damage_" + "mcmc_6" + ".vtk", "Title", damage_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))
     plt.figure(1)
     plt.title('damage over time')
-    #plt.plot(damage_sum_data)
+    plt.plot(damage_sum_data)
     #plt.figure(2)
     #plt.title('tip displacement over time')
     #plt.plot(tip_displacement_data)
