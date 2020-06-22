@@ -11,18 +11,7 @@ import pathlib
 from peridynamics import OpenCL
 from peridynamics import OpenCLProbabilistic
 from peridynamics.model import initial_crack_helper
-from peridynamics.integrators import DormandPrinceOptimised
-from peridynamics.integrators import DormandPrince
-from peridynamics.integrators import HeunEuler
-from peridynamics.integrators import HeunEulerOptimised
 from peridynamics.integrators import EulerOpenCL
-from peridynamics.integrators import EulerOpenCLOptimised
-from peridynamics.integrators import EulerOpenCLOptimisedLumped
-from peridynamics.integrators import EulerOpenCLOptimisedLumped2
-from peridynamics.integrators import EulerStochasticOptimised
-from peridynamics.integrators import RK4
-from peridynamics.integrators import RK4Optimised
-from peridynamics.integrators import EulerOpenCLMCMC
 from pstats import SortKey, Stats
 import matplotlib.pyplot as plt
 import time
@@ -179,25 +168,6 @@ def main():
     
     horizon = 0.1
     # Set simulation parameters
-# =============================================================================
-#     model = OpenCLProbabilistic(mesh_file_name, 
-#                                 density = 1.0,
-#                                 horizon = horizon, 
-#                                 damping = 1.0,
-#                                 dx = 0.01,
-#                                 bond_stiffness_const = 1.0,
-#                                 critical_stretch_const = 1.0,
-#                                 sigma = np.exp(-2.5), 
-#                                 l = np.exp(-30.0),
-#                                 crack_length = 0.3,
-#                                 volume_total=1.0,
-#                                 bond_type=bond_type,
-#                                 network_file_name = 'Network_2.vtk',
-#                                 initial_crack=[],
-#                                 dimensions=2,
-#                                 transfinite= 0,
-#                                 precise_stiffness_correction = 1)
-# =============================================================================
     model = OpenCL(mesh_file_name, 
                density = 1.0, 
                horizon = horizon,
@@ -223,20 +193,9 @@ def main():
     # delete output directory contents, this is probably unsafe?
     shutil.rmtree('./output', ignore_errors=False)
     os.mkdir('./output')
-# =============================================================================
-#     l = [-4.8, -4.8, -4.8, -4.8, -4.8, -4.8, -4.8, -4.8, -4.8, -4.8]
-#     s = [-3.8, -3.8, -3.8, -3.8, -3.8, -3.8, -3.8, -3.8, -3.8, -3.8]
-#     integrator = EulerStochasticOptimised(model)#, error_size_max=1e-6, error_size_min=1e-20)
-#     samples = 1
-#     for sample in range(samples):
-#         model._set_H(np.exp(l[sample]), np.exp(s[sample]), bond_stiffness_const = 1.0, critical_stretch_const = 1.0)
-#         integrator.reset(model, steps=350)
-#         damage_sum_data= model.simulate(model, sample=sample, realisation=1, steps=350, integrator=integrator, write=350, toolbar=0, displacement_rate = displacement_rate)
-# =============================================================================
     model._set_D(1.0, 1.5)
-    integrator = EulerOpenCLMCMC(model)
-    integrator.reset(model)
-    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=350, integrator=integrator, write=10, toolbar=0,
+    integrator = EulerOpenCL(model)
+    damage_sum_data, tip_displacement_data, tip_shear_force_data = model.simulate(model, sample=1, steps=500, integrator=integrator, write=10, toolbar=0,
                                                                                   displacement_rate = displacement_rate)
     print('damage_sum_data', damage_sum_data)
     print('TOTAL TIME REQUIRED {}'.format(time.time() - st))

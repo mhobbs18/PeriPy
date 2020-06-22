@@ -1213,10 +1213,7 @@ class DormandPrinceOptimised(Integrator):
             print('time step is {}s, error size is {}'.format(self.h_dt, error))
         return adapt
     
-    def incrementLoad(self, model, load_scale):
-        if model.num_force_bc_nodes != 0:
-            # update the host force load scale
-            self.h_force_load_scale = np.float64(load_scale)
+
 class EulerStochastic(Integrator):
     r"""
     Stochastic Euler integrator for quasi-static loading, using optimised OpenCL kernels.
@@ -2512,7 +2509,7 @@ class EulerOpenCLMCMC(Integrator):
         # update the host force load scale
         self.h_displacement_load_scale = np.float64(displacement_scale)
         
-class EulerOpenCLOptimisedLumped2(Integrator):
+class EulerOpenCL(Integrator):
     r"""
     Static Euler integrator for quasi-static loading, using OpenCL kernels.
 
