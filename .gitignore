@@ -136,4 +136,5 @@ dmypy.json
 
 # Ben's files
 examples/example3/
+examples/example4/
 post_processing/

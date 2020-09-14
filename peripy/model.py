@@ -1316,7 +1316,7 @@ class Model(object):
                      n_neigh) = self.integrator.write(
                          u, ud, udd, body_force, force, damage, nlist, n_neigh)
 
-                    self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
+                    # self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
 
                     # Write index number
                     ii = step // write - (first_step - 1) // write - 1
@@ -1352,30 +1352,22 @@ class Model(object):
 
                     # Add to model data for the write index, ii
                     data['model']['step'][ii] = step
-                    data['model']['displacement'][ii] = np.sum(u)
-                    data['model']['velocity'][ii] = np.sum(ud)
-                    data['model']['acceleration'][ii] = np.sum(udd)
+                    data['model']['displacement'].append(u.copy())
+                    data['model']['velocity'].append(ud.copy())
+                    data['model']['acceleration'].append(udd.copy())
                     data['model']['force'][ii] = np.sum(
                         force * self.volume[:, np.newaxis])
                     data['model']['body_force'][ii] = np.sum(
                         body_force * self.volume[:, np.newaxis])
 
                     damage_sum = np.sum(damage)
-                    data['model']['damage_sum'][ii] = damage_sum
+                    data['model']['damage'].append(damage.copy())
                     if damage_sum > 0.05*self.nnodes:
                         warnings.warn('Over 5% of bonds have broken!\
                                       peridynamics simulation continuing')
                     elif damage_sum > 0.7*self.nnodes:
                         warnings.warn('Over 7% of bonds have broken!\
                                       peridynamics simulation continuing')
-        for tip_type_str in data:
-            # Average the nodal displacements, velocities and
-            # accelerations
-            ntip = self.ntips[tip_type_str]
-            if ntip != 0:
-                data[tip_type_str]['displacement'] /= ntip
-                data[tip_type_str]['velocity'] /= ntip
-                data[tip_type_str]['acceleration'] /= ntip
         (u,
          ud,
          udd,
@@ -1561,12 +1553,12 @@ class Model(object):
             if write is not None:
                 data['model'] = {
                     'step': np.zeros(nwrites, dtype=int),
-                    'displacement': np.zeros(nwrites, dtype=np.float64),
-                    'velocity': np.zeros(nwrites, dtype=np.float64),
-                    'acceleration': np.zeros(nwrites, dtype=np.float64),
+                    'displacement': [],
+                    'velocity': [],
+                    'acceleration': [],
                     'force': np.zeros(nwrites, dtype=np.float64),
                     'body_force': np.zeros(nwrites, dtype=np.float64),
-                    'damage_sum': np.zeros(nwrites, dtype=np.float64)
+                    'damage': []
                     }
 
         # Initialise the OpenCL buffers
