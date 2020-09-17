@@ -227,7 +227,7 @@ class Model(object):
             raise DimensionalityError(dimensions)
 
         # Read coordinates and connectivity from mesh file
-        self._read_mesh(mesh_file, transfinite)
+        self._read_mesh(mesh_file)
 
         # Calculate the volume for each node, if None is provided
         if volume is None:
@@ -478,7 +478,7 @@ class Model(object):
             self.bc_values, self.force_bc_types, self.force_bc_values,
             self.stiffness_corrections, self.bond_types, self.densities)
 
-    def _read_mesh(self, filename, transfinite):
+    def _read_mesh(self, filename):
         """
         Read the model's nodes, connectivity and boundary from a mesh file.
 
@@ -489,22 +489,17 @@ class Model(object):
         """
         mesh = meshio.read(filename)
 
-        if transfinite:
-            # Only need coordinates, encoded as mesh points
-            self.coords = np.array(mesh.points, dtype=np.float64)
-            self.nnodes = self.coords.shape[0]
-        else:
-            # Get coordinates, encoded as mesh points
-            self.coords = np.array(mesh.points, dtype=np.float64)
-            self.nnodes = self.coords.shape[0]
+        # Get coordinates, encoded as mesh points
+        self.coords = np.array(mesh.points, dtype=np.float64)
+        self.nnodes = self.coords.shape[0]
 
-            # Get connectivity, mesh triangle cells
-            self.mesh_connectivity = mesh.cells_dict[
-                self.mesh_elements.connectivity
-                ]
+        # Get connectivity, mesh triangle cells
+        self.mesh_connectivity = mesh.cells_dict[
+            self.mesh_elements.connectivity
+            ]
 
-            # Get boundary connectivity, mesh lines
-            self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
+        # Get boundary connectivity, mesh lines
+        self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
 
     def write_mesh(self, filename, damage=None, displacements=None,
                    file_format=None):
@@ -1316,7 +1311,7 @@ class Model(object):
                      n_neigh) = self.integrator.write(
                          u, ud, udd, body_force, force, damage, nlist, n_neigh)
 
-                    # self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
+                    self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
 
                     # Write index number
                     ii = step // write - (first_step - 1) // write - 1
