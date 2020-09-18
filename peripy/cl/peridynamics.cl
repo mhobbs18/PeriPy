@@ -608,3 +608,233 @@ __kernel void damage(
         damage[node_id_i] = 1.00 - (double) neighbours / (double) (family[node_id_i]);
     }
 }
+
+
+__kernel void
+	bond_force_mossaiby(
+    __global double const* u,
+    __global double* force,
+    __global double* body_force,
+    __global double const* r0,
+    __global double const* vols,
+	__global int* nlist,
+    __global int const* fc_types,
+    __global double const* fc_values,
+    __global double const* stiffness_corrections,
+    __global int const* bond_types,
+    __global int* regimes,
+    __global float const* plus_cs,
+    __local double* local_cache_x,
+    __local double* local_cache_y,
+    __local double* local_cache_z,
+    double bond_stiffness,
+    double critical_stretch,
+    double fc_scale,
+    int nregimes
+	) {
+    /* Calculate the force due to bonds on each node.
+     *
+     * This bond_force function is for the simple case of no stiffness corrections and no bond types.
+     *
+     * u - An (n,3) array of the current displacements of the particles.
+     * force - An (n,3) array of the current forces on the particles.
+     * body_force - An (n,3) array of the current internal body forces of the particles.
+     * r0 - An (n,3) array of the coordinates of the nodes in the initial state.
+     * vols - the volumes of each of the nodes.
+     * nlist - An (n, local_size) array containing the neighbour lists,
+     *     a value of -1 corresponds to a broken bond.
+     * fc_types - An (n,3) array of force boundary condition types,
+     *     a value of 0 denotes a particle that is not externally loaded.
+     * fc_values - An (n,3) array of the force boundary condition values applied to particles.
+     * stiffness_corrections - Not applied in this bond_force kernel. Placeholder argument.
+     * bond_types - Not applied in this bond_force kernel. Placeholder argument.
+     * regimes - Not applied in this bond_force kernel. Placeholder argument.
+     * plus_cs - Not applied in this bond_force kernel. Placeholder argument.
+     * local_cache_x - local (local_size) array to store the x components of the bond forces.
+     * local_cache_y - local (local_size) array to store the y components of the bond forces.
+     * local_cache_z - local (local_size) array to store the z components of the bond forces.
+     * bond_stiffness - The bond stiffness.
+     * critical_stretch - The critical stretch, at and above which bonds will be broken.
+     * fc_scale - scale factor appied to the force bondary conditions.
+     * nregimes - Not applied in this bond_force kernel. Placeholder argument. */
+
+	// Access local node within node_id_i's horizon with corresponding node_id_j,
+    const int i = get_global_id(0);
+
+	double force_x = 0.00;
+	double force_y = 0.00;
+	double force_z = 0.00;
+
+    for (int j = 0; j < N; j++)
+    {
+        const int n = nlist[N * i + j];
+
+        if (n != -1)
+        {
+            const double xi_x = r0[3 * n + 0] - r0[3 * i + 0];  // Optimize later
+            const double xi_y = r0[3 * n + 1] - r0[3 * i + 1];
+            const double xi_z = r0[3 * n + 2] - r0[3 * i + 2];
+
+            const double xi_eta_x = u[3 * n + 0] - u[3 * i + 0] + xi_x;
+            const double xi_eta_y = u[3 * n + 1] - u[3 * i + 1] + xi_y;
+            const double xi_eta_z = u[3 * n + 2] - u[3 * i + 2] + xi_z;
+
+            const double xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
+		    const double y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
+		    const double s = (y -  xi)/ xi;
+            const double cx = xi_eta_x / y;
+		    const double cy = xi_eta_y / y;
+		    const double cz = xi_eta_z / y;
+
+		    const double f = s * bond_stiffness * vols[node_id_j];
+            // Copy bond forces into local memory
+		    force_x += f * cx;
+		    force_y += f * cy;
+		    force_z += f * cz;
+        }
+    }
+
+    // Update body forces in each direction
+    body_force[3 * node_no + 0] = force_x;
+    body_force[3 * node_no + 1] = force_y;
+    body_force[3 * node_no + 2] = force_z;
+    // Update forces in each direction
+    force[3 * node_no + 0] = (fc_types[3 * node_no + 0] == 0 ? force_x : (force_x + fc_scale * fc_values[3 * node_no + 0]));
+    force[3 * node_no + 1] = (fc_types[3 * node_no + 1] == 0 ? force_y : (force_y + fc_scale * fc_values[3 * node_no + 1]));
+    force[3 * node_no + 2] = (fc_types[3 * node_no + 2] == 0 ? force_z : (force_z + fc_scale * fc_values[3 * node_no + 2]));
+}
+
+
+__kernel void
+	CheckBonds(
+		__global int* nlist,
+		__global double const* u,
+		__global double const* r0
+	)
+{
+	const int i = get_global_id(0);
+	const int j = get_global_id(1);
+
+    const int n = Horizons[i * MAX_HORIZON_LENGTH + j];
+
+    if (n != -1)
+    {
+        const double xi_x = r0[3 * n + 0] - r0[3 * i + 0];  // Optimize later
+        const double xi_y = r0[3 * n + 1] - r0[3 * i + 1];
+        const double xi_z = r0[3 * n + 2] - r0[3 * i + 2];
+
+        const double xi_eta_x = u[3 * n + 0] - u[3 * i + 0] + xi_x;
+        const double xi_eta_y = u[3 * n + 1] - u[3 * i + 1] + xi_y;
+        const double xi_eta_z = u[3 * n + 2] - u[3 * i + 2] + xi_z;
+
+        const double xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
+        const double y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
+
+        const double s = (y - xi) / xi;
+
+        // Check for state of the bond
+
+        if (s > PD_S0)
+        {
+            Horizons[i * N + j] = -1;  // Break the bond
+        }
+    }
+}
+
+__kernel void
+	bond_force_serial(
+    __global double const* u,
+    __global double* force,
+    __global double* body_force,
+    __global double const* r0,
+    __global double const* vols,
+	__global int* nlist,
+    __global int const* fc_types,
+    __global double const* fc_values,
+    __global double const* stiffness_corrections,
+    __global int const* bond_types,
+    __global int* regimes,
+    __global float const* plus_cs,
+    __local double* local_cache_x,
+    __local double* local_cache_y,
+    __local double* local_cache_z,
+    double bond_stiffness,
+    double critical_stretch,
+    double fc_scale,
+    int nregimes
+	) {
+    /* Calculate the force due to bonds on each node.
+     *
+     * This bond_force function is for the simple case of no stiffness corrections and no bond types.
+     *
+     * u - An (n,3) array of the current displacements of the particles.
+     * force - An (n,3) array of the current forces on the particles.
+     * body_force - An (n,3) array of the current internal body forces of the particles.
+     * r0 - An (n,3) array of the coordinates of the nodes in the initial state.
+     * vols - the volumes of each of the nodes.
+     * nlist - An (n, local_size) array containing the neighbour lists,
+     *     a value of -1 corresponds to a broken bond.
+     * fc_types - An (n,3) array of force boundary condition types,
+     *     a value of 0 denotes a particle that is not externally loaded.
+     * fc_values - An (n,3) array of the force boundary condition values applied to particles.
+     * stiffness_corrections - Not applied in this bond_force kernel. Placeholder argument.
+     * bond_types - Not applied in this bond_force kernel. Placeholder argument.
+     * regimes - Not applied in this bond_force kernel. Placeholder argument.
+     * plus_cs - Not applied in this bond_force kernel. Placeholder argument.
+     * local_cache_x - local (local_size) array to store the x components of the bond forces.
+     * local_cache_y - local (local_size) array to store the y components of the bond forces.
+     * local_cache_z - local (local_size) array to store the z components of the bond forces.
+     * bond_stiffness - The bond stiffness.
+     * critical_stretch - The critical stretch, at and above which bonds will be broken.
+     * fc_scale - scale factor appied to the force bondary conditions.
+     * nregimes - Not applied in this bond_force kernel. Placeholder argument. */
+    // global_id is the node number
+    const int node_id_i = get_global_id(0);
+
+    for (int k = 0; k < N; k++){
+        // Access local node within node_id_i's horizon with corresponding node_id_j,
+	    const int node_id_j = nlist[node_id_i * N + k];
+        // If bond is not broken
+        if (node_id_j != -1) {
+            const double xi_x = r0[3 * node_id_j + 0] - r0[3 * node_id_i + 0];
+            const double xi_y = r0[3 * node_id_j + 1] - r0[3 * node_id_i + 1];
+            const double xi_z = r0[3 * node_id_j + 2] - r0[3 * node_id_i + 2];
+
+            const double xi_eta_x = u[3 * node_id_j + 0] - u[3 * node_id_i + 0] + xi_x;
+            const double xi_eta_y = u[3 * node_id_j + 1] - u[3 * node_id_i + 1] + xi_y;
+            const double xi_eta_z = u[3 * node_id_j + 2] - u[3 * node_id_i + 2] + xi_z;
+
+            const double xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
+            const double y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
+            const double s = (y -  xi)/ xi;
+
+            // Check for state of bonds here, and break it if necessary
+            if (s < critical_stretch) {
+                const double cx = xi_eta_x / y;
+                const double cy = xi_eta_y / y;
+                const double cz = xi_eta_z / y;
+
+                const double f = s * bond_stiffness * vols[node_id_j];
+                // Copy bond forces into local memory
+                force_x += f * cx;
+                force_y += f * cy;
+                force_z += f * cz;
+            }
+            else {
+                // bond is broken
+                nlist[global_id] = -1;  // Break the bond
+            }
+        }
+    }
+
+    if (!local_id) {
+        // Update body forces in each direction
+        body_force[3 * node_id_i + 0] = force_x;
+        body_force[3 * node_id_i + 1] = force_y;
+        body_force[3 * node_id_i + 2] = force_z;
+        // Update forces in each direction
+        force[3 * node_id_i + 0] = (fc_types[3 * node_id_i + 0] == 0 ? force_x : (force_x + fc_scale * fc_values[3 * node_id_i + 0]));
+        force[3 * node_id_i + 1] = (fc_types[3 * node_id_i + 1] == 0 ? force_y : (force_y + fc_scale * fc_values[3 * node_id_i + 1]));
+        force[3 * node_id_i + 2] = (fc_types[3 * node_id_i + 2] == 0 ? force_z : (force_z + fc_scale * fc_values[3 * node_id_i + 2]));
+    }
+}
