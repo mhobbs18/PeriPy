@@ -44,7 +44,7 @@ class Integrator(ABC):
             if type(self.context) is not cl._cl.Context:
                 raise ContextError
         else:
-            self.context = context
+            self.context = cl.create_some_context()
             # Ensure that self.context is a pyopencl context object
             if type(self.context) is not cl._cl.Context:
                 raise TypeError("context must be a pyopencl Context object")
