@@ -227,7 +227,7 @@ class Model(object):
             raise DimensionalityError(dimensions)
 
         # Read coordinates and connectivity from mesh file
-        self._read_mesh(mesh_file)
+        self._read_mesh(mesh_file, transfinite)
 
         # Calculate the volume for each node, if None is provided
         if volume is None:
@@ -478,11 +478,13 @@ class Model(object):
             self.bc_values, self.force_bc_types, self.force_bc_values,
             self.stiffness_corrections, self.bond_types, self.densities)
 
-    def _read_mesh(self, filename):
+    def _read_mesh(self, filename, transfinite):
         """
         Read the model's nodes, connectivity and boundary from a mesh file.
 
         :arg str filename: Path of the mesh file to read
+        :arg bool transfinite: Set to 1 for Cartesian cubic (tensor grid) mesh.
+            Set to 0 for a tetrahedral mesh.
 
         :returns: None
         :rtype: NoneType
@@ -493,13 +495,14 @@ class Model(object):
         self.coords = np.array(mesh.points, dtype=np.float64)
         self.nnodes = self.coords.shape[0]
 
-        # Get connectivity, mesh triangle cells
-        self.mesh_connectivity = mesh.cells_dict[
-            self.mesh_elements.connectivity
-            ]
-
-        # Get boundary connectivity, mesh lines
-        self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
+        if not transfinite:
+            # Get connectivity, mesh triangle cells
+            self.mesh_connectivity = mesh.cells_dict[
+                self.mesh_elements.connectivity
+                ]
+    
+            # Get boundary connectivity, mesh lines
+            self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
 
     def write_mesh(self, filename, damage=None, displacements=None,
                    file_format=None):
