@@ -620,17 +620,9 @@ __kernel void
 	__global int* nlist,
     __global int const* fc_types,
     __global double const* fc_values,
-    __global double const* stiffness_corrections,
-    __global int const* bond_types,
-    __global int* regimes,
-    __global float const* plus_cs,
-    __local double* local_cache_x,
-    __local double* local_cache_y,
-    __local double* local_cache_z,
     double bond_stiffness,
     double critical_stretch,
-    double fc_scale,
-    int nregimes
+    double fc_scale
 	) {
     /* Calculate the force due to bonds on each node.
      *
@@ -686,7 +678,7 @@ __kernel void
 		    const double cy = xi_eta_y / y;
 		    const double cz = xi_eta_z / y;
 
-		    const double f = s * bond_stiffness * vols[node_id_j];
+		    const double f = s * bond_stiffness * vols[n];
             // Copy bond forces into local memory
 		    force_x += f * cx;
 		    force_y += f * cy;
@@ -695,27 +687,28 @@ __kernel void
     }
 
     // Update body forces in each direction
-    body_force[3 * node_no + 0] = force_x;
-    body_force[3 * node_no + 1] = force_y;
-    body_force[3 * node_no + 2] = force_z;
+    body_force[3 * i + 0] = force_x;
+    body_force[3 * i + 1] = force_y;
+    body_force[3 * i + 2] = force_z;
     // Update forces in each direction
-    force[3 * node_no + 0] = (fc_types[3 * node_no + 0] == 0 ? force_x : (force_x + fc_scale * fc_values[3 * node_no + 0]));
-    force[3 * node_no + 1] = (fc_types[3 * node_no + 1] == 0 ? force_y : (force_y + fc_scale * fc_values[3 * node_no + 1]));
-    force[3 * node_no + 2] = (fc_types[3 * node_no + 2] == 0 ? force_z : (force_z + fc_scale * fc_values[3 * node_no + 2]));
+    force[3 * i + 0] = (fc_types[3 * i + 0] == 0 ? force_x : (force_x + fc_scale * fc_values[3 * i + 0]));
+    force[3 * i + 1] = (fc_types[3 * i + 1] == 0 ? force_y : (force_y + fc_scale * fc_values[3 * i + 1]));
+    force[3 * i + 2] = (fc_types[3 * i + 2] == 0 ? force_z : (force_z + fc_scale * fc_values[3 * i + 2]));
 }
 
 
 __kernel void
-	CheckBonds(
+	check_bonds(
 		__global int* nlist,
 		__global double const* u,
-		__global double const* r0
+		__global double const* r0,
+        double const critical_stretch
 	)
 {
 	const int i = get_global_id(0);
 	const int j = get_global_id(1);
 
-    const int n = Horizons[i * MAX_HORIZON_LENGTH + j];
+    const int n = nlist[i * N + j];
 
     if (n != -1)
     {
@@ -734,9 +727,9 @@ __kernel void
 
         // Check for state of the bond
 
-        if (s > PD_S0)
+        if (s >= critical_stretch)
         {
-            Horizons[i * N + j] = -1;  // Break the bond
+            nlist[i * N + j] = -1;  // Break the bond
         }
     }
 }
@@ -751,17 +744,9 @@ __kernel void
 	__global int* nlist,
     __global int const* fc_types,
     __global double const* fc_values,
-    __global double const* stiffness_corrections,
-    __global int const* bond_types,
-    __global int* regimes,
-    __global float const* plus_cs,
-    __local double* local_cache_x,
-    __local double* local_cache_y,
-    __local double* local_cache_z,
     double bond_stiffness,
     double critical_stretch,
-    double fc_scale,
-    int nregimes
+    double fc_scale
 	) {
     /* Calculate the force due to bonds on each node.
      *
@@ -790,6 +775,10 @@ __kernel void
      * nregimes - Not applied in this bond_force kernel. Placeholder argument. */
     // global_id is the node number
     const int node_id_i = get_global_id(0);
+
+    double force_x = 0.00;
+	double force_y = 0.00;
+	double force_z = 0.00;
 
     for (int k = 0; k < N; k++){
         // Access local node within node_id_i's horizon with corresponding node_id_j,
@@ -822,19 +811,17 @@ __kernel void
             }
             else {
                 // bond is broken
-                nlist[global_id] = -1;  // Break the bond
+                nlist[node_id_i * N + k] = -1;  // Break the bond
             }
         }
     }
 
-    if (!local_id) {
-        // Update body forces in each direction
-        body_force[3 * node_id_i + 0] = force_x;
-        body_force[3 * node_id_i + 1] = force_y;
-        body_force[3 * node_id_i + 2] = force_z;
-        // Update forces in each direction
-        force[3 * node_id_i + 0] = (fc_types[3 * node_id_i + 0] == 0 ? force_x : (force_x + fc_scale * fc_values[3 * node_id_i + 0]));
-        force[3 * node_id_i + 1] = (fc_types[3 * node_id_i + 1] == 0 ? force_y : (force_y + fc_scale * fc_values[3 * node_id_i + 1]));
-        force[3 * node_id_i + 2] = (fc_types[3 * node_id_i + 2] == 0 ? force_z : (force_z + fc_scale * fc_values[3 * node_id_i + 2]));
-    }
+    // Update body forces in each direction
+    body_force[3 * node_id_i + 0] = force_x;
+    body_force[3 * node_id_i + 1] = force_y;
+    body_force[3 * node_id_i + 2] = force_z;
+    // Update forces in each direction
+    force[3 * node_id_i + 0] = (fc_types[3 * node_id_i + 0] == 0 ? force_x : (force_x + fc_scale * fc_values[3 * node_id_i + 0]));
+    force[3 * node_id_i + 1] = (fc_types[3 * node_id_i + 1] == 0 ? force_y : (force_y + fc_scale * fc_values[3 * node_id_i + 1]));
+    force[3 * node_id_i + 2] = (fc_types[3 * node_id_i + 2] == 0 ? force_z : (force_z + fc_scale * fc_values[3 * node_id_i + 2]));
 }

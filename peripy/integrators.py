@@ -101,9 +101,15 @@ class Integrator(ABC):
             pathlib.Path(__file__).parent.absolute() /
             "cl/peridynamics.cl").read()
 
+        # JIT compiler's command line arguments
+        SEP = " "
+
+        options_string = (
+            "-cl-fast-relaxed-math" + SEP
+            + "-DN=" + str(self.max_neighbours) + SEP)
         # Build kernels
         self.program = cl.Program(
-            self.context, kernel_source).build()
+            self.context, kernel_source).build([options_string])
 
         # Build bond_force program
         if (stiffness_corrections is None) and (bond_types is None):
@@ -762,6 +768,432 @@ class VelocityVerletCL(Integrator):
                 )
         queue.finish()
         return u_d
+
+
+class VelocityVerletMossaiby(Integrator):
+    r"""
+    Velocity-Verlet integrator for OpenCL using Mossaiby et al. (2017) code.
+
+    The Velocity-Verlet method is a second-order numerical integration method.
+    The integration is given by,
+
+    .. math::
+        \dot{u}(t + \frac{\delta t}{2}) = \dot{u}(t) +
+        \frac{\delta t}{2}\ddot{u}(t),
+    .. math::
+        u(t + \delta t) = u(t) + \delta t \dot{u}(t)
+                            + \frac{\delta t}{2} \ddot{u}(t),
+    .. math::
+        \dot{u}(t + \delta t) = \dot{u}(t + \frac{\delta t}{2})
+                            + \frac{\delta t}{2} \ddot{u}(t + \delta t),
+
+    where :math:`u(t)` is the displacement at time :math:`t`,
+    :math:`\dot{u}(t)` is the velocity at time :math:`t`, :math:`\ddot{u}(t)`
+    is the acceleration at time :math:`t` and :math:`\delta t` is the time
+    step.
+
+    A dynamic relaxation damping term :math:`\eta \dot{u}(t)` is added to the
+    equation of motion so that the solution to quickly converges to a steady
+    state solution in quasi-static problems. Given the displacement vectors of
+    each node at time step t, and half-step velocity vectors of each node at
+    time step :math:`t + \frac{\delta t}{2}`, the acceleration at time step
+    :math:`t + \delta t` is given by the equation of motion,
+
+    .. math::
+        \ddot{u}(t + \delta t) = \frac{f(t + \delta t)
+                             - \eta \dot{u}(t + \frac{\delta t}{2})}{\rho},
+
+    where :math:`f(t)` is the force density at time :math:`t`, :math:`\eta`
+    is the dynamic relaxation damping constant and :math:`\rho` is the density.
+    """
+
+    def __init__(self, damping, *args, **kwargs):
+        """
+        Create an :class:`VelocityVerletCL` integrator object.
+
+        :arg float damping: The dynamic relaxation damping constant with units
+            [kg/(m^3 s)]
+
+        :returns: A :class:`VelocityVerletCL` object
+        """
+        super().__init__(*args, **kwargs)
+        self.damping = damping
+
+    def __call__(self, displacement_bc_magnitude, force_bc_magnitude):
+        """
+        Conduct one iteration of the integrator.
+
+        :arg float displacement_bc_magnitude: the magnitude applied to the
+             displacement boundary conditions for the current time-step.
+        :arg float force_bc_magnitude: the magnitude applied to the force
+            boundary conditions for the current time-step.
+        """
+        self._check_bonds(
+            self.r0_d, self.u_d, self.nlist_d, self.critical_stretch_d)
+
+        self._bond_force(
+            self.u_d, self.force_d, self.body_force_d, self.r0_d, self.vols_d,
+            self.nlist_d, self.force_bc_types_d, self.force_bc_values_d,
+            self.bond_stiffness_d, self.critical_stretch_d,
+            force_bc_magnitude)
+
+        self._update_displacement(
+            self.force_d, self.u_d, self.ud_d, self.udd_d, self.bc_types_d,
+            self.bc_values_d, self.densities_d, displacement_bc_magnitude,
+            self.damping, self.dt)
+
+    def build(
+            self, nnodes, degrees_freedom, max_neighbours, coords, volume,
+            family, bc_types, bc_values, force_bc_types, force_bc_values,
+            stiffness_corrections, bond_types, densities):
+        """
+        Build OpenCL programs.
+
+        Builds the programs that are common to all integrators and the
+        buffers which are independent of
+        :meth:`peripy.model.Model.simulate` parameters.
+        """
+        self.nnodes = nnodes
+        self.degrees_freedom = degrees_freedom
+        self.max_neighbours = max_neighbours
+        self.densities = densities
+
+        kernel_source = open(
+            pathlib.Path(__file__).parent.absolute() /
+            "cl/peridynamics.cl").read()
+
+        # JIT compiler's command line arguments
+        SEP = " "
+
+        options_string = (
+            "-cl-fast-relaxed-math" + SEP
+            + "-DN=" + str(self.max_neighbours) + SEP)
+        # Build kernels
+        self.program = cl.Program(
+            self.context, kernel_source).build([options_string])
+
+        # Build bond_force program
+        if (stiffness_corrections is None) and (bond_types is None):
+            self.bond_force_kernel = self.program.bond_force_mossaiby
+            # Placeholder buffers
+            stiffness_corrections = np.array([0], dtype=np.float64)
+            bond_types = np.array([0], dtype=np.intc)
+            self.stiffness_corrections_d = cl.Buffer(
+                self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+                hostbuf=stiffness_corrections)
+            self.bond_types_d = cl.Buffer(
+                self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+                hostbuf=bond_types)
+
+        self.damage_kernel = self.program.damage
+        self.check_bonds_kernel = self.program.check_bonds
+
+        # Create OpenCL buffers that are independent of
+        # :class: Model.simulation parameters
+        # Local memory container for damage
+        self.local_mem = cl.LocalMemory(
+            np.dtype(np.float64).itemsize * self.max_neighbours)
+        # Read only
+        self.r0_d = cl.Buffer(
+            self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+            hostbuf=coords)
+        self.vols_d = cl.Buffer(
+            self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+            hostbuf=volume)
+        self.family_d = cl.Buffer(
+            self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+            hostbuf=family)
+        self.bc_types_d = cl.Buffer(
+            self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+            hostbuf=bc_types)
+        self.bc_values_d = cl.Buffer(
+            self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+            hostbuf=bc_values)
+        self.force_bc_types_d = cl.Buffer(
+            self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+            hostbuf=force_bc_types)
+        self.force_bc_values_d = cl.Buffer(
+            self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+            hostbuf=force_bc_values)
+
+        # Build programs that are special to the chosen integrator
+        self._build_special()
+
+    def _build_special(self):
+        """Build OpenCL kernels special to the Euler integrator."""
+        if self.densities is None:
+            raise ValueError(
+                "densities must be supplied when using VelocityVerletCL "
+                "integrator (got {}). This integrator is dynamic "
+                " and requires the density or is_density argument to be "
+                "supplied to :class:Model, alternatively, use a static "
+                " integrator, such as EulerCL.".format(type(self.densities)))
+        else:
+            self.densities_d = cl.Buffer(
+                self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+                hostbuf=self.densities)
+
+        kernel_source = open(
+            pathlib.Path(__file__).parent.absolute() /
+            "cl/velocity_verlet.cl").read()
+
+        # Build kernels
+        self.euler_cromer = cl.Program(
+            self.context, kernel_source).build()
+        self.update_displacement_kernel = self.euler_cromer.update_displacement
+        self.partial_update_displacement_kernel = (
+            self.euler_cromer.update_displacement)
+
+    def _create_special_buffers(self):
+        """Create buffers special to the Euler integrator."""
+        # There are none
+
+    def _update_displacement(
+            self, force_d, u_d, ud_d, udd_d, bc_types_d, bc_values_d,
+            densities_d, displacement_bc_magnitude, damping, dt):
+        """Update displacements."""
+        queue = self.queue
+        # Call kernel
+        self.update_displacement_kernel(
+                self.queue, (self.degrees_freedom * self.nnodes,), None,
+                force_d, u_d, ud_d, udd_d, bc_types_d, bc_values_d,
+                densities_d, np.float64(displacement_bc_magnitude),
+                np.float64(damping), np.float64(dt)
+                )
+        queue.finish()
+        return u_d
+
+    def _check_bonds(
+            self, r0_d, u_d, nlist_d, critical_stretch_d):
+        """Update displacements."""
+        queue = self.queue
+        # Call kernel
+        self.check_bonds_kernel(
+                self.queue, (self.nnodes, self.max_neighbours), None,
+                nlist_d, u_d, r0_d, critical_stretch_d
+                )
+        queue.finish()
+
+    def _bond_force(
+            self, u_d, force_d, body_force_d, r0_d, vols_d, nlist_d,
+            force_bc_types_d, force_bc_values_d,
+            bond_stiffness_d, critical_stretch_d,
+            force_bc_magnitude):
+        """Calculate the force due to bonds acting on each node."""
+        queue = self.queue
+        # Call kernel
+        self.bond_force_kernel(
+                queue, (self.nnodes,),
+                None, u_d, force_d, body_force_d, r0_d,
+                vols_d, nlist_d, force_bc_types_d, force_bc_values_d,
+                bond_stiffness_d, critical_stretch_d,
+                np.float64(force_bc_magnitude))
+        queue.finish()
+
+
+class VelocityVerletSerial(Integrator):
+    r"""
+    Velocity-Verlet integrator for OpenCL using serial reduction (summation).
+
+    The Velocity-Verlet method is a second-order numerical integration method.
+    The integration is given by,
+
+    .. math::
+        \dot{u}(t + \frac{\delta t}{2}) = \dot{u}(t) +
+        \frac{\delta t}{2}\ddot{u}(t),
+    .. math::
+        u(t + \delta t) = u(t) + \delta t \dot{u}(t)
+                            + \frac{\delta t}{2} \ddot{u}(t),
+    .. math::
+        \dot{u}(t + \delta t) = \dot{u}(t + \frac{\delta t}{2})
+                            + \frac{\delta t}{2} \ddot{u}(t + \delta t),
+
+    where :math:`u(t)` is the displacement at time :math:`t`,
+    :math:`\dot{u}(t)` is the velocity at time :math:`t`, :math:`\ddot{u}(t)`
+    is the acceleration at time :math:`t` and :math:`\delta t` is the time
+    step.
+
+    A dynamic relaxation damping term :math:`\eta \dot{u}(t)` is added to the
+    equation of motion so that the solution to quickly converges to a steady
+    state solution in quasi-static problems. Given the displacement vectors of
+    each node at time step t, and half-step velocity vectors of each node at
+    time step :math:`t + \frac{\delta t}{2}`, the acceleration at time step
+    :math:`t + \delta t` is given by the equation of motion,
+
+    .. math::
+        \ddot{u}(t + \delta t) = \frac{f(t + \delta t)
+                             - \eta \dot{u}(t + \frac{\delta t}{2})}{\rho},
+
+    where :math:`f(t)` is the force density at time :math:`t`, :math:`\eta`
+    is the dynamic relaxation damping constant and :math:`\rho` is the density.
+    """
+
+    def __init__(self, damping, *args, **kwargs):
+        """
+        Create an :class:`VelocityVerletCL` integrator object.
+
+        :arg float damping: The dynamic relaxation damping constant with units
+            [kg/(m^3 s)]
+
+        :returns: A :class:`VelocityVerletCL` object
+        """
+        super().__init__(*args, **kwargs)
+        self.damping = damping
+
+    def __call__(self, displacement_bc_magnitude, force_bc_magnitude):
+        """
+        Conduct one iteration of the integrator.
+
+        :arg float displacement_bc_magnitude: the magnitude applied to the
+             displacement boundary conditions for the current time-step.
+        :arg float force_bc_magnitude: the magnitude applied to the force
+            boundary conditions for the current time-step.
+        """
+        self._bond_force(
+            self.u_d, self.force_d, self.body_force_d, self.r0_d, self.vols_d,
+            self.nlist_d, self.force_bc_types_d, self.force_bc_values_d,
+            self.bond_stiffness_d, self.critical_stretch_d,
+            force_bc_magnitude)
+
+        self._update_displacement(
+            self.force_d, self.u_d, self.ud_d, self.udd_d, self.bc_types_d,
+            self.bc_values_d, self.densities_d, displacement_bc_magnitude,
+            self.damping, self.dt)
+
+    def build(
+            self, nnodes, degrees_freedom, max_neighbours, coords, volume,
+            family, bc_types, bc_values, force_bc_types, force_bc_values,
+            stiffness_corrections, bond_types, densities):
+        """
+        Build OpenCL programs.
+
+        Builds the programs that are common to all integrators and the
+        buffers which are independent of
+        :meth:`peripy.model.Model.simulate` parameters.
+        """
+        self.nnodes = nnodes
+        self.degrees_freedom = degrees_freedom
+        self.max_neighbours = max_neighbours
+        self.densities = densities
+
+        kernel_source = open(
+            pathlib.Path(__file__).parent.absolute() /
+            "cl/peridynamics.cl").read()
+
+        # JIT compiler's command line arguments
+        SEP = " "
+
+        options_string = (
+            "-cl-fast-relaxed-math" + SEP
+            + "-DN=" + str(self.max_neighbours) + SEP)
+        # Build kernels
+        self.program = cl.Program(
+            self.context, kernel_source).build([options_string])
+
+        # Build bond_force program
+        if (stiffness_corrections is None) and (bond_types is None):
+            self.bond_force_kernel = self.program.bond_force_serial
+            # Placeholder buffers
+            stiffness_corrections = np.array([0], dtype=np.float64)
+            bond_types = np.array([0], dtype=np.intc)
+            self.stiffness_corrections_d = cl.Buffer(
+                self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+                hostbuf=stiffness_corrections)
+            self.bond_types_d = cl.Buffer(
+                self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+                hostbuf=bond_types)
+
+        self.damage_kernel = self.program.damage
+
+        # Create OpenCL buffers that are independent of
+        # :class: Model.simulation parameters
+        # Local memory container for damage
+        self.local_mem = cl.LocalMemory(
+            np.dtype(np.float64).itemsize * self.max_neighbours)
+        # Read only
+        self.r0_d = cl.Buffer(
+            self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+            hostbuf=coords)
+        self.vols_d = cl.Buffer(
+            self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+            hostbuf=volume)
+        self.family_d = cl.Buffer(
+            self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+            hostbuf=family)
+        self.bc_types_d = cl.Buffer(
+            self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+            hostbuf=bc_types)
+        self.bc_values_d = cl.Buffer(
+            self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+            hostbuf=bc_values)
+        self.force_bc_types_d = cl.Buffer(
+            self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+            hostbuf=force_bc_types)
+        self.force_bc_values_d = cl.Buffer(
+            self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+            hostbuf=force_bc_values)
+
+        # Build programs that are special to the chosen integrator
+        self._build_special()
+
+    def _build_special(self):
+        """Build OpenCL kernels special to the Euler integrator."""
+        if self.densities is None:
+            raise ValueError(
+                "densities must be supplied when using VelocityVerletCL "
+                "integrator (got {}). This integrator is dynamic "
+                " and requires the density or is_density argument to be "
+                "supplied to :class:Model, alternatively, use a static "
+                " integrator, such as EulerCL.".format(type(self.densities)))
+        else:
+            self.densities_d = cl.Buffer(
+                self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+                hostbuf=self.densities)
+
+        kernel_source = open(
+            pathlib.Path(__file__).parent.absolute() /
+            "cl/velocity_verlet.cl").read()
+
+        # Build kernels
+        self.euler_cromer = cl.Program(
+            self.context, kernel_source).build()
+        self.update_displacement_kernel = self.euler_cromer.update_displacement
+        self.partial_update_displacement_kernel = (
+            self.euler_cromer.update_displacement)
+
+    def _create_special_buffers(self):
+        """Create buffers special to the Euler integrator."""
+        # There are none
+
+    def _update_displacement(
+            self, force_d, u_d, ud_d, udd_d, bc_types_d, bc_values_d,
+            densities_d, displacement_bc_magnitude, damping, dt):
+        """Update displacements."""
+        queue = self.queue
+        # Call kernel
+        self.update_displacement_kernel(
+                self.queue, (self.degrees_freedom * self.nnodes,), None,
+                force_d, u_d, ud_d, udd_d, bc_types_d, bc_values_d,
+                densities_d, np.float64(displacement_bc_magnitude),
+                np.float64(damping), np.float64(dt)
+                )
+        queue.finish()
+        return u_d
+
+    def _bond_force(
+            self, u_d, force_d, body_force_d, r0_d, vols_d, nlist_d,
+            force_bc_types_d, force_bc_values_d,bond_stiffness_d,
+            critical_stretch_d, force_bc_magnitude):
+        """Calculate the force due to bonds acting on each node."""
+        queue = self.queue
+        # Call kernel
+        self.bond_force_kernel(
+                queue, (self.nnodes,),
+                None, u_d, force_d, body_force_d, r0_d,
+                vols_d, nlist_d, force_bc_types_d, force_bc_values_d,
+                bond_stiffness_d,
+                critical_stretch_d, np.float64(force_bc_magnitude))
+        queue.finish()
 
 
 class ContextError(Exception):

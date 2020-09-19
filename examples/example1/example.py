@@ -12,7 +12,9 @@ import numpy as np
 import pathlib
 from peripy import Model
 from peripy.model import initial_crack_helper
-from peripy.integrators import EulerCL, Euler
+from peripy.integrators import (
+    EulerCL, Euler,
+    VelocityVerletCL, VelocityVerletMossaiby, VelocityVerletSerial)
 from pstats import SortKey, Stats
 
 
@@ -21,6 +23,17 @@ from pstats import SortKey, Stats
 # contains 2113 particles.
 mesh_file = pathlib.Path(__file__).parent.absolute() / "test.vtk"
 
+def is_density(x):
+    """
+    Return the density of the particle.
+
+    :arg x: Particle coordinate array of size (3,).
+    :type x: :class:`numpy.ndarray`
+
+    :returns: density in [kg/m^3]
+    :rtype: float
+    """
+    return 0.01
 
 @initial_crack_helper
 def is_crack(x, y):
@@ -80,14 +93,7 @@ def main():
         profile = cProfile.Profile()
         profile.enable()
 
-    if args.opencl:
-        # The :class:`peripy.integrators.EulerCL` class is the OpenCL
-        # implementation of the explicit Euler integration scheme.
-        integrator = EulerCL(dt=1e-3)
-    else:
-        # The :class:`peripy.integrators.Euler` class is the cython
-        # implementation of the explicit Euler integration scheme.
-        integrator = Euler(dt=1e-3)
+    integrator = VelocityVerletSerial(dt=1e-3, damping=0)
 
     # The bond_stiffness, also known as the micromodulus, of the peridynamic
     # bond, using Silling's (2005) derivation for the prototype microelastic
@@ -101,7 +107,7 @@ def main():
         mesh_file, integrator=integrator, horizon=horizon,
         critical_stretch=0.005, bond_stiffness=bond_stiffness,
         is_displacement_boundary=is_displacement_boundary,
-        dimensions=2, initial_crack=is_crack)
+        dimensions=2, initial_crack=is_crack, is_density=is_density)
 
     # The simulation will have 1000 time steps, and last
     # dt * steps = 1e-3 * 1000 = 1.0 seconds
