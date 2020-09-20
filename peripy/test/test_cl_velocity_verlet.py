@@ -42,9 +42,9 @@ class TestUpdateDisplacement:
         udd = np.zeros(3)
         densities = np.ones(3)
         nnodes = 1
-        force = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+        force = np.array([1.0, 2.0, 3.0], dtype=np.float32)
         bc_types = np.array([0, 0, 0], dtype=np.intc)
-        bc_values = np.array([0, 0, 0], dtype=np.float64)
+        bc_values = np.array([0, 0, 0], dtype=np.float32)
         displacement_bc_scale = 0
         dt = 1.0
         damping = 1.0
@@ -80,8 +80,8 @@ class TestUpdateDisplacement:
         update_displacement_kernel(
             queue, (3 * nnodes,), None,
             force_d, u_d, ud_d, udd_d, bc_types_d, bc_values_d, densities_d,
-            np.float64(displacement_bc_scale), np.float64(damping),
-            np.float64(dt)
+            np.float32(displacement_bc_scale), np.float32(damping),
+            np.float32(dt)
             )
         cl.enqueue_copy(queue, u, u_d)
         cl.enqueue_copy(queue, ud, ud_d)
@@ -99,9 +99,9 @@ class TestUpdateDisplacement:
         udd = np.ones(3)
         densities = np.ones(3)
         nnodes = 1
-        force = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+        force = np.array([1.0, 2.0, 3.0], dtype=np.float32)
         bc_types = np.array([0, 0, 0], dtype=np.intc)
-        bc_values = np.array([0, 0, 0], dtype=np.float64)
+        bc_values = np.array([0, 0, 0], dtype=np.float32)
         displacement_bc_scale = 0
         dt = 2.0
         damping = 0.0
@@ -137,8 +137,8 @@ class TestUpdateDisplacement:
         update_displacement_kernel(
             queue, (3 * nnodes,), None,
             force_d, u_d, ud_d, udd_d, bc_types_d, bc_values_d, densities_d,
-            np.float64(displacement_bc_scale), np.float64(damping),
-            np.float64(dt)
+            np.float32(displacement_bc_scale), np.float32(damping),
+            np.float32(dt)
             )
         cl.enqueue_copy(queue, u, u_d)
         cl.enqueue_copy(queue, ud, ud_d)
@@ -154,14 +154,14 @@ class TestUpdateDisplacement:
     @context_available
     def test_update_displacement3(self, context, queue, program):
         """Test displacement update with displacement boundary conditions."""
-        u = np.zeros(3, dtype=np.float64)
-        ud = np.array([1.0, 1.0, 1.0], dtype=np.float64)
+        u = np.zeros(3, dtype=np.float32)
+        ud = np.array([1.0, 1.0, 1.0], dtype=np.float32)
         udd = np.zeros(3)
-        densities = np.array([1.0, 1.0, 1.0], dtype=np.float64)
+        densities = np.array([1.0, 1.0, 1.0], dtype=np.float32)
         nnodes = 1
-        force = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+        force = np.array([1.0, 2.0, 3.0], dtype=np.float32)
         bc_types = np.array([1, 1, 0], dtype=np.intc)
-        bc_values = np.array([0.0, 0.0, 0.0], dtype=np.float64)
+        bc_values = np.array([0.0, 0.0, 0.0], dtype=np.float32)
         displacement_bc_scale = 1.0
         dt = 2.0
         damping = 2.0
@@ -197,8 +197,8 @@ class TestUpdateDisplacement:
         update_displacement_kernel(
             queue, (3 * nnodes,), None,
             force_d, u_d, ud_d, udd_d, bc_types_d, bc_values_d, densities_d,
-            np.float64(displacement_bc_scale), np.float64(damping),
-            np.float64(dt)
+            np.float32(displacement_bc_scale), np.float32(damping),
+            np.float32(dt)
             )
         cl.enqueue_copy(queue, u, u_d)
         cl.enqueue_copy(queue, ud, ud_d)
@@ -219,9 +219,9 @@ class TestUpdateDisplacement:
         udd = np.zeros(3)
         densties = np.ones(3)
         nnodes = 1
-        force = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+        force = np.array([1.0, 2.0, 3.0], dtype=np.float32)
         bc_types = np.array([1, 1, 0], dtype=np.intc)
-        bc_values = np.array([2.0, 2.0, 0.0], dtype=np.float64)
+        bc_values = np.array([2.0, 2.0, 0.0], dtype=np.float32)
         displacement_bc_scale = 0.5
         dt = 2.0
         damping = 1.0
@@ -257,8 +257,8 @@ class TestUpdateDisplacement:
         update_displacement_kernel(
             queue, (3 * nnodes,), None,
             force_d, u_d, ud_d, udd_d, bc_types_d, bc_values_d, densities_d,
-            np.float64(displacement_bc_scale), np.float64(damping),
-            np.float64(dt)
+            np.float32(displacement_bc_scale), np.float32(damping),
+            np.float32(dt)
             )
         cl.enqueue_copy(queue, u, u_d)
         cl.enqueue_copy(queue, ud, ud_d)

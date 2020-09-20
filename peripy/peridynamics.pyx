@@ -18,10 +18,10 @@ def damage(int[:] n_neigh, int[:] family):
     """
     cdef nnodes = family.shape[0]
 
-    result = np.empty(nnodes, dtype=np.float64)
-    cdef double[:] result_view = result
+    result = np.empty(nnodes, dtype=np.float32)
+    cdef float[:] result_view = result
 
-    cdef double ifamily
+    cdef float ifamily
     cdef int i
 
     for i in range(nnodes):
@@ -31,10 +31,10 @@ def damage(int[:] n_neigh, int[:] family):
     return result
 
 
-def bond_force(double[:, :] r, double[:, :] r0, int[:, :] nlist,
-               int[:] n_neigh, double[:] volume, double bond_stiffness,
-               double[:, :] force_bc_values, int[:, :] force_bc_types,
-               double force_bc_scale):
+def bond_force(float[:, :] r, float[:, :] r0, int[:, :] nlist,
+               int[:] n_neigh, float[:] volume, float bond_stiffness,
+               float[:, :] force_bc_values, int[:, :] force_bc_types,
+               float force_bc_scale):
     """
     Calculate the force due to bonds on each node.
 
@@ -53,17 +53,17 @@ def bond_force(double[:, :] r, double[:, :] r0, int[:, :] nlist,
     :type force_bc_values: :class:`numpy.ndarray`
     :arg force_bc_types: The force boundary condition types for each node.
     :type force_bc_types: :class:`numpy.ndarray`
-    :arg double bc_scale: The scalar value applied to the
+    :arg float bc_scale: The scalar value applied to the
         force boundary conditions.
     """
     cdef int nnodes = nlist.shape[0]
 
-    force = np.zeros((nnodes, 3), dtype=np.float64)
-    cdef double[:, :] force_view = force
+    force = np.zeros((nnodes, 3), dtype=np.float32)
+    cdef float[:, :] force_view = force
 
     cdef int i, j, dim, i_n_neigh, neigh
-    cdef double strain, l, force_norm, nu, partial_volume_i, partial_volume_j
-    cdef double[3] f
+    cdef float strain, l, force_norm, nu, partial_volume_i, partial_volume_j
+    cdef float[3] f
 
     for i in range(nnodes):
         i_n_neigh = n_neigh[i]
@@ -99,8 +99,8 @@ def bond_force(double[:, :] r, double[:, :] r0, int[:, :] nlist,
     return force
 
 
-def break_bonds(double[:, :] r, double[:, :]r0, int[:, :] nlist,
-                int[:] n_neigh, double critical_strain):
+def break_bonds(float[:, :] r, float[:, :]r0, int[:, :] nlist,
+                int[:] n_neigh, float critical_strain):
     """
     Update the neighbour list and number of neighbours by breaking bonds which
     have exceeded the critical strain.
@@ -156,9 +156,9 @@ def break_bonds(double[:, :] r, double[:, :]r0, int[:, :] nlist,
         n_neigh[i] = i_n_neigh
 
 
-def update_displacement(double[:, :] u, double[:, :] bc_values, 
-                        int[:, :] bc_types, double[:, :] force, 
-                        double bc_scale, double dt):
+def update_displacement(float[:, :] u, float[:, :] bc_values, 
+                        int[:, :] bc_types, float[:, :] force, 
+                        float bc_scale, float dt):
     """
     Update the displacement of each node for each node using an Euler
     integrator.

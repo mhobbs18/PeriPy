@@ -245,7 +245,7 @@ class Model(object):
                                      np.shape(volume)))
             warnings.warn(
                     "Reading volume from argument.")
-            self.volume = volume.astype(np.float64)
+            self.volume = volume.astype(np.float32)
         else:
             raise TypeError("volume type is wrong (expected {}, got "
                             "{})".format(type(volume),
@@ -253,7 +253,7 @@ class Model(object):
 
         if volume_correction is not None:
             if not ((type(node_radius) == float)
-                    or (type(node_radius) == np.float64)):
+                    or (type(node_radius) == np.float32)):
                 raise TypeError(
                     "If volume_correction (= {}) is applied, an "
                     "average node radius must be supplied as the "
@@ -350,7 +350,7 @@ class Model(object):
         if stiffness_corrections is None:
             stiffness_correction_factors_are_applied = False
             stiffness_corrections = np.ones(
-                (self.nnodes, self.max_neighbours), dtype=np.float64)
+                (self.nnodes, self.max_neighbours), dtype=np.float32)
             if micromodulus_function is not None:
                 # Apply micromodulus function
                 # Calculate the micromodulus function values
@@ -402,7 +402,7 @@ class Model(object):
                         surface_correction, volume_correction,
                         micromodulus_function))
                 self.stiffness_corrections = (
-                    stiffness_corrections.astype(np.float64))
+                    stiffness_corrections.astype(np.float32))
         else:
             raise TypeError("stiffness_corrections type is wrong (expected {}"
                             ", got {})".format(
@@ -492,7 +492,7 @@ class Model(object):
         mesh = meshio.read(filename)
 
         # Get coordinates, encoded as mesh points
-        self.coords = np.array(mesh.points, dtype=np.float64)
+        self.coords = np.array(mesh.points, dtype=np.float32)
         self.nnodes = self.coords.shape[0]
 
         if not transfinite:
@@ -500,7 +500,7 @@ class Model(object):
             self.mesh_connectivity = mesh.cells_dict[
                 self.mesh_elements.connectivity
                 ]
-    
+
             # Get boundary connectivity, mesh lines
             self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
 
@@ -653,7 +653,7 @@ class Model(object):
                 # Add fraction element volume to all nodes belonging to that
                 # element
                 volume[nodes] += element_volume / element_nodes
-        volume = volume.astype(np.float64)
+        volume = volume.astype(np.float32)
         return volume
 
     def _set_densities(self, density, is_density):
@@ -692,7 +692,7 @@ class Model(object):
                     write_array(self.write_path, "density", density)
                 densities = np.transpose(
                     np.tile(density, (self.degrees_freedom, 1))).astype(
-                        np.float64)
+                        np.float32)
         elif type(density) == np.ndarray:
             if np.shape(density) != (self.nnodes,):
                 raise ValueError("densty shape is wrong, and must be "
@@ -701,7 +701,7 @@ class Model(object):
             warnings.warn(
                 "Reading density from argument.")
             densities = np.transpose(
-                np.tile(density, (self.degrees_freedom, 1))).astype(np.float64)
+                np.tile(density, (self.degrees_freedom, 1))).astype(np.float32)
         else:
             raise TypeError("density type is wrong, and must be an array of"
                             " shape (nnodes,) (expected {}, got {})".format(
@@ -814,7 +814,7 @@ class Model(object):
             # Conical micromodulus function
             set_micromodulus_function(
                 stiffness_corrections, self.coords, nlist, n_neigh,
-                np.float64(horizon), np.intc(micromodulus_function))
+                np.float32(horizon), np.intc(micromodulus_function))
         else:
             raise ValueError("micromodulus_function value is wrong "
                              "(expected 0 or None, got {})".format(
@@ -868,7 +868,7 @@ class Model(object):
             # Calculate partial volume corrections
             set_volume_correction(
                 stiffness_corrections, self.coords, nlist, n_neigh,
-                np.float64(horizon), np.float64(node_radius),
+                np.float32(horizon), np.float32(node_radius),
                 np.intc(volume_correction))
         else:
             raise ValueError("volume_correction value is wrong "
@@ -919,9 +919,9 @@ class Model(object):
         nlist, n_neigh = self.initial_connectivity
 
         if self.dimensions == 2:
-            family_volume_bulk = np.float64(np.pi*np.power(self.horizon, 2))
+            family_volume_bulk = np.float32(np.pi*np.power(self.horizon, 2))
         elif self.dimensions == 3:
-            family_volume_bulk = np.float64(
+            family_volume_bulk = np.float32(
                 (4./3)*np.pi*np.power(self.horizon, 3))
 
         if surface_correction == 1:
@@ -929,7 +929,7 @@ class Model(object):
                 stiffness_corrections, nlist, n_neigh, self.volume,
                 family_volume_bulk)
         elif surface_correction == 0:
-            average_node_volume = np.float64(np.sum(self.volume) / self.nnodes)
+            average_node_volume = np.float32(np.sum(self.volume) / self.nnodes)
             set_imprecise_surface_correction(
                 stiffness_corrections, nlist, n_neigh, average_node_volume,
                 family_volume_bulk)
@@ -994,24 +994,24 @@ class Model(object):
                 if np.shape(bond_stiffness) == (1,):
                     nregimes = 1
                     nbond_types = 1
-                    bond_stiffness = np.float64(bond_stiffness[0])
-                    critical_stretch = np.float64(critical_stretch[0])
+                    bond_stiffness = np.float32(bond_stiffness[0])
+                    critical_stretch = np.float32(critical_stretch[0])
                     plus_cs = None
                 elif np.shape(bond_stiffness) == ():
                     nregimes = 1
                     nbond_types = 1
-                    bond_stiffness = np.float64(bond_stiffness)
+                    bond_stiffness = np.float32(bond_stiffness)
                     critical_stretch = np.array(critical_stretch)
                     plus_cs = None
                 elif np.shape(bond_stiffness[0]) == (1,):
                     nregimes = 1
                     nbond_types = np.shape(bond_stiffness)[0]
                     bond_stiffness = np.array(
-                        bond_stiffness, dtype=np.float64)
+                        bond_stiffness, dtype=np.float32)
                     critical_stretch = np.array(
-                        critical_stretch, dtype=np.float64)
+                        critical_stretch, dtype=np.float32)
                     plus_cs = np.zeros(nbond_types)
-                    plus_cs = plus_cs.astype(np.float64)
+                    plus_cs = plus_cs.astype(np.float32)
                 elif np.shape(bond_stiffness[0]) == ():
                     nbond_types = 1
                     nregimes = np.shape(bond_stiffness)[0]
@@ -1022,9 +1022,9 @@ class Model(object):
                         raise DamageModelError(critical_stretch)
 
                     bond_stiffness = np.array(
-                        bond_stiffness, dtype=np.float64)
+                        bond_stiffness, dtype=np.float32)
                     critical_stretch = np.array(
-                        critical_stretch, dtype=np.float64)
+                        critical_stretch, dtype=np.float32)
                     plus_cs = np.zeros(nregimes)
                     c_i = 0.0
                     # The bond force density at 0 stretch is 0
@@ -1039,7 +1039,7 @@ class Model(object):
                                critical_stretch[r - 1]))
                         plus_cs[r] = c_i
                         c_prev = c_i
-                    plus_cs = plus_cs.astype(np.float64)
+                    plus_cs = plus_cs.astype(np.float32)
                 else:
                     nregimes = np.shape(bond_stiffness)[1]
                     nbond_types = np.shape(bond_stiffness)[0]
@@ -1052,9 +1052,9 @@ class Model(object):
                             raise DamageModelError(critical_stretch[i])
 
                     bond_stiffness = np.array(
-                        bond_stiffness, dtype=np.float64)
+                        bond_stiffness, dtype=np.float32)
                     critical_stretch = np.array(
-                        critical_stretch, dtype=np.float64)
+                        critical_stretch, dtype=np.float32)
                     plus_cs = np.zeros((nbond_types, nregimes))
                     c_i = np.zeros(nbond_types)
                     # The bond force density at 0 stretch is 0
@@ -1069,13 +1069,13 @@ class Model(object):
                                critical_stretch[:, r - 1]))
                         plus_cs[:, r] = c_i
                         c_prev = c_i
-                    plus_cs = plus_cs.astype(np.float64)
+                    plus_cs = plus_cs.astype(np.float32)
         elif ((type(bond_stiffness) is float) or
-              (type(bond_stiffness) is np.float64)):
+              (type(bond_stiffness) is np.float32)):
             nregimes = 1
             nbond_types = 1
-            bond_stiffness = np.float64(bond_stiffness)
-            critical_stretch = np.float64(critical_stretch)
+            bond_stiffness = np.float32(bond_stiffness)
+            critical_stretch = np.float32(critical_stretch)
             plus_cs = None
         else:
             raise TypeError(
@@ -1168,11 +1168,11 @@ class Model(object):
         bc_types = np.zeros(
             (self.nnodes, self.degrees_freedom), dtype=np.intc)
         bc_values = np.zeros(
-            (self.nnodes, self.degrees_freedom), dtype=np.float64)
+            (self.nnodes, self.degrees_freedom), dtype=np.float32)
         force_bc_types = np.zeros(
             (self.nnodes, self.degrees_freedom), dtype=np.intc)
         force_bc_values = np.zeros(
-            (self.nnodes, self.degrees_freedom), dtype=np.float64)
+            (self.nnodes, self.degrees_freedom), dtype=np.float32)
         tip_types = {}
         num_force_bc_nodes = 0
         ntips = {'model': self.nnodes}
@@ -1188,12 +1188,12 @@ class Model(object):
                 # Define boundary types and values
                 if bnd_j is not None:
                     bc_types[i, j] = np.intc(1)
-                    bc_values[i, j] = np.float64(bnd_j)
+                    bc_values[i, j] = np.float32(bnd_j)
                 # Define forces boundary types and values
                 if forces_bnd_j is not None:
                     is_force_node = 1
                     force_bc_types[i, j] = np.intc(1)
-                    force_bc_values[i, j] = np.float64(
+                    force_bc_values[i, j] = np.float32(
                         forces_bnd_j / self.volume[i])
 
                 if tip_j is not None:
@@ -1207,7 +1207,7 @@ class Model(object):
 
             num_force_bc_nodes += is_force_node
         if num_force_bc_nodes != 0:
-            force_bc_values = np.float64(
+            force_bc_values = np.float32(
                 np.divide(force_bc_values, num_force_bc_nodes))
 
         return (bc_types, bc_values, force_bc_types, force_bc_values,
@@ -1350,22 +1350,30 @@ class Model(object):
 
                     # Add to model data for the write index, ii
                     data['model']['step'][ii] = step
-                    data['model']['displacement'].append(u.copy())
-                    data['model']['velocity'].append(ud.copy())
-                    data['model']['acceleration'].append(udd.copy())
+                    data['model']['displacement'][ii] = np.sum(u)
+                    data['model']['velocity'][ii] = np.sum(ud)
+                    data['model']['acceleration'][ii] = np.sum(udd)
                     data['model']['force'][ii] = np.sum(
                         force * self.volume[:, np.newaxis])
                     data['model']['body_force'][ii] = np.sum(
                         body_force * self.volume[:, np.newaxis])
 
                     damage_sum = np.sum(damage)
-                    data['model']['damage'].append(damage.copy())
+                    data['model']['damage_sum'][ii] = damage_sum
                     if damage_sum > 0.05*self.nnodes:
                         warnings.warn('Over 5% of bonds have broken!\
                                       peridynamics simulation continuing')
                     elif damage_sum > 0.7*self.nnodes:
                         warnings.warn('Over 7% of bonds have broken!\
                                       peridynamics simulation continuing')
+        for tip_type_str in data:
+            # Average the nodal displacements, velocities and
+            # accelerations
+            ntip = self.ntips[tip_type_str]
+            if ntip != 0:
+                data[tip_type_str]['displacement'] /= ntip
+                data[tip_type_str]['velocity'] /= ntip
+                data[tip_type_str]['acceleration'] /= ntip
         (u,
          ud,
          udd,
@@ -1433,18 +1441,18 @@ class Model(object):
         """
         # Create initial displacements and velocities if None is provided
         if u is None:
-            u = np.zeros((self.nnodes, 3), dtype=np.float64)
+            u = np.zeros((self.nnodes, 3), dtype=np.float32)
         if ud is None:
-            ud = np.zeros((self.nnodes, 3), dtype=np.float64)
+            ud = np.zeros((self.nnodes, 3), dtype=np.float32)
         # Initiate forces, damage and accelerations
-        force = np.zeros((self.nnodes, 3), dtype=np.float64)
-        body_force = np.zeros((self.nnodes, 3), dtype=np.float64)
-        damage = np.zeros(self.nnodes, dtype=np.float64)
-        udd = np.zeros((self.nnodes, 3), dtype=np.float64)
+        force = np.zeros((self.nnodes, 3), dtype=np.float32)
+        body_force = np.zeros((self.nnodes, 3), dtype=np.float32)
+        damage = np.zeros(self.nnodes, dtype=np.float32)
+        udd = np.zeros((self.nnodes, 3), dtype=np.float32)
         # Create boundary condition magnitudes if None is provided
         if displacement_bc_magnitudes is None:
             displacement_bc_magnitudes = np.zeros(
-                first_step + steps - 1, dtype=np.float64)
+                first_step + steps - 1, dtype=np.float32)
         elif type(displacement_bc_magnitudes) == np.ndarray:
             if len(displacement_bc_magnitudes) < steps:
                 raise ValueError("displacement_bc_magnitudes length must be "
@@ -1453,7 +1461,7 @@ class Model(object):
                                      first_step + steps - 1,
                                      len(displacement_bc_magnitudes)))
             displacement_bc_magnitudes = displacement_bc_magnitudes.astype(
-                np.float64)
+                np.float32)
         else:
             raise TypeError("displacement_bc_magnitudes type is wrong "
                             "(expected {}, got {})".format(
@@ -1461,7 +1469,7 @@ class Model(object):
                                 type(displacement_bc_magnitudes)))
         if force_bc_magnitudes is None:
             force_bc_magnitudes = np.zeros(
-                first_step + steps - 1, dtype=np.float64)
+                first_step + steps - 1, dtype=np.float32)
         elif type(force_bc_magnitudes) == np.ndarray:
             if len(force_bc_magnitudes) < steps:
                 raise ValueError("force_bc_magnitudes length must be "
@@ -1470,7 +1478,7 @@ class Model(object):
                                      first_step + steps - 1,
                                      len(force_bc_magnitudes)))
             force_bc_magnitudes = force_bc_magnitudes.astype(
-                np.float64)
+                np.float32)
         else:
             raise TypeError("force_bc_magnitudes type is wrong "
                             "(expected {}, got {})".format(
@@ -1551,12 +1559,12 @@ class Model(object):
             if write is not None:
                 data['model'] = {
                     'step': np.zeros(nwrites, dtype=int),
-                    'displacement': [],
-                    'velocity': [],
-                    'acceleration': [],
+                    'displacement': np.zeros(nwrites, dtype=np.float64),
+                    'velocity': np.zeros(nwrites, dtype=np.float64),
+                    'acceleration': np.zeros(nwrites, dtype=np.float64),
                     'force': np.zeros(nwrites, dtype=np.float64),
                     'body_force': np.zeros(nwrites, dtype=np.float64),
-                    'damage': []
+                    'damage_sum': np.zeros(nwrites, dtype=np.float64)
                     }
 
         # Initialise the OpenCL buffers

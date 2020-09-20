@@ -1,13 +1,11 @@
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
 __kernel void
 	update_displacement(
-    	__global double const* force,
-    	__global double* u,
+    	__global float const* force,
+    	__global float* u,
 		__global int const* bc_types,
-		__global double const* bc_values,
-		double bc_scale,
-        double dt
+		__global float const* bc_values,
+		float bc_scale,
+        float dt
 	){
     /* Calculate the displacement of each node using an Euler
      * integrator.

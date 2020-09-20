@@ -17,12 +17,12 @@ def euclid(r1, r2):
     return ceuclid(r1, r2)
 
 
-cdef inline double ceuclid(double[:] r1, double[:] r2):
+cdef inline float ceuclid(float[:] r1, float[:] r2):
     """
     C function for calculating the Euclidean distance between two coordinates.
     """
     cdef int imax = 3
-    cdef double[3] dr
+    cdef float[3] dr
 
     for i in range(imax):
         dr[i] = r2[i] - r1[i]
@@ -51,13 +51,13 @@ def strain(r1, r2, r10, r20):
     return cstrain(r1, r2, r10, r20)
 
 
-cdef inline double cstrain(double[:] r1, double[:] r2,
-                           double[:] r10, double[:] r20):
+cdef inline float cstrain(float[:] r1, float[:] r2,
+                           float[:] r10, float[:] r20):
     """
     C function for calculating the strain given current and initial
     coordinates.
     """
-    cdef double l, dl
+    cdef float l, dl
 
     l = ceuclid(r1, r2)
     l0 = ceuclid(r10, r20)
@@ -84,12 +84,12 @@ def strain2(l, r10, r20):
     return cstrain2(l, r10, r20)
 
 
-cdef inline double cstrain2(double l, double[:] r10, double[:] r20):
+cdef inline float cstrain2(float l, float[:] r10, float[:] r20):
     """
     C function for calculating the strain given the current displacement and
     the initial coordinates.
     """
-    cdef double dl
+    cdef float dl
 
     l0 = ceuclid(r10, r20)
     dl = l - l0

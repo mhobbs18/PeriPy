@@ -387,14 +387,14 @@ def test_initial_damage_2d_cl(basic_model_2d_cl):
     queue = integrator.queue
     nlist, n_neigh = model.initial_connectivity
     local_mem = cl.LocalMemory(
-        np.dtype(np.float64).itemsize * model.max_neighbours)
+        np.dtype(np.float32).itemsize * model.max_neighbours)
     family_d = cl.Buffer(
         context, mf.READ_ONLY | mf.COPY_HOST_PTR,
         hostbuf=model.family)
     nlist_d = cl.Buffer(
         context, mf.READ_WRITE | mf.COPY_HOST_PTR,
         hostbuf=nlist)
-    damage = np.empty(n_neigh.shape, dtype=np.float64)
+    damage = np.empty(n_neigh.shape, dtype=np.float32)
     damage_d = cl.Buffer(context, mf.WRITE_ONLY, damage.nbytes)
     n_neigh_d = cl.Buffer(context, mf.WRITE_ONLY, n_neigh.nbytes)
     integrator._damage(
@@ -412,14 +412,14 @@ def test_initial_damage_3d_cl(basic_model_3d_cl):
     queue = integrator.queue
     nlist, n_neigh = model.initial_connectivity
     local_mem = cl.LocalMemory(
-        np.dtype(np.float64).itemsize * model.max_neighbours)
+        np.dtype(np.float32).itemsize * model.max_neighbours)
     family_d = cl.Buffer(
         context, mf.READ_ONLY | mf.COPY_HOST_PTR,
         hostbuf=model.family)
     nlist_d = cl.Buffer(
         context, mf.READ_WRITE | mf.COPY_HOST_PTR,
         hostbuf=nlist)
-    damage = np.empty(n_neigh.shape, dtype=np.float64)
+    damage = np.empty(n_neigh.shape, dtype=np.float32)
     damage_d = cl.Buffer(context, mf.WRITE_ONLY, damage.nbytes)
     n_neigh_d = cl.Buffer(context, mf.WRITE_ONLY, n_neigh.nbytes)
     integrator._damage(
@@ -824,7 +824,7 @@ class TestMicromodulusFunction:
         actual_volume_corrections = model._set_micromodulus_values(
             micromodulus_function=0,
             stiffness_corrections=np.ones(
-                (model.nnodes, model.max_neighbours), dtype=np.float64),
+                (model.nnodes, model.max_neighbours), dtype=np.float32),
             horizon=model.horizon)
         expected_volume_corrections = np.load(
             data_path / "expected_micromodulus_values_2d.npy")
@@ -840,7 +840,7 @@ class TestMicromodulusFunction:
         actual_volume_corrections = model._set_micromodulus_values(
             micromodulus_function=0,
             stiffness_corrections=np.ones(
-                (model.nnodes, model.max_neighbours), dtype=np.float64),
+                (model.nnodes, model.max_neighbours), dtype=np.float32),
             horizon=model.horizon)
         expected_volume_corrections = np.load(
             data_path / "expected_micromodulus_values_3d.npy")
@@ -885,7 +885,7 @@ class TestVolumeCorrections:
         actual_volume_corrections = model._set_volume_corrections(
             volume_correction=0,
             stiffness_corrections=np.ones(
-                (model.nnodes, model.max_neighbours), dtype=np.float64),
+                (model.nnodes, model.max_neighbours), dtype=np.float32),
             node_radius=np.power(1./model.nnodes, 1./3),
             horizon=model.horizon)
         expected_volume_corrections = np.load(
@@ -902,7 +902,7 @@ class TestVolumeCorrections:
         actual_volume_corrections = model._set_volume_corrections(
             volume_correction=0,
             stiffness_corrections=np.ones(
-                (model.nnodes, model.max_neighbours), dtype=np.float64),
+                (model.nnodes, model.max_neighbours), dtype=np.float32),
             node_radius=np.power(1./model.nnodes, 1./3),
             horizon=model.horizon)
         expected_volume_corrections = np.load(
@@ -933,7 +933,7 @@ class TestSurfaceCorrections:
         actual_stiffness_corrections = model._set_surface_corrections(
             surface_correction=0,
             stiffness_corrections=np.ones(
-                (model.nnodes, model.max_neighbours), dtype=np.float64))
+                (model.nnodes, model.max_neighbours), dtype=np.float32))
         expected_stiffness_corrections = np.load(
             data_path / "expected_stiffness_corrections_2d.npy")
         assert np.allclose(
@@ -947,7 +947,7 @@ class TestSurfaceCorrections:
         actual_stiffness_corrections = model._set_surface_corrections(
             surface_correction=1,
             stiffness_corrections=np.ones(
-                (model.nnodes, model.max_neighbours), dtype=np.float64))
+                (model.nnodes, model.max_neighbours), dtype=np.float32))
         expected_stiffness_corrections = np.load(
             data_path / "expected_stiffness_corrections_2d_precise.npy")
         assert np.allclose(
@@ -961,7 +961,7 @@ class TestSurfaceCorrections:
         actual_stiffness_corrections = model._set_surface_corrections(
             surface_correction=0,
             stiffness_corrections=np.ones(
-                (model.nnodes, model.max_neighbours), dtype=np.float64))
+                (model.nnodes, model.max_neighbours), dtype=np.float32))
         expected_stiffness_corrections = np.load(
             data_path / "expected_stiffness_corrections_3d.npy")
         assert np.allclose(
@@ -976,7 +976,7 @@ class TestSurfaceCorrections:
         actual_stiffness_corrections = model._set_surface_corrections(
             surface_correction=0,
             stiffness_corrections=np.ones(
-                (model.nnodes, model.max_neighbours), dtype=np.float64))
+                (model.nnodes, model.max_neighbours), dtype=np.float32))
         expected_stiffness_corrections = np.load(
             data_path / "expected_stiffness_corrections_2d_cl.npy")
         assert np.allclose(
@@ -991,7 +991,7 @@ class TestSurfaceCorrections:
         actual_stiffness_corrections = model._set_surface_corrections(
             surface_correction=1,
             stiffness_corrections=np.ones(
-                (model.nnodes, model.max_neighbours), dtype=np.float64))
+                (model.nnodes, model.max_neighbours), dtype=np.float32))
         expected_stiffness_corrections = np.load(
             data_path / "expected_stiffness_corrections_2d_precise_cl.npy")
         assert np.allclose(
@@ -1006,7 +1006,7 @@ class TestSurfaceCorrections:
         actual_stiffness_corrections = model._set_surface_corrections(
             surface_correction=0,
             stiffness_corrections=np.ones(
-                (model.nnodes, model.max_neighbours), dtype=np.float64))
+                (model.nnodes, model.max_neighbours), dtype=np.float32))
         expected_stiffness_corrections = np.load(
             data_path / "expected_stiffness_corrections_3d_cl.npy")
         assert np.allclose(
@@ -1021,7 +1021,7 @@ class TestSurfaceCorrections:
         actual_stiffness_corrections = model._set_surface_corrections(
             surface_correction=1,
             stiffness_corrections=np.ones(
-                (model.nnodes, model.max_neighbours), dtype=np.float64))
+                (model.nnodes, model.max_neighbours), dtype=np.float32))
         expected_stiffness_corrections = np.load(
             data_path / "expected_stiffness_corrections_3d_precise_cl.npy")
         assert np.allclose(
@@ -1105,9 +1105,9 @@ class TestDamageModel:
         bond_stiffness = [[1.0, -1.0, -0.5], [1.0, 0.0, 0.0]]
         critical_stretch = [[1.0, 1.5, 2.5], [1.0, 1000.0, 1001.0]]
 
-        bond_stiffness_expected = np.array(bond_stiffness, dtype=np.float64)
+        bond_stiffness_expected = np.array(bond_stiffness, dtype=np.float32)
         critical_stretch_expected = np.array(
-            critical_stretch, dtype=np.float64)
+            critical_stretch, dtype=np.float32)
         plus_cs_expected = np.array([[0.0, 2.0, 1.25],
                                      [0.0, 1.0, 1.0]])
         nregimes_expected = np.intc(3)
@@ -1132,11 +1132,11 @@ class TestDamageModel:
         bond_stiffness = np.array([[1.0, -1.0, -0.5], [1.0, 0.0, 0.0]])
         critical_stretch = np.array([[1.0, 1.5, 2.5], [1.0, 1000.0, 1001.0]])
 
-        bond_stiffness_expected = np.array(bond_stiffness, dtype=np.float64)
+        bond_stiffness_expected = np.array(bond_stiffness, dtype=np.float32)
         critical_stretch_expected = np.array(
-            critical_stretch, dtype=np.float64)
+            critical_stretch, dtype=np.float32)
         plus_cs_expected = np.array([[0.0, 2.0, 1.25],
-                                     [0.0, 1.0, 1.0]], dtype=np.float64)
+                                     [0.0, 1.0, 1.0]], dtype=np.float32)
         nregimes_expected = np.intc(3)
         nbond_types_expected = np.intc(2)
 
@@ -1159,9 +1159,9 @@ class TestDamageModel:
         bond_stiffness = np.array(1.0)
         critical_stretch = np.array(1.0)
 
-        bond_stiffness_expected = np.array(bond_stiffness, dtype=np.float64)
+        bond_stiffness_expected = np.array(bond_stiffness, dtype=np.float32)
         critical_stretch_expected = np.array(
-            critical_stretch, dtype=np.float64)
+            critical_stretch, dtype=np.float32)
         plus_cs_expected = None
         nregimes_expected = np.intc(1)
         nbond_types_expected = np.intc(1)
@@ -1185,9 +1185,9 @@ class TestDamageModel:
         bond_stiffness = [1.0]
         critical_stretch = [1.0]
 
-        bond_stiffness_expected = np.array(bond_stiffness, dtype=np.float64)
+        bond_stiffness_expected = np.array(bond_stiffness, dtype=np.float32)
         critical_stretch_expected = np.array(
-            critical_stretch, dtype=np.float64)
+            critical_stretch, dtype=np.float32)
         plus_cs_expected = None
         nregimes_expected = np.intc(1)
         nbond_types_expected = np.intc(1)
@@ -1211,10 +1211,10 @@ class TestDamageModel:
         bond_stiffness = np.array([1.0, -1.0, -0.5])
         critical_stretch = np.array([1.0, 2.0, 3.0])
 
-        bond_stiffness_expected = np.array(bond_stiffness, dtype=np.float64)
+        bond_stiffness_expected = np.array(bond_stiffness, dtype=np.float32)
         critical_stretch_expected = np.array(
-            critical_stretch, dtype=np.float64)
-        plus_cs_expected = np.array([0.0, 2.0, 1.0], dtype=np.float64)
+            critical_stretch, dtype=np.float32)
+        plus_cs_expected = np.array([0.0, 2.0, 1.0], dtype=np.float32)
         nregimes_expected = np.intc(3)
         nbond_types_expected = np.intc(1)
 
@@ -1237,10 +1237,10 @@ class TestDamageModel:
         bond_stiffness = np.array([[1.0], [2.0], [1.0]])
         critical_stretch = np.array([[1.0], [1.0], [1.0]])
 
-        bond_stiffness_expected = np.array(bond_stiffness, dtype=np.float64)
+        bond_stiffness_expected = np.array(bond_stiffness, dtype=np.float32)
         critical_stretch_expected = np.array(
-            critical_stretch, dtype=np.float64)
-        plus_cs_expected = np.array([[0.0], [0.0], [0.0]], dtype=np.float64)
+            critical_stretch, dtype=np.float32)
+        plus_cs_expected = np.array([[0.0], [0.0], [0.0]], dtype=np.float32)
         nregimes_expected = np.intc(1)
         nbond_types_expected = np.intc(3)
 
@@ -1701,12 +1701,12 @@ class TestSimulateInitialise:
             steps, 1, write, None, None, None,
             None, None, None, None, None, None)
         expected_data_model = {'step': np.zeros(2, dtype=int),
-                               'displacement': np.zeros(2, dtype=np.float64),
-                               'velocity': np.zeros(2, dtype=np.float64),
-                               'acceleration': np.zeros(2, dtype=np.float64),
-                               'force': np.zeros(2, dtype=np.float64),
-                               'body_force': np.zeros(2, dtype=np.float64),
-                               'damage_sum': np.zeros(2, dtype=np.float64)}
+                               'displacement': np.zeros(2, dtype=np.float32),
+                               'velocity': np.zeros(2, dtype=np.float32),
+                               'acceleration': np.zeros(2, dtype=np.float32),
+                               'force': np.zeros(2, dtype=np.float32),
+                               'body_force': np.zeros(2, dtype=np.float32),
+                               'damage_sum': np.zeros(2, dtype=np.float32)}
         actual_data_model = actual_data['model']
 
         assert actual_data_model.keys() == expected_data_model.keys()
@@ -1726,12 +1726,12 @@ class TestSimulateInitialise:
             steps, first_step, write, None, None, None,
             None, None, None, None, None, None)
         expected_data_model = {'step': np.zeros(1, dtype=int),
-                               'displacement': np.zeros(1, dtype=np.float64),
-                               'velocity': np.zeros(1, dtype=np.float64),
-                               'acceleration': np.zeros(1, dtype=np.float64),
-                               'force': np.zeros(1, dtype=np.float64),
-                               'body_force': np.zeros(1, dtype=np.float64),
-                               'damage_sum': np.zeros(1, dtype=np.float64)}
+                               'displacement': np.zeros(1, dtype=np.float32),
+                               'velocity': np.zeros(1, dtype=np.float32),
+                               'acceleration': np.zeros(1, dtype=np.float32),
+                               'force': np.zeros(1, dtype=np.float32),
+                               'body_force': np.zeros(1, dtype=np.float32),
+                               'damage_sum': np.zeros(1, dtype=np.float32)}
         actual_data_model = actual_data['model']
 
         assert actual_data_model.keys() == expected_data_model.keys()
@@ -1750,9 +1750,9 @@ class TestSimulateInitialise:
          nwrites, write_path) = model._simulate_initialise(
             steps, 1, None, None, None, None,
             None, None, None, None, None, None)
-        nnodes_dof_zeros = np.zeros((model.nnodes, 3), dtype=np.float64)
-        nnodes_zeros = np.zeros((model.nnodes), dtype=np.float64)
-        steps_zeros = np.zeros(steps, dtype=np.float64)
+        nnodes_dof_zeros = np.zeros((model.nnodes, 3), dtype=np.float32)
+        nnodes_zeros = np.zeros((model.nnodes), dtype=np.float32)
+        steps_zeros = np.zeros(steps, dtype=np.float32)
         assert np.all(u == nnodes_dof_zeros)
         assert np.all(ud == nnodes_dof_zeros)
         assert np.all(udd == nnodes_dof_zeros)

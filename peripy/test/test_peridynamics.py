@@ -82,7 +82,7 @@ class TestForce:
         bond_stiffness = 1.0
         force_bc_scale = 1.0
         force_bc_types = np.zeros((nnodes, 3), dtype=np.int32)
-        force_bc_values = np.zeros((nnodes, 3), dtype=np.float64)
+        force_bc_values = np.zeros((nnodes, 3), dtype=np.float32)
 
         force_expected = np.zeros((5, 3))
         force_actual = bond_force(
@@ -110,7 +110,7 @@ class TestForce:
         n_neigh = np.array([1, 2, 1], dtype=np.intc)
         force_bc_scale = 1.0
         force_bc_types = np.zeros((nnodes, 3), dtype=np.int32)
-        force_bc_values = np.zeros((nnodes, 3), dtype=np.float64)
+        force_bc_values = np.zeros((nnodes, 3), dtype=np.float32)
 
         # Displace particles, but do not update neighbour list
         r = r0 + np.array([

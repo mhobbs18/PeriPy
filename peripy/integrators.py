@@ -115,7 +115,7 @@ class Integrator(ABC):
         if (stiffness_corrections is None) and (bond_types is None):
             self.bond_force_kernel = self.program.bond_force1
             # Placeholder buffers
-            stiffness_corrections = np.array([0], dtype=np.float64)
+            stiffness_corrections = np.array([0], dtype=np.float32)
             bond_types = np.array([0], dtype=np.intc)
             self.stiffness_corrections_d = cl.Buffer(
                 self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
@@ -139,7 +139,7 @@ class Integrator(ABC):
                 self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
                 hostbuf=bond_types)
             # Placeholder buffers
-            stiffness_corrections = np.array([0], dtype=np.float64)
+            stiffness_corrections = np.array([0], dtype=np.float32)
             self.stiffness_corrections_d = cl.Buffer(
                 self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
                 hostbuf=stiffness_corrections)
@@ -159,14 +159,14 @@ class Integrator(ABC):
         # :class: Model.simulation parameters
         # Local memory containers for bond forces
         self.local_mem_x = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * self.max_neighbours)
+            np.dtype(np.float32).itemsize * self.max_neighbours)
         self.local_mem_y = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * self.max_neighbours)
+            np.dtype(np.float32).itemsize * self.max_neighbours)
         self.local_mem_z = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * self.max_neighbours)
+            np.dtype(np.float32).itemsize * self.max_neighbours)
         # Local memory container for damage
         self.local_mem = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * self.max_neighbours)
+            np.dtype(np.float32).itemsize * self.max_neighbours)
         # Read only
         self.r0_d = cl.Buffer(
             self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
@@ -204,10 +204,10 @@ class Integrator(ABC):
         :meth:`peripy.model.Model.simulate` parameters.
         """
         if (nbond_types == 1) and (nregimes == 1):
-            self.bond_stiffness_d = np.float64(bond_stiffness)
-            self.critical_stretch_d = np.float64(critical_stretch)
+            self.bond_stiffness_d = np.float32(bond_stiffness)
+            self.critical_stretch_d = np.float32(critical_stretch)
             # Placeholder buffers
-            plus_cs = np.array([0], dtype=np.float64)
+            plus_cs = np.array([0], dtype=np.float32)
             regimes = np.array([0], dtype=np.intc)
             self.plus_cs_d = cl.Buffer(
                 self.context, mf.READ_WRITE | mf.COPY_HOST_PTR,
@@ -281,7 +281,7 @@ class Integrator(ABC):
                 vols_d, nlist_d, force_bc_types_d, force_bc_values_d,
                 stiffness_corrections_d, bond_types_d, regimes_d, plus_cs_d,
                 local_mem_x, local_mem_y, local_mem_z, bond_stiffness_d,
-                critical_stretch_d, np.float64(force_bc_magnitude),
+                critical_stretch_d, np.float32(force_bc_magnitude),
                 np.intc(nregimes))
 
     def write(self, u, ud, udd, force, body_force, damage, nlist, n_neigh):
@@ -537,7 +537,7 @@ class EulerCL(Integrator):
         self.update_displacement_kernel(
                 self.queue, (self.degrees_freedom * self.nnodes,), None,
                 force_d, u_d, bc_types_d, bc_values_d,
-                np.float64(displacement_bc_magnitude), np.float64(dt))
+                np.float32(displacement_bc_magnitude), np.float32(dt))
         return u_d
 
 
@@ -640,8 +640,8 @@ class EulerCromerCL(Integrator):
         self.update_displacement_kernel(
                 self.queue, (self.degrees_freedom * self.nnodes,), None,
                 force_d, u_d, ud_d, udd_d, bc_types_d, bc_values_d,
-                densities_d, np.float64(displacement_bc_magnitude),
-                np.float64(damping), np.float64(dt)
+                densities_d, np.float32(displacement_bc_magnitude),
+                np.float32(damping), np.float32(dt)
                 )
         return u_d
 
@@ -754,8 +754,8 @@ class VelocityVerletCL(Integrator):
         self.update_displacement_kernel(
                 self.queue, (self.degrees_freedom * self.nnodes,), None,
                 force_d, u_d, ud_d, udd_d, bc_types_d, bc_values_d,
-                densities_d, np.float64(displacement_bc_magnitude),
-                np.float64(damping), np.float64(dt)
+                densities_d, np.float32(displacement_bc_magnitude),
+                np.float32(damping), np.float32(dt)
                 )
         return u_d
 
@@ -866,7 +866,7 @@ class VelocityVerletMossaiby(Integrator):
         if (stiffness_corrections is None) and (bond_types is None):
             self.bond_force_kernel = self.program.bond_force_mossaiby
             # Placeholder buffers
-            stiffness_corrections = np.array([0], dtype=np.float64)
+            stiffness_corrections = np.array([0], dtype=np.float32)
             bond_types = np.array([0], dtype=np.intc)
             self.stiffness_corrections_d = cl.Buffer(
                 self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
@@ -882,7 +882,7 @@ class VelocityVerletMossaiby(Integrator):
         # :class: Model.simulation parameters
         # Local memory container for damage
         self.local_mem = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * self.max_neighbours)
+            np.dtype(np.float32).itemsize * self.max_neighbours)
         # Read only
         self.r0_d = cl.Buffer(
             self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
@@ -946,8 +946,8 @@ class VelocityVerletMossaiby(Integrator):
         self.update_displacement_kernel(
                 self.queue, (self.degrees_freedom * self.nnodes,), None,
                 force_d, u_d, ud_d, udd_d, bc_types_d, bc_values_d,
-                densities_d, np.float64(displacement_bc_magnitude),
-                np.float64(damping), np.float64(dt)
+                densities_d, np.float32(displacement_bc_magnitude),
+                np.float32(damping), np.float32(dt)
                 )
         return u_d
 
@@ -972,7 +972,7 @@ class VelocityVerletMossaiby(Integrator):
                 None, u_d, force_d, body_force_d, r0_d,
                 vols_d, nlist_d, force_bc_types_d, force_bc_values_d,
                 bond_stiffness_d, critical_stretch_d,
-                np.float64(force_bc_magnitude))
+                np.float32(force_bc_magnitude))
 
 
 class VelocityVerletSerial(Integrator):
@@ -1078,7 +1078,7 @@ class VelocityVerletSerial(Integrator):
         if (stiffness_corrections is None) and (bond_types is None):
             self.bond_force_kernel = self.program.bond_force_serial
             # Placeholder buffers
-            stiffness_corrections = np.array([0], dtype=np.float64)
+            stiffness_corrections = np.array([0], dtype=np.float32)
             bond_types = np.array([0], dtype=np.intc)
             self.stiffness_corrections_d = cl.Buffer(
                 self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
@@ -1093,7 +1093,7 @@ class VelocityVerletSerial(Integrator):
         # :class: Model.simulation parameters
         # Local memory container for damage
         self.local_mem = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * self.max_neighbours)
+            np.dtype(np.float32).itemsize * self.max_neighbours)
         # Read only
         self.r0_d = cl.Buffer(
             self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
@@ -1157,8 +1157,8 @@ class VelocityVerletSerial(Integrator):
         self.update_displacement_kernel(
                 self.queue, (self.degrees_freedom * self.nnodes,), None,
                 force_d, u_d, ud_d, udd_d, bc_types_d, bc_values_d,
-                densities_d, np.float64(displacement_bc_magnitude),
-                np.float64(damping), np.float64(dt)
+                densities_d, np.float32(displacement_bc_magnitude),
+                np.float32(damping), np.float32(dt)
                 )
         return u_d
 
@@ -1173,7 +1173,7 @@ class VelocityVerletSerial(Integrator):
                 None, u_d, force_d, body_force_d, r0_d,
                 vols_d, nlist_d, force_bc_types_d, force_bc_values_d,
                 bond_stiffness_d,
-                critical_stretch_d, np.float64(force_bc_magnitude))
+                critical_stretch_d, np.float32(force_bc_magnitude))
 
 
 class ContextError(Exception):

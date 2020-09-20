@@ -152,12 +152,12 @@ class TestEuler:
         path = data_path
         model, integrator = euler_integrator
         nlist, n_neigh = model.initial_connectivity
-        u = np.zeros((model.nnodes, 3), dtype=np.float64)
-        ud = np.zeros((model.nnodes, 3), dtype=np.float64)
-        udd = np.zeros((model.nnodes, 3), dtype=np.float64)
-        force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        body_force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        damage = np.zeros((model.nnodes, 3), dtype=np.float64)
+        u = np.zeros((model.nnodes, 3), dtype=np.float32)
+        ud = np.zeros((model.nnodes, 3), dtype=np.float32)
+        udd = np.zeros((model.nnodes, 3), dtype=np.float32)
+        force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        body_force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        damage = np.zeros((model.nnodes, 3), dtype=np.float32)
         regimes = None
 
         integrator.create_buffers(
@@ -202,12 +202,12 @@ class TestEuler:
         bond_stiffness = model.bond_stiffness
         critical_stretch = model.critical_stretch
         plus_cs = model.plus_cs
-        u = np.zeros((model.nnodes, 3), dtype=np.float64)
-        ud = np.zeros((model.nnodes, 3), dtype=np.float64)
-        udd = np.zeros((model.nnodes, 3), dtype=np.float64)
-        force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        body_force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        damage = np.zeros((model.nnodes, 3), dtype=np.float64)
+        u = np.zeros((model.nnodes, 3), dtype=np.float32)
+        ud = np.zeros((model.nnodes, 3), dtype=np.float32)
+        udd = np.zeros((model.nnodes, 3), dtype=np.float32)
+        force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        body_force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        damage = np.zeros((model.nnodes, 3), dtype=np.float32)
         regimes = None
         nregimes = 2
         nbond_types = 1
@@ -227,12 +227,12 @@ class TestEuler:
         bond_stiffness = model.bond_stiffness
         critical_stretch = model.critical_stretch
         plus_cs = model.plus_cs
-        u = np.zeros((model.nnodes, 3), dtype=np.float64)
-        ud = np.zeros((model.nnodes, 3), dtype=np.float64)
-        udd = np.zeros((model.nnodes, 3), dtype=np.float64)
-        force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        body_force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        damage = np.zeros((model.nnodes, 3), dtype=np.float64)
+        u = np.zeros((model.nnodes, 3), dtype=np.float32)
+        ud = np.zeros((model.nnodes, 3), dtype=np.float32)
+        udd = np.zeros((model.nnodes, 3), dtype=np.float32)
+        force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        body_force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        damage = np.zeros((model.nnodes, 3), dtype=np.float32)
         regimes = None
         nregimes = 1
         nbond_types = 2
@@ -252,12 +252,12 @@ class TestEuler:
         bond_stiffness = model.bond_stiffness
         critical_stretch = model.critical_stretch
         plus_cs = model.plus_cs
-        u = np.zeros((model.nnodes, 3), dtype=np.float64)
-        ud = np.zeros((model.nnodes, 3), dtype=np.float64)
-        udd = np.zeros((model.nnodes, 3), dtype=np.float64)
-        force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        body_force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        damage = np.zeros((model.nnodes), dtype=np.float64)
+        u = np.zeros((model.nnodes, 3), dtype=np.float32)
+        ud = np.zeros((model.nnodes, 3), dtype=np.float32)
+        udd = np.zeros((model.nnodes, 3), dtype=np.float32)
+        force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        body_force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        damage = np.zeros((model.nnodes), dtype=np.float32)
         regimes = None
         nregimes = 1
         nbond_types = 1
@@ -410,12 +410,12 @@ class TestEulerCL:
         path = data_path
         model, integrator = euler_cl_integrator
         nlist, n_neigh = model.initial_connectivity
-        u = np.zeros((model.nnodes, 3), dtype=np.float64)
-        ud = np.zeros((model.nnodes, 3), dtype=np.float64)
-        udd = np.zeros((model.nnodes, 3), dtype=np.float64)
-        force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        body_force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        damage = np.zeros((model.nnodes), dtype=np.float64)
+        u = np.zeros((model.nnodes, 3), dtype=np.float32)
+        ud = np.zeros((model.nnodes, 3), dtype=np.float32)
+        udd = np.zeros((model.nnodes, 3), dtype=np.float32)
+        force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        body_force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        damage = np.zeros((model.nnodes), dtype=np.float32)
         regimes = None
 
         integrator.create_buffers(
@@ -462,12 +462,12 @@ class TestEulerCL:
         bond_stiffness = model.bond_stiffness
         critical_stretch = model.critical_stretch
         plus_cs = model.plus_cs
-        u = np.zeros((model.nnodes, 3), dtype=np.float64)
-        ud = np.zeros((model.nnodes, 3), dtype=np.float64)
-        udd = np.zeros((model.nnodes, 3), dtype=np.float64)
-        force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        body_force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        damage = np.zeros((model.nnodes, 3), dtype=np.float64)
+        u = np.zeros((model.nnodes, 3), dtype=np.float32)
+        ud = np.zeros((model.nnodes, 3), dtype=np.float32)
+        udd = np.zeros((model.nnodes, 3), dtype=np.float32)
+        force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        body_force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        damage = np.zeros((model.nnodes, 3), dtype=np.float32)
         regimes = None
         nregimes = 1
         nbond_types = 1
@@ -477,8 +477,8 @@ class TestEulerCL:
             u, ud, udd, force, body_force, damage, regimes, nregimes,
             nbond_types)
 
-        assert(type(integrator.bond_stiffness_d) is np.float64)
-        assert(type(integrator.critical_stretch_d) is np.float64)
+        assert(type(integrator.bond_stiffness_d) is np.float32)
+        assert(type(integrator.critical_stretch_d) is np.float32)
 
     @context_available
     def test_create_buffers_array(self, euler_cl_integrator):
@@ -487,15 +487,15 @@ class TestEulerCL:
         nlist, n_neigh = model.initial_connectivity
         bond_stiffness = model.bond_stiffness
         critical_stretch = model.critical_stretch
-        plus_cs = np.zeros((2, 2), dtype=np.float64)
-        u = np.zeros((model.nnodes, 3), dtype=np.float64)
-        ud = np.zeros((model.nnodes, 3), dtype=np.float64)
-        udd = np.zeros((model.nnodes, 3), dtype=np.float64)
-        force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        body_force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        damage = np.zeros((model.nnodes, 3), dtype=np.float64)
+        plus_cs = np.zeros((2, 2), dtype=np.float32)
+        u = np.zeros((model.nnodes, 3), dtype=np.float32)
+        ud = np.zeros((model.nnodes, 3), dtype=np.float32)
+        udd = np.zeros((model.nnodes, 3), dtype=np.float32)
+        force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        body_force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        damage = np.zeros((model.nnodes, 3), dtype=np.float32)
         regimes = np.zeros(
-            (model.nnodes, model.max_neighbours), dtype=np.float64)
+            (model.nnodes, model.max_neighbours), dtype=np.float32)
         nregimes = 2
         nbond_types = 2
 
@@ -552,12 +552,12 @@ class TestEulerCromerCL:
         path = data_path
         model, integrator = euler_cromer_cl_integrator
         nlist, n_neigh = model.initial_connectivity
-        u = np.zeros((model.nnodes, 3), dtype=np.float64)
-        ud = np.zeros((model.nnodes, 3), dtype=np.float64)
-        udd = np.zeros((model.nnodes, 3), dtype=np.float64)
-        force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        body_force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        damage = np.zeros((model.nnodes), dtype=np.float64)
+        u = np.zeros((model.nnodes, 3), dtype=np.float32)
+        ud = np.zeros((model.nnodes, 3), dtype=np.float32)
+        udd = np.zeros((model.nnodes, 3), dtype=np.float32)
+        force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        body_force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        damage = np.zeros((model.nnodes), dtype=np.float32)
         regimes = None
 
         integrator.create_buffers(
@@ -604,12 +604,12 @@ class TestEulerCromerCL:
         bond_stiffness = model.bond_stiffness
         critical_stretch = model.critical_stretch
         plus_cs = model.plus_cs
-        u = np.zeros((model.nnodes, 3), dtype=np.float64)
-        ud = np.zeros((model.nnodes, 3), dtype=np.float64)
-        udd = np.zeros((model.nnodes, 3), dtype=np.float64)
-        force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        body_force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        damage = np.zeros((model.nnodes, 3), dtype=np.float64)
+        u = np.zeros((model.nnodes, 3), dtype=np.float32)
+        ud = np.zeros((model.nnodes, 3), dtype=np.float32)
+        udd = np.zeros((model.nnodes, 3), dtype=np.float32)
+        force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        body_force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        damage = np.zeros((model.nnodes, 3), dtype=np.float32)
         regimes = None
         nregimes = 1
         nbond_types = 1
@@ -619,8 +619,8 @@ class TestEulerCromerCL:
             u, ud, udd, force, body_force, damage, regimes, nregimes,
             nbond_types)
 
-        assert(type(integrator.bond_stiffness_d) is np.float64)
-        assert(type(integrator.critical_stretch_d) is np.float64)
+        assert(type(integrator.bond_stiffness_d) is np.float32)
+        assert(type(integrator.critical_stretch_d) is np.float32)
 
     @context_available
     def test_create_buffers_array(self, euler_cromer_cl_integrator):
@@ -629,15 +629,15 @@ class TestEulerCromerCL:
         nlist, n_neigh = model.initial_connectivity
         bond_stiffness = model.bond_stiffness
         critical_stretch = model.critical_stretch
-        plus_cs = np.zeros((2, 2), dtype=np.float64)
-        u = np.zeros((model.nnodes, 3), dtype=np.float64)
-        ud = np.zeros((model.nnodes, 3), dtype=np.float64)
-        udd = np.zeros((model.nnodes, 3), dtype=np.float64)
-        force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        body_force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        damage = np.zeros((model.nnodes, 3), dtype=np.float64)
+        plus_cs = np.zeros((2, 2), dtype=np.float32)
+        u = np.zeros((model.nnodes, 3), dtype=np.float32)
+        ud = np.zeros((model.nnodes, 3), dtype=np.float32)
+        udd = np.zeros((model.nnodes, 3), dtype=np.float32)
+        force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        body_force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        damage = np.zeros((model.nnodes, 3), dtype=np.float32)
         regimes = np.zeros(
-            (model.nnodes, model.max_neighbours), dtype=np.float64)
+            (model.nnodes, model.max_neighbours), dtype=np.float32)
         nregimes = 2
         nbond_types = 2
 
@@ -694,12 +694,12 @@ class TestVelocityVerletCL:
         path = data_path
         model, integrator = velocity_verlet_cl_integrator
         nlist, n_neigh = model.initial_connectivity
-        u = np.zeros((model.nnodes, 3), dtype=np.float64)
-        ud = np.zeros((model.nnodes, 3), dtype=np.float64)
-        udd = np.zeros((model.nnodes, 3), dtype=np.float64)
-        force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        body_force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        damage = np.zeros((model.nnodes), dtype=np.float64)
+        u = np.zeros((model.nnodes, 3), dtype=np.float32)
+        ud = np.zeros((model.nnodes, 3), dtype=np.float32)
+        udd = np.zeros((model.nnodes, 3), dtype=np.float32)
+        force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        body_force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        damage = np.zeros((model.nnodes), dtype=np.float32)
         regimes = None
 
         integrator.create_buffers(
@@ -751,12 +751,12 @@ class TestVelocityVerletCL:
         bond_stiffness = model.bond_stiffness
         critical_stretch = model.critical_stretch
         plus_cs = model.plus_cs
-        u = np.zeros((model.nnodes, 3), dtype=np.float64)
-        ud = np.zeros((model.nnodes, 3), dtype=np.float64)
-        udd = np.zeros((model.nnodes, 3), dtype=np.float64)
-        force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        body_force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        damage = np.zeros((model.nnodes, 3), dtype=np.float64)
+        u = np.zeros((model.nnodes, 3), dtype=np.float32)
+        ud = np.zeros((model.nnodes, 3), dtype=np.float32)
+        udd = np.zeros((model.nnodes, 3), dtype=np.float32)
+        force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        body_force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        damage = np.zeros((model.nnodes, 3), dtype=np.float32)
         regimes = None
         nregimes = 1
         nbond_types = 1
@@ -766,8 +766,8 @@ class TestVelocityVerletCL:
             u, ud, udd, force, body_force, damage, regimes, nregimes,
             nbond_types)
 
-        assert(type(integrator.bond_stiffness_d) is np.float64)
-        assert(type(integrator.critical_stretch_d) is np.float64)
+        assert(type(integrator.bond_stiffness_d) is np.float32)
+        assert(type(integrator.critical_stretch_d) is np.float32)
 
     @context_available
     def test_create_buffers_array(self, velocity_verlet_cl_integrator):
@@ -776,15 +776,15 @@ class TestVelocityVerletCL:
         nlist, n_neigh = model.initial_connectivity
         bond_stiffness = model.bond_stiffness
         critical_stretch = model.critical_stretch
-        plus_cs = np.zeros((2, 2), dtype=np.float64)
-        u = np.zeros((model.nnodes, 3), dtype=np.float64)
-        ud = np.zeros((model.nnodes, 3), dtype=np.float64)
-        udd = np.zeros((model.nnodes, 3), dtype=np.float64)
-        force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        body_force = np.zeros((model.nnodes, 3), dtype=np.float64)
-        damage = np.zeros((model.nnodes, 3), dtype=np.float64)
+        plus_cs = np.zeros((2, 2), dtype=np.float32)
+        u = np.zeros((model.nnodes, 3), dtype=np.float32)
+        ud = np.zeros((model.nnodes, 3), dtype=np.float32)
+        udd = np.zeros((model.nnodes, 3), dtype=np.float32)
+        force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        body_force = np.zeros((model.nnodes, 3), dtype=np.float32)
+        damage = np.zeros((model.nnodes, 3), dtype=np.float32)
         regimes = np.zeros(
-            (model.nnodes, model.max_neighbours), dtype=np.float64)
+            (model.nnodes, model.max_neighbours), dtype=np.float32)
         nregimes = 2
         nbond_types = 2
 

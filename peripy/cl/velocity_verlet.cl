@@ -1,17 +1,15 @@
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
 __kernel void
 	update_displacement(
-        __global double const* force,
-        __global double* u,
-        __global double* ud,
-        __global double* udd,
+        __global float const* force,
+        __global float* u,
+        __global float* ud,
+        __global float* udd,
         __global int const* bc_types,
-		__global double const* bc_values,
-        __global double const* densities,
-        double bc_scale,
-        double damping,
-        double dt
+		__global float const* bc_values,
+        __global float const* densities,
+        float bc_scale,
+        float damping,
+        float dt
 	){
     /* Calculate the dispalcement and velocity of each node using an
      * Velocity Verlet integrator.
@@ -28,8 +26,8 @@ __kernel void
      * dt - The time step in [s]. */
 	const int i = get_global_id(0);
 
-    double const ud1 = ud[i] + (dt / 2) * udd[i]; // Half-step velocity
-    double const udd1 = (force[i] - damping * ud1) / densities[i];
+    float const ud1 = ud[i] + (dt / 2) * udd[i]; // Half-step velocity
+    float const udd1 = (force[i] - damping * ud1) / densities[i];
     ud[i] = ud1 + (dt / 2) * udd1; // Full-step velocity
     udd[i] = udd1;
     u[i] = (bc_types[i] == 0 ? (u[i] + dt * (ud[i] + (dt / 2) * udd1)) : (bc_scale * bc_values[i]));

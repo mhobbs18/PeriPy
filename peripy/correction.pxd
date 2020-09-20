@@ -1,3 +1,3 @@
-cdef double cPA_HHB(double[:], double[:], double, double)
+cdef float cPA_HHB(float[:], float[:], float, float)
 
-cdef double cmicromodulus_connical(double[:], double[:], double)
+cdef float cmicromodulus_connical(float[:], float[:], float)

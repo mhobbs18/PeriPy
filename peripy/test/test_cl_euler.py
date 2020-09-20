@@ -39,9 +39,9 @@ class TestUpdateDisplacement:
         """Test basic displacement update."""
         u = np.zeros(3)
         nnodes = 1
-        force = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+        force = np.array([1.0, 2.0, 3.0], dtype=np.float32)
         bc_types = np.array([0, 0, 0], dtype=np.intc)
-        bc_values = np.array([0, 0, 0], dtype=np.float64)
+        bc_values = np.array([0, 0, 0], dtype=np.float32)
         displacement_bc_scale = 0
         dt = 1
 
@@ -67,7 +67,7 @@ class TestUpdateDisplacement:
         update_displacement_kernel(
             queue, (3 * nnodes,), None,
             force_d, u_d, bc_types_d, bc_values_d,
-            np.float64(displacement_bc_scale), np.float64(dt))
+            np.float32(displacement_bc_scale), np.float32(dt))
         cl.enqueue_copy(queue, u, u_d)
 
         assert np.all(u == force)
@@ -77,9 +77,9 @@ class TestUpdateDisplacement:
         """Test displacement update."""
         u = np.zeros(3)
         nnodes = 1
-        force = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+        force = np.array([1.0, 2.0, 3.0], dtype=np.float32)
         bc_types = np.array([0, 0, 0], dtype=np.intc)
-        bc_values = np.array([0, 0, 0], dtype=np.float64)
+        bc_values = np.array([0, 0, 0], dtype=np.float32)
         displacement_bc_scale = 0
         dt = 2.0
 
@@ -105,7 +105,7 @@ class TestUpdateDisplacement:
         update_displacement_kernel(
             queue, (3 * nnodes,), None,
             force_d, u_d, bc_types_d, bc_values_d,
-            np.float64(displacement_bc_scale), np.float64(dt))
+            np.float32(displacement_bc_scale), np.float32(dt))
         cl.enqueue_copy(queue, u, u_d)
 
         assert np.all(u == 2.0*force)
@@ -115,9 +115,9 @@ class TestUpdateDisplacement:
         """Test displacement update with displacement boundary conditions."""
         u = np.zeros(3)
         nnodes = 1
-        force = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+        force = np.array([1.0, 2.0, 3.0], dtype=np.float32)
         bc_types = np.array([1, 1, 0], dtype=np.intc)
-        bc_values = np.array([0.0, 0.0, 0.0], dtype=np.float64)
+        bc_values = np.array([0.0, 0.0, 0.0], dtype=np.float32)
         displacement_bc_scale = 1.0
         dt = 2.0
 
@@ -143,7 +143,7 @@ class TestUpdateDisplacement:
         update_displacement_kernel(
             queue, (3 * nnodes,), None,
             force_d, u_d, bc_types_d, bc_values_d,
-            np.float64(displacement_bc_scale), np.float64(dt))
+            np.float32(displacement_bc_scale), np.float32(dt))
         cl.enqueue_copy(queue, u, u_d)
 
         u_expected = np.array([0.0, 0.0, 6.0])
@@ -155,9 +155,9 @@ class TestUpdateDisplacement:
         """Test displacement update with displacement B.C. scale."""
         u = np.zeros(3)
         nnodes = 1
-        force = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+        force = np.array([1.0, 2.0, 3.0], dtype=np.float32)
         bc_types = np.array([1, 1, 0], dtype=np.intc)
-        bc_values = np.array([2.0, 2.0, 0.0], dtype=np.float64)
+        bc_values = np.array([2.0, 2.0, 0.0], dtype=np.float32)
         displacement_bc_scale = 0.5
         dt = 2.0
 
@@ -183,7 +183,7 @@ class TestUpdateDisplacement:
         update_displacement_kernel(
             queue, (3 * nnodes,), None,
             force_d, u_d, bc_types_d, bc_values_d,
-            np.float64(displacement_bc_scale), np.float64(dt))
+            np.float32(displacement_bc_scale), np.float32(dt))
         cl.enqueue_copy(queue, u, u_d)
         u_expected = np.array([1.0, 1.0, 6.0])
 

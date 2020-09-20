@@ -1,5 +1,5 @@
-cdef double ceuclid(double[:], double[:])
+cdef float ceuclid(float[:], float[:])
 
-cdef double cstrain(double[:], double[:], double[:], double[:])
+cdef float cstrain(float[:], float[:], float[:], float[:])
 
-cdef double cstrain2(double, double[:], double[:])
+cdef float cstrain2(float, float[:], float[:])

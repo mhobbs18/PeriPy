@@ -3,8 +3,8 @@ import numpy as np
 
 
 def set_imprecise_surface_correction(
-        double[:, :] stiffness_corrections, int[:, :] nlist, int[:] n_neigh,
-        double average_volume, double family_volume_bulk):
+        float[:, :] stiffness_corrections, int[:, :] nlist, int[:] n_neigh,
+        float average_volume, float family_volume_bulk):
     """
     Calculate the surface corrections using an average nodal volume.
 
@@ -18,13 +18,13 @@ def set_imprecise_surface_correction(
     :type nlist: :class:`numpy.ndarray`
     :arg n_neigh: The number of neighbours for each node.
     :type n_neigh: :class:`numpy.ndarray`
-    :arg double average_volume: The average nodal volume.
-    :arg double family_volume_bulk: Volume of a family in the bulk material.
+    :arg float average_volume: The average nodal volume.
+    :arg float family_volume_bulk: Volume of a family in the bulk material.
     """
     cdef int nnodes = nlist.shape[0]
-    cdef double[:] family_volumes = np.zeros(nnodes, dtype=np.float64)
-    cdef double family_volume_i, family_volume_j
-    cdef double correction
+    cdef float[:] family_volumes = np.zeros(nnodes, dtype=np.float64)
+    cdef float family_volume_i, family_volume_j
+    cdef float correction
 
     cdef int i, j, i_n_neigh, neigh
     cdef int j_n_neigh, jneigh
@@ -57,8 +57,8 @@ def set_imprecise_surface_correction(
 
 
 def set_precise_surface_correction(
-        double[:, :] stiffness_corrections, int[:, :] nlist, int[:] n_neigh,
-        double[:] volume, double family_volume_bulk):
+        float[:, :] stiffness_corrections, int[:, :] nlist, int[:] n_neigh,
+        float[:] volume, float family_volume_bulk):
     """
     Calculate the surface corrections given actual nodal volumes.
 
@@ -74,13 +74,13 @@ def set_precise_surface_correction(
     :type n_neigh: :class:`numpy.ndarray`
     :arg volume: The nodal volumes.
     :type volume: :class:`numpy.ndarray`
-    :arg double family_volume_bulk: Volume of a family in the bulk material.
+    :arg float family_volume_bulk: Volume of a family in the bulk material.
     """
     cdef int nnodes = nlist.shape[0]
-    cdef double[:] family_volumes = np.zeros(nnodes, dtype=np.float64)
-    cdef double family_volume_i, family_volume_j
-    cdef double tmp
-    cdef double correction
+    cdef float[:] family_volumes = np.zeros(nnodes, dtype=np.float64)
+    cdef float family_volume_i, family_volume_j
+    cdef float tmp
+    cdef float correction
 
     cdef int i, j, i_n_neigh, neigh
     cdef int j_n_neigh, jneigh
@@ -121,9 +121,9 @@ def set_precise_surface_correction(
             neigh += 1
 
 
-def set_volume_correction(double[:, :]volume_corrections, double[:, :]r0,
-                      int[:, :] nlist, int[:] n_neigh, double horizon,
-                      double node_radius, int volume_correction):
+def set_volume_correction(float[:, :]volume_corrections, float[:, :]r0,
+                      int[:, :] nlist, int[:] n_neigh, float horizon,
+                      float node_radius, int volume_correction):
     """
     Calculate the partial volume corrections given the initial coordinates,
     peridynamic horizon and node radius.
@@ -151,7 +151,7 @@ def set_volume_correction(double[:, :]volume_corrections, double[:, :]r0,
     cdef int i, j, i_n_neigh, neigh
     cdef int j_n_neigh, jneigh
 
-    cdef double correction
+    cdef float correction
 
     # Check neighbours for each node
     for i in range(nnodes):
@@ -183,8 +183,8 @@ def set_volume_correction(double[:, :]volume_corrections, double[:, :]r0,
             neigh += 1
 
 
-cdef inline double cPA_HHB(double[:] r10, double[:] r20,
-                           double horizon, double node_radius):
+cdef inline float cPA_HHB(float[:] r10, float[:] r20,
+                           float horizon, float node_radius):
     """
     C function for calculating the partial volume correction given the initial
     coordinates, peridynamic horizon and node radius.
@@ -206,8 +206,8 @@ cdef inline double cPA_HHB(double[:] r10, double[:] r20,
 
 
 def set_micromodulus_function(
-        double[:, :]micromodulus_values, double[:, :]r0, int[:, :] nlist,
-        int[:] n_neigh, double horizon, int micromodulus_function):
+        float[:, :]micromodulus_values, float[:, :]r0, int[:, :] nlist,
+        int[:] n_neigh, float horizon, int micromodulus_function):
     """
     Calculate the normalised conical micromodulus function values given the
     initial coordinates and peridynamic horizon.
@@ -230,7 +230,7 @@ def set_micromodulus_function(
     cdef int i, j, i_n_neigh, neigh
     cdef int j_n_neigh, jneigh
 
-    cdef double value
+    cdef float value
 
     # Check neighbours for each node
     for i in range(nnodes):
@@ -262,8 +262,8 @@ def set_micromodulus_function(
             neigh += 1
 
 
-cdef inline double cmicromodulus_connical(double[:] r10, double[:] r20,
-                                      double horizon):
+cdef inline float cmicromodulus_connical(float[:] r10, float[:] r20,
+                                      float horizon):
     """
     C function for calculating the normalised connical micromodulus function
     given the initial coordinates and peridynamic horizon.

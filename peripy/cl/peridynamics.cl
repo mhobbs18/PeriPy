@@ -1,26 +1,23 @@
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
-
 __kernel void
 	bond_force1(
-    __global double const* u,
-    __global double* force,
-    __global double* body_force,
-    __global double const* r0,
-    __global double const* vols,
+    __global float const* u,
+    __global float* force,
+    __global float* body_force,
+    __global float const* r0,
+    __global float const* vols,
 	__global int* nlist,
     __global int const* fc_types,
-    __global double const* fc_values,
-    __global double const* stiffness_corrections,
+    __global float const* fc_values,
+    __global float const* stiffness_corrections,
     __global int const* bond_types,
     __global int* regimes,
     __global float const* plus_cs,
-    __local double* local_cache_x,
-    __local double* local_cache_y,
-    __local double* local_cache_z,
-    double bond_stiffness,
-    double critical_stretch,
-    double fc_scale,
+    __local float* local_cache_x,
+    __local float* local_cache_y,
+    __local float* local_cache_z,
+    float bond_stiffness,
+    float critical_stretch,
+    float fc_scale,
     int nregimes
 	) {
     /* Calculate the force due to bonds on each node.
@@ -62,25 +59,25 @@ __kernel void
 
 	// If bond is not broken
 	if (node_id_j != -1) {
-		const double xi_x = r0[3 * node_id_j + 0] - r0[3 * node_id_i + 0];
-		const double xi_y = r0[3 * node_id_j + 1] - r0[3 * node_id_i + 1];
-		const double xi_z = r0[3 * node_id_j + 2] - r0[3 * node_id_i + 2];
+		const float xi_x = r0[3 * node_id_j + 0] - r0[3 * node_id_i + 0];
+		const float xi_y = r0[3 * node_id_j + 1] - r0[3 * node_id_i + 1];
+		const float xi_z = r0[3 * node_id_j + 2] - r0[3 * node_id_i + 2];
 
-		const double xi_eta_x = u[3 * node_id_j + 0] - u[3 * node_id_i + 0] + xi_x;
-		const double xi_eta_y = u[3 * node_id_j + 1] - u[3 * node_id_i + 1] + xi_y;
-		const double xi_eta_z = u[3 * node_id_j + 2] - u[3 * node_id_i + 2] + xi_z;
+		const float xi_eta_x = u[3 * node_id_j + 0] - u[3 * node_id_i + 0] + xi_x;
+		const float xi_eta_y = u[3 * node_id_j + 1] - u[3 * node_id_i + 1] + xi_y;
+		const float xi_eta_z = u[3 * node_id_j + 2] - u[3 * node_id_i + 2] + xi_z;
 
-		const double xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
-		const double y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
-		const double s = (y -  xi)/ xi;
+		const float xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
+		const float y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
+		const float s = (y -  xi)/ xi;
 
         // Check for state of bonds here, and break it if necessary
 		if (s < critical_stretch) {
-            const double cx = xi_eta_x / y;
-		    const double cy = xi_eta_y / y;
-		    const double cz = xi_eta_z / y;
+            const float cx = xi_eta_x / y;
+		    const float cy = xi_eta_y / y;
+		    const float cz = xi_eta_z / y;
 
-		    const double f = s * bond_stiffness * vols[node_id_j];
+		    const float f = s * bond_stiffness * vols[node_id_j];
             // Copy bond forces into local memory
 		    local_cache_x[local_id] = f * cx;
 		    local_cache_y[local_id] = f * cy;
@@ -116,9 +113,9 @@ __kernel void
 
     if (!local_id) {
         //Get the reduced forces
-        double const force_x = local_cache_x[0];
-        double const force_y = local_cache_y[0];
-        double const force_z = local_cache_z[0];
+        float const force_x = local_cache_x[0];
+        float const force_y = local_cache_y[0];
+        float const force_z = local_cache_z[0];
         // Update body forces in each direction
         body_force[3 * node_id_i + 0] = force_x;
         body_force[3 * node_id_i + 1] = force_y;
@@ -133,24 +130,24 @@ __kernel void
 
 __kernel void
 	bond_force2(
-    __global double const* u,
-    __global double* force,
-    __global double* body_force,
-    __global double const* r0,
-    __global double const* vols,
+    __global float const* u,
+    __global float* force,
+    __global float* body_force,
+    __global float const* r0,
+    __global float const* vols,
 	__global int* nlist,
     __global int const* fc_types,
-    __global double const* fc_values,
-    __global double const* stiffness_corrections,
+    __global float const* fc_values,
+    __global float const* stiffness_corrections,
     __global int const* bond_types,
     __global int* regimes,
     __global float const* plus_cs,
-    __local double* local_cache_x,
-    __local double* local_cache_y,
-    __local double* local_cache_z,
-    double bond_stiffness,
-    double critical_stretch,
-    double fc_scale,
+    __local float* local_cache_x,
+    __local float* local_cache_y,
+    __local float* local_cache_z,
+    float bond_stiffness,
+    float critical_stretch,
+    float fc_scale,
     int nregimes
 	) {
     /* Calculate the force due to bonds on each node.
@@ -193,25 +190,25 @@ __kernel void
 
 	// If bond is not broken
 	if (node_id_j != -1) {
-		const double xi_x = r0[3 * node_id_j + 0] - r0[3 * node_id_i + 0];
-		const double xi_y = r0[3 * node_id_j + 1] - r0[3 * node_id_i + 1];
-		const double xi_z = r0[3 * node_id_j + 2] - r0[3 * node_id_i + 2];
+		const float xi_x = r0[3 * node_id_j + 0] - r0[3 * node_id_i + 0];
+		const float xi_y = r0[3 * node_id_j + 1] - r0[3 * node_id_i + 1];
+		const float xi_z = r0[3 * node_id_j + 2] - r0[3 * node_id_i + 2];
 
-		const double xi_eta_x = u[3 * node_id_j + 0] - u[3 * node_id_i + 0] + xi_x;
-		const double xi_eta_y = u[3 * node_id_j + 1] - u[3 * node_id_i + 1] + xi_y;
-		const double xi_eta_z = u[3 * node_id_j + 2] - u[3 * node_id_i + 2] + xi_z;
+		const float xi_eta_x = u[3 * node_id_j + 0] - u[3 * node_id_i + 0] + xi_x;
+		const float xi_eta_y = u[3 * node_id_j + 1] - u[3 * node_id_i + 1] + xi_y;
+		const float xi_eta_z = u[3 * node_id_j + 2] - u[3 * node_id_i + 2] + xi_z;
 
-		const double xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
-		const double y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
-		const double s = (y -  xi)/ xi;
+		const float xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
+		const float y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
+		const float s = (y -  xi)/ xi;
 
         // Check for state of bonds here, and break it if necessary
 		if (s < critical_stretch) {
-            const double cx = xi_eta_x / y;
-		    const double cy = xi_eta_y / y;
-		    const double cz = xi_eta_z / y;
+            const float cx = xi_eta_x / y;
+		    const float cy = xi_eta_y / y;
+		    const float cz = xi_eta_z / y;
 
-		    const double f = s * bond_stiffness * stiffness_corrections[global_id] * vols[node_id_j];
+		    const float f = s * bond_stiffness * stiffness_corrections[global_id] * vols[node_id_j];
             // Copy bond forces into local memory
 		    local_cache_x[local_id] = f * cx;
 		    local_cache_y[local_id] = f * cy;
@@ -247,9 +244,9 @@ __kernel void
 
     if (!local_id) {
         //Get the reduced forces
-        double const force_x = local_cache_x[0];
-        double const force_y = local_cache_y[0];
-        double const force_z = local_cache_z[0];
+        float const force_x = local_cache_x[0];
+        float const force_y = local_cache_y[0];
+        float const force_z = local_cache_z[0];
         // Update body forces in each direction
         body_force[3 * node_id_i + 0] = force_x;
         body_force[3 * node_id_i + 1] = force_y;
@@ -264,24 +261,24 @@ __kernel void
 
 __kernel void
 	bond_force3(
-    __global double const* u,
-    __global double* force,
-    __global double* body_force,
-    __global double const* r0,
-    __global double const* vols,
+    __global float const* u,
+    __global float* force,
+    __global float* body_force,
+    __global float const* r0,
+    __global float const* vols,
 	__global int* nlist,
     __global int const* fc_types,
-    __global double const* fc_values,
-    __global double const* stiffness_corrections,
+    __global float const* fc_values,
+    __global float const* stiffness_corrections,
     __global int const* bond_types,
     __global int* regimes,
-    __global double const* plus_cs,
-    __local double* local_cache_x,
-    __local double* local_cache_y,
-    __local double* local_cache_z,
-    __global double* bond_stiffness,
-    __global double* critical_stretch,
-    double fc_scale,
+    __global float const* plus_cs,
+    __local float* local_cache_x,
+    __local float* local_cache_y,
+    __local float* local_cache_z,
+    __global float* bond_stiffness,
+    __global float* critical_stretch,
+    float fc_scale,
     int nregimes
 	) {
     /* Calculate the force due to bonds on each node.
@@ -325,27 +322,27 @@ __kernel void
     // Find bond type, which chooses the damage model
     const int bond_type = bond_types[global_id];
     int regime = regimes[global_id];
-    const double current_critical_stretch = critical_stretch[bond_type * nregimes + regime];
+    const float current_critical_stretch = critical_stretch[bond_type * nregimes + regime];
 
 	// If bond is not broken
 	if (node_id_j != -1) {
-		const double xi_x = r0[3 * node_id_j + 0] - r0[3 * node_id_i + 0];
-		const double xi_y = r0[3 * node_id_j + 1] - r0[3 * node_id_i + 1];
-		const double xi_z = r0[3 * node_id_j + 2] - r0[3 * node_id_i + 2];
+		const float xi_x = r0[3 * node_id_j + 0] - r0[3 * node_id_i + 0];
+		const float xi_y = r0[3 * node_id_j + 1] - r0[3 * node_id_i + 1];
+		const float xi_z = r0[3 * node_id_j + 2] - r0[3 * node_id_i + 2];
 
-		const double xi_eta_x = u[3 * node_id_j + 0] - u[3 * node_id_i + 0] + xi_x;
-		const double xi_eta_y = u[3 * node_id_j + 1] - u[3 * node_id_i + 1] + xi_y;
-		const double xi_eta_z = u[3 * node_id_j + 2] - u[3 * node_id_i + 2] + xi_z;
+		const float xi_eta_x = u[3 * node_id_j + 0] - u[3 * node_id_i + 0] + xi_x;
+		const float xi_eta_y = u[3 * node_id_j + 1] - u[3 * node_id_i + 1] + xi_y;
+		const float xi_eta_z = u[3 * node_id_j + 2] - u[3 * node_id_i + 2] + xi_z;
 
-		const double xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
-		const double y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
-		const double s = (y -  xi)/ xi;
+		const float xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
+		const float y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
+		const float s = (y -  xi)/ xi;
 
         // Check for state of bonds
 		if (s < current_critical_stretch) {
             // Check if the bond has entered the previous regime
             if (regime > 0) {
-                const double previous_critical_stretch = critical_stretch[bond_type * nregimes + regime - 1];
+                const float previous_critical_stretch = critical_stretch[bond_type * nregimes + regime - 1];
                 if (s < previous_critical_stretch) {
                     // bond enters previous regime
                     regime -= 1;
@@ -366,11 +363,11 @@ __kernel void
             local_cache_z[local_id] = 0.00;
         }
         else{
-            const double cx = xi_eta_x / y;
-            const double cy = xi_eta_y / y;
-            const double cz = xi_eta_z / y;
+            const float cx = xi_eta_x / y;
+            const float cy = xi_eta_y / y;
+            const float cz = xi_eta_z / y;
 
-            const double f = (s * bond_stiffness[bond_type * nregimes + regime] + plus_cs[bond_type * nregimes + regime]) * vols[node_id_j];
+            const float f = (s * bond_stiffness[bond_type * nregimes + regime] + plus_cs[bond_type * nregimes + regime]) * vols[node_id_j];
             // Copy bond forces into local memory
             local_cache_x[local_id] = f * cx;
             local_cache_y[local_id] = f * cy;
@@ -399,9 +396,9 @@ __kernel void
 
     if (!local_id) {
         //Get the reduced forces
-        double const force_x = local_cache_x[0];
-        double const force_y = local_cache_y[0];
-        double const force_z = local_cache_z[0];
+        float const force_x = local_cache_x[0];
+        float const force_y = local_cache_y[0];
+        float const force_z = local_cache_z[0];
         // Update body forces in each direction
         body_force[3 * node_id_i + 0] = force_x;
         body_force[3 * node_id_i + 1] = force_y;
@@ -416,24 +413,24 @@ __kernel void
 
 __kernel void
 	bond_force4(
-    __global double const* u,
-    __global double* force,
-    __global double* body_force,
-    __global double const* r0,
-    __global double const* vols,
+    __global float const* u,
+    __global float* force,
+    __global float* body_force,
+    __global float const* r0,
+    __global float const* vols,
 	__global int* nlist,
     __global int const* fc_types,
-    __global double const* fc_values,
-    __global double const* stiffness_corrections,
+    __global float const* fc_values,
+    __global float const* stiffness_corrections,
     __global int const* bond_types,
     __global int* regimes,
-    __global double const* plus_cs,
-    __local double* local_cache_x,
-    __local double* local_cache_y,
-    __local double* local_cache_z,
-    __global double* bond_stiffness,
-    __global double* critical_stretch,
-    double fc_scale,
+    __global float const* plus_cs,
+    __local float* local_cache_x,
+    __local float* local_cache_y,
+    __local float* local_cache_z,
+    __global float* bond_stiffness,
+    __global float* critical_stretch,
+    float fc_scale,
     int nregimes
 	) {
     /* Calculate the force due to bonds on each node.
@@ -476,27 +473,27 @@ __kernel void
     // Find bond type, which chooses the damage model
     const int bond_type = bond_types[global_id];
     int regime = regimes[global_id];
-    const double current_critical_stretch = critical_stretch[bond_type * nregimes + regime];
+    const float current_critical_stretch = critical_stretch[bond_type * nregimes + regime];
 
 	// If bond is not broken
 	if (node_id_j != -1) {
-		const double xi_x = r0[3 * node_id_j + 0] - r0[3 * node_id_i + 0];
-		const double xi_y = r0[3 * node_id_j + 1] - r0[3 * node_id_i + 1];
-		const double xi_z = r0[3 * node_id_j + 2] - r0[3 * node_id_i + 2];
+		const float xi_x = r0[3 * node_id_j + 0] - r0[3 * node_id_i + 0];
+		const float xi_y = r0[3 * node_id_j + 1] - r0[3 * node_id_i + 1];
+		const float xi_z = r0[3 * node_id_j + 2] - r0[3 * node_id_i + 2];
 
-		const double xi_eta_x = u[3 * node_id_j + 0] - u[3 * node_id_i + 0] + xi_x;
-		const double xi_eta_y = u[3 * node_id_j + 1] - u[3 * node_id_i + 1] + xi_y;
-		const double xi_eta_z = u[3 * node_id_j + 2] - u[3 * node_id_i + 2] + xi_z;
+		const float xi_eta_x = u[3 * node_id_j + 0] - u[3 * node_id_i + 0] + xi_x;
+		const float xi_eta_y = u[3 * node_id_j + 1] - u[3 * node_id_i + 1] + xi_y;
+		const float xi_eta_z = u[3 * node_id_j + 2] - u[3 * node_id_i + 2] + xi_z;
 
-		const double xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
-		const double y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
-		const double s = (y -  xi)/ xi;
+		const float xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
+		const float y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
+		const float s = (y -  xi)/ xi;
 
         // Check for state of bonds
 		if (s < current_critical_stretch) {
             // Check if the bond has entered the previous regime
             if (regime > 0) {
-                const double previous_critical_stretch = critical_stretch[bond_type * nregimes + regime - 1];
+                const float previous_critical_stretch = critical_stretch[bond_type * nregimes + regime - 1];
                 if (s < previous_critical_stretch) {
                     // bond enters previous regime
                     regime -= 1;
@@ -517,11 +514,11 @@ __kernel void
             local_cache_z[local_id] = 0.00;
         }
         else{
-            const double cx = xi_eta_x / y;
-            const double cy = xi_eta_y / y;
-            const double cz = xi_eta_z / y;
+            const float cx = xi_eta_x / y;
+            const float cy = xi_eta_y / y;
+            const float cz = xi_eta_z / y;
 
-            const double f = (s * bond_stiffness[bond_type * nregimes + regime] + plus_cs[bond_type * nregimes + regime]) * stiffness_corrections[global_id] * vols[node_id_j];
+            const float f = (s * bond_stiffness[bond_type * nregimes + regime] + plus_cs[bond_type * nregimes + regime]) * stiffness_corrections[global_id] * vols[node_id_j];
             // Copy bond forces into local memory
             local_cache_x[local_id] = f * cx;
             local_cache_y[local_id] = f * cy;
@@ -550,9 +547,9 @@ __kernel void
 
     if (!local_id) {
         //Get the reduced forces
-        double const force_x = local_cache_x[0];
-        double const force_y = local_cache_y[0];
-        double const force_z = local_cache_z[0];
+        float const force_x = local_cache_x[0];
+        float const force_y = local_cache_y[0];
+        float const force_z = local_cache_z[0];
         // Update body forces in each direction
         body_force[3 * node_id_i + 0] = force_x;
         body_force[3 * node_id_i + 1] = force_y;
@@ -569,8 +566,8 @@ __kernel void damage(
         __global int const *nlist,
 		__global int const *family,
         __global int *n_neigh,
-        __global double *damage,
-        __local double* local_cache
+        __global float *damage,
+        __local float* local_cache
     )
 {
     /* Calculate the damage of each node.
@@ -605,24 +602,24 @@ __kernel void damage(
         // Update damage and n_neigh
         int neighbours = local_cache[0];
         n_neigh[node_id_i] = neighbours;
-        damage[node_id_i] = 1.00 - (double) neighbours / (double) (family[node_id_i]);
+        damage[node_id_i] = 1.00 - (float) neighbours / (float) (family[node_id_i]);
     }
 }
 
 
 __kernel void
 	bond_force_mossaiby(
-    __global double const* u,
-    __global double* force,
-    __global double* body_force,
-    __global double const* r0,
-    __global double const* vols,
+    __global float const* u,
+    __global float* force,
+    __global float* body_force,
+    __global float const* r0,
+    __global float const* vols,
 	__global int* nlist,
     __global int const* fc_types,
-    __global double const* fc_values,
-    double bond_stiffness,
-    double critical_stretch,
-    double fc_scale
+    __global float const* fc_values,
+    float bond_stiffness,
+    float critical_stretch,
+    float fc_scale
 	) {
     /* Calculate the force due to bonds on each node.
      *
@@ -653,9 +650,9 @@ __kernel void
 	// Access local node within node_id_i's horizon with corresponding node_id_j,
     const int i = get_global_id(0);
 
-	double force_x = 0.00;
-	double force_y = 0.00;
-	double force_z = 0.00;
+	float force_x = 0.00;
+	float force_y = 0.00;
+	float force_z = 0.00;
 
     for (int j = 0; j < N; j++)
     {
@@ -663,22 +660,22 @@ __kernel void
 
         if (n != -1)
         {
-            const double xi_x = r0[3 * n + 0] - r0[3 * i + 0];  // Optimize later
-            const double xi_y = r0[3 * n + 1] - r0[3 * i + 1];
-            const double xi_z = r0[3 * n + 2] - r0[3 * i + 2];
+            const float xi_x = r0[3 * n + 0] - r0[3 * i + 0];  // Optimize later
+            const float xi_y = r0[3 * n + 1] - r0[3 * i + 1];
+            const float xi_z = r0[3 * n + 2] - r0[3 * i + 2];
 
-            const double xi_eta_x = u[3 * n + 0] - u[3 * i + 0] + xi_x;
-            const double xi_eta_y = u[3 * n + 1] - u[3 * i + 1] + xi_y;
-            const double xi_eta_z = u[3 * n + 2] - u[3 * i + 2] + xi_z;
+            const float xi_eta_x = u[3 * n + 0] - u[3 * i + 0] + xi_x;
+            const float xi_eta_y = u[3 * n + 1] - u[3 * i + 1] + xi_y;
+            const float xi_eta_z = u[3 * n + 2] - u[3 * i + 2] + xi_z;
 
-            const double xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
-		    const double y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
-		    const double s = (y -  xi)/ xi;
-            const double cx = xi_eta_x / y;
-		    const double cy = xi_eta_y / y;
-		    const double cz = xi_eta_z / y;
+            const float xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
+		    const float y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
+		    const float s = (y -  xi)/ xi;
+            const float cx = xi_eta_x / y;
+		    const float cy = xi_eta_y / y;
+		    const float cz = xi_eta_z / y;
 
-		    const double f = s * bond_stiffness * vols[n];
+		    const float f = s * bond_stiffness * vols[n];
             // Copy bond forces into local memory
 		    force_x += f * cx;
 		    force_y += f * cy;
@@ -700,9 +697,9 @@ __kernel void
 __kernel void
 	check_bonds(
 		__global int* nlist,
-		__global double const* u,
-		__global double const* r0,
-        double const critical_stretch
+		__global float const* u,
+		__global float const* r0,
+        float const critical_stretch
 	)
 {
 	const int i = get_global_id(0);
@@ -712,18 +709,18 @@ __kernel void
 
     if (n != -1)
     {
-        const double xi_x = r0[3 * n + 0] - r0[3 * i + 0];  // Optimize later
-        const double xi_y = r0[3 * n + 1] - r0[3 * i + 1];
-        const double xi_z = r0[3 * n + 2] - r0[3 * i + 2];
+        const float xi_x = r0[3 * n + 0] - r0[3 * i + 0];  // Optimize later
+        const float xi_y = r0[3 * n + 1] - r0[3 * i + 1];
+        const float xi_z = r0[3 * n + 2] - r0[3 * i + 2];
 
-        const double xi_eta_x = u[3 * n + 0] - u[3 * i + 0] + xi_x;
-        const double xi_eta_y = u[3 * n + 1] - u[3 * i + 1] + xi_y;
-        const double xi_eta_z = u[3 * n + 2] - u[3 * i + 2] + xi_z;
+        const float xi_eta_x = u[3 * n + 0] - u[3 * i + 0] + xi_x;
+        const float xi_eta_y = u[3 * n + 1] - u[3 * i + 1] + xi_y;
+        const float xi_eta_z = u[3 * n + 2] - u[3 * i + 2] + xi_z;
 
-        const double xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
-        const double y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
+        const float xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
+        const float y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
 
-        const double s = (y - xi) / xi;
+        const float s = (y - xi) / xi;
 
         // Check for state of the bond
 
@@ -736,17 +733,17 @@ __kernel void
 
 __kernel void
 	bond_force_serial(
-    __global double const* u,
-    __global double* force,
-    __global double* body_force,
-    __global double const* r0,
-    __global double const* vols,
+    __global float const* u,
+    __global float* force,
+    __global float* body_force,
+    __global float const* r0,
+    __global float const* vols,
 	__global int* nlist,
     __global int const* fc_types,
-    __global double const* fc_values,
-    double bond_stiffness,
-    double critical_stretch,
-    double fc_scale
+    __global float const* fc_values,
+    float bond_stiffness,
+    float critical_stretch,
+    float fc_scale
 	) {
     /* Calculate the force due to bonds on each node.
      *
@@ -776,34 +773,34 @@ __kernel void
     // global_id is the node number
     const int node_id_i = get_global_id(0);
 
-    double force_x = 0.00;
-	double force_y = 0.00;
-	double force_z = 0.00;
+    float force_x = 0.00;
+	float force_y = 0.00;
+	float force_z = 0.00;
 
     for (int k = 0; k < N; k++){
         // Access local node within node_id_i's horizon with corresponding node_id_j,
 	    const int node_id_j = nlist[node_id_i * N + k];
         // If bond is not broken
         if (node_id_j != -1) {
-            const double xi_x = r0[3 * node_id_j + 0] - r0[3 * node_id_i + 0];
-            const double xi_y = r0[3 * node_id_j + 1] - r0[3 * node_id_i + 1];
-            const double xi_z = r0[3 * node_id_j + 2] - r0[3 * node_id_i + 2];
+            const float xi_x = r0[3 * node_id_j + 0] - r0[3 * node_id_i + 0];
+            const float xi_y = r0[3 * node_id_j + 1] - r0[3 * node_id_i + 1];
+            const float xi_z = r0[3 * node_id_j + 2] - r0[3 * node_id_i + 2];
 
-            const double xi_eta_x = u[3 * node_id_j + 0] - u[3 * node_id_i + 0] + xi_x;
-            const double xi_eta_y = u[3 * node_id_j + 1] - u[3 * node_id_i + 1] + xi_y;
-            const double xi_eta_z = u[3 * node_id_j + 2] - u[3 * node_id_i + 2] + xi_z;
+            const float xi_eta_x = u[3 * node_id_j + 0] - u[3 * node_id_i + 0] + xi_x;
+            const float xi_eta_y = u[3 * node_id_j + 1] - u[3 * node_id_i + 1] + xi_y;
+            const float xi_eta_z = u[3 * node_id_j + 2] - u[3 * node_id_i + 2] + xi_z;
 
-            const double xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
-            const double y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
-            const double s = (y -  xi)/ xi;
+            const float xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
+            const float y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
+            const float s = (y -  xi)/ xi;
 
             // Check for state of bonds here, and break it if necessary
             if (s < critical_stretch) {
-                const double cx = xi_eta_x / y;
-                const double cy = xi_eta_y / y;
-                const double cz = xi_eta_z / y;
+                const float cx = xi_eta_x / y;
+                const float cy = xi_eta_y / y;
+                const float cz = xi_eta_z / y;
 
-                const double f = s * bond_stiffness * vols[node_id_j];
+                const float f = s * bond_stiffness * vols[node_id_j];
                 // Copy bond forces into local memory
                 force_x += f * cx;
                 force_y += f * cy;

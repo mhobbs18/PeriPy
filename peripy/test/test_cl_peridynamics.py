@@ -49,11 +49,11 @@ class TestBondForce:
             [0.0, 1.0, 0.0],
             [2.0, 0.0, 0.0],
             [0.0, 0.0, 1.0],
-            ], dtype=np.float64)
+            ], dtype=np.float32)
         nnodes = 5
-        u = np.zeros((nnodes, 3), dtype=np.float64)
-        body_force = np.zeros((nnodes, 3), dtype=np.float64)
-        volume = np.ones(nnodes, dtype=np.float64)
+        u = np.zeros((nnodes, 3), dtype=np.float32)
+        body_force = np.zeros((nnodes, 3), dtype=np.float32)
+        volume = np.ones(nnodes, dtype=np.float32)
         nregimes = 1
         bond_stiffness = 1.0
         critical_stretch = 1000.0
@@ -66,10 +66,10 @@ class TestBondForce:
             [0, -1, -1, -1]
             ], dtype=np.intc)
         force_bc_scale = 1.0
-        force_bc_types = np.zeros((nnodes, 3), dtype=np.float64)
-        force_bc_values = np.zeros((nnodes, 3), dtype=np.float64)
+        force_bc_types = np.zeros((nnodes, 3), dtype=np.float32)
+        force_bc_values = np.zeros((nnodes, 3), dtype=np.float32)
 
-        force_expected = np.zeros((nnodes, 3), dtype=np.float64)
+        force_expected = np.zeros((nnodes, 3), dtype=np.float32)
         force_actual = np.empty_like(force_expected)
 
         # Create buffers
@@ -78,11 +78,11 @@ class TestBondForce:
             context, mf.READ_WRITE | mf.COPY_HOST_PTR,
             hostbuf=nlist)
         local_mem_x = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * max_neigh)
+            np.dtype(np.float32).itemsize * max_neigh)
         local_mem_y = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * max_neigh)
+            np.dtype(np.float32).itemsize * max_neigh)
         local_mem_z = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * max_neigh)
+            np.dtype(np.float32).itemsize * max_neigh)
         # Read only
         u_d = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR,
                         hostbuf=u)
@@ -101,13 +101,13 @@ class TestBondForce:
         # Write only
         force_d = cl.Buffer(context, mf.WRITE_ONLY, force_expected.nbytes)
         # Placeholder buffers
-        plus_cs = np.array([0], dtype=np.float64)
+        plus_cs = np.array([0], dtype=np.float32)
         regimes = np.array([0], dtype=np.intc)
         plus_cs_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR,
                               hostbuf=plus_cs)
         regimes_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR,
                               hostbuf=regimes)
-        stiffness_corrections = np.array([0], dtype=np.float64)
+        stiffness_corrections = np.array([0], dtype=np.float32)
         bond_types = np.array([0], dtype=np.intc)
         stiffness_corrections_d = cl.Buffer(
             context, mf.READ_ONLY | mf.COPY_HOST_PTR,
@@ -124,8 +124,8 @@ class TestBondForce:
             (max_neigh,), u_d, force_d, body_force_d, r0_d, vols_d, nlist_d,
             force_bc_types_d, force_bc_values_d, stiffness_corrections_d,
             bond_types_d, regimes_d, plus_cs_d, local_mem_x,
-            local_mem_y, local_mem_z, np.float64(bond_stiffness),
-            np.float64(critical_stretch), np.float64(force_bc_scale),
+            local_mem_y, local_mem_z, np.float32(bond_stiffness),
+            np.float32(critical_stretch), np.float32(force_bc_scale),
             np.intc(nregimes))
 
         cl.enqueue_copy(queue, force_actual, force_d)
@@ -139,7 +139,7 @@ class TestBondForce:
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [1.0, 1.0, 0.0],
-            ], dtype=np.float64)
+            ], dtype=np.float32)
         horizon = 1.01
         nnodes = 3
         elastic_modulus = 0.05
@@ -147,23 +147,23 @@ class TestBondForce:
         critical_stretch = 1000.0
         nregimes = 1
         max_neigh = 4
-        volume = np.full(nnodes, 0.16666667, dtype=np.float64)
+        volume = np.full(nnodes, 0.16666667, dtype=np.float32)
         nlist = np.array([
             [1, -1, -1, -1],
             [0, 2, -1, -1],
             [1, -1, -1, -1]
             ], dtype=np.intc)
         force_bc_scale = 1.0
-        force_bc_types = np.zeros((nnodes, 3), dtype=np.float64)
-        force_bc_values = np.zeros((nnodes, 3), dtype=np.float64)
-        body_force = np.zeros((nnodes, 3), dtype=np.float64)
+        force_bc_types = np.zeros((nnodes, 3), dtype=np.float32)
+        force_bc_values = np.zeros((nnodes, 3), dtype=np.float32)
+        body_force = np.zeros((nnodes, 3), dtype=np.float32)
 
         # Displace particles
         u = np.array([
             [0.0, 0.0, 0.0],
             [0.05, 0.0, 0.0],
             [0.05, 0.05, 0.0]
-            ], dtype=np.float64)
+            ], dtype=np.float32)
 
         force_value = 0.00229417
         force_expected = np.array([
@@ -179,11 +179,11 @@ class TestBondForce:
             context, mf.READ_WRITE | mf.COPY_HOST_PTR,
             hostbuf=nlist)
         local_mem_x = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * max_neigh)
+            np.dtype(np.float32).itemsize * max_neigh)
         local_mem_y = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * max_neigh)
+            np.dtype(np.float32).itemsize * max_neigh)
         local_mem_z = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * max_neigh)
+            np.dtype(np.float32).itemsize * max_neigh)
         # Read only
         u_d = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR,
                         hostbuf=u)
@@ -202,13 +202,13 @@ class TestBondForce:
         # Write only
         force_d = cl.Buffer(context, mf.WRITE_ONLY, force_expected.nbytes)
         # Placeholder buffers
-        plus_cs = np.array([0], dtype=np.float64)
+        plus_cs = np.array([0], dtype=np.float32)
         regimes = np.array([0], dtype=np.intc)
         plus_cs_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR,
                               hostbuf=plus_cs)
         regimes_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR,
                               hostbuf=regimes)
-        stiffness_corrections = np.array([0], dtype=np.float64)
+        stiffness_corrections = np.array([0], dtype=np.float32)
         bond_types = np.array([0], dtype=np.intc)
         stiffness_corrections_d = cl.Buffer(
             context, mf.READ_ONLY | mf.COPY_HOST_PTR,
@@ -225,8 +225,8 @@ class TestBondForce:
             (max_neigh,), u_d, force_d, body_force_d, r0_d, vols_d, nlist_d,
             force_bc_types_d, force_bc_values_d, stiffness_corrections_d,
             bond_types_d, regimes_d, plus_cs_d, local_mem_x,
-            local_mem_y, local_mem_z, np.float64(bond_stiffness),
-            np.float64(critical_stretch), np.float64(force_bc_scale),
+            local_mem_y, local_mem_z, np.float32(bond_stiffness),
+            np.float32(critical_stretch), np.float32(force_bc_scale),
             np.intc(nregimes))
 
         cl.enqueue_copy(queue, force_actual, force_d)
@@ -249,7 +249,7 @@ class TestBondForce:
         elastic_modulus = 0.05
         bond_stiffness = 18.0 * elastic_modulus / (np.pi * horizon**4)
         nregimes = 1
-        volume = np.full(nnodes, 0.16666667, dtype=np.float64)
+        volume = np.full(nnodes, 0.16666667, dtype=np.float32)
         nlist = np.array([
             [1, 2, 4, -1],
             [0, 3, -1, -1],
@@ -260,9 +260,9 @@ class TestBondForce:
         n_neigh = np.array([3, 2, 1, 1, 1], dtype=np.intc)
         family = np.array([3, 2, 1, 1, 1], dtype=np.intc)
         force_bc_scale = 1.0
-        force_bc_types = np.zeros((nnodes, 3), dtype=np.float64)
-        force_bc_values = np.zeros((nnodes, 3), dtype=np.float64)
-        body_force = np.zeros((nnodes, 3), dtype=np.float64)
+        force_bc_types = np.zeros((nnodes, 3), dtype=np.float32)
+        force_bc_values = np.zeros((nnodes, 3), dtype=np.float32)
+        body_force = np.zeros((nnodes, 3), dtype=np.float32)
 
         nlist_expected = np.array([
             [1, 2, 4, -1],
@@ -284,8 +284,8 @@ class TestBondForce:
             [0.0, 0.0, 1.0]
             ])
         critical_stretch = 1.0
-        force = np.empty((nnodes, 3), dtype=np.float64)
-        damage = np.empty(nnodes, dtype=np.float64)
+        force = np.empty((nnodes, 3), dtype=np.float32)
+        damage = np.empty(nnodes, dtype=np.float32)
 
         # Read and write
         nlist_d = cl.Buffer(
@@ -295,13 +295,13 @@ class TestBondForce:
             context, mf.READ_WRITE | mf.COPY_HOST_PTR,
             hostbuf=n_neigh)
         local_mem_x = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * max_neigh)
+            np.dtype(np.float32).itemsize * max_neigh)
         local_mem_y = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * max_neigh)
+            np.dtype(np.float32).itemsize * max_neigh)
         local_mem_z = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * max_neigh)
+            np.dtype(np.float32).itemsize * max_neigh)
         local_mem = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * max_neigh)
+            np.dtype(np.float32).itemsize * max_neigh)
         # Read only
         u_d = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR,
                         hostbuf=u)
@@ -324,13 +324,13 @@ class TestBondForce:
         force_d = cl.Buffer(context, mf.WRITE_ONLY, force.nbytes)
         damage_d = cl.Buffer(context, mf.WRITE_ONLY, damage.nbytes)
         # Placeholder buffers
-        plus_cs = np.array([0], dtype=np.float64)
+        plus_cs = np.array([0], dtype=np.float32)
         regimes = np.array([0], dtype=np.intc)
         plus_cs_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR,
                               hostbuf=plus_cs)
         regimes_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR,
                               hostbuf=regimes)
-        stiffness_corrections = np.array([0], dtype=np.float64)
+        stiffness_corrections = np.array([0], dtype=np.float32)
         bond_types = np.array([0], dtype=np.intc)
         stiffness_corrections_d = cl.Buffer(
             context, mf.READ_ONLY | mf.COPY_HOST_PTR,
@@ -348,8 +348,8 @@ class TestBondForce:
             (max_neigh,), u_d, force_d, body_force_d, r0_d, vols_d, nlist_d,
             force_bc_types_d, force_bc_values_d, stiffness_corrections_d,
             bond_types_d, regimes_d, plus_cs_d, local_mem_x,
-            local_mem_y, local_mem_z, np.float64(bond_stiffness),
-            np.float64(critical_stretch), np.float64(force_bc_scale),
+            local_mem_y, local_mem_z, np.float32(bond_stiffness),
+            np.float32(critical_stretch), np.float32(force_bc_scale),
             np.intc(nregimes))
         damage_kernel(
             queue, (nnodes * max_neigh,),
@@ -386,7 +386,7 @@ class TestBondForce2:
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [1.0, 1.0, 0.0],
-            ], dtype=np.float64)
+            ], dtype=np.float32)
         horizon = 1.01
         nnodes = 3
         elastic_modulus = 0.05
@@ -394,24 +394,24 @@ class TestBondForce2:
         critical_stretch = 1000.0
         nregimes = 1
         max_neigh = 4
-        volume = np.full(nnodes, 0.16666667, dtype=np.float64)
+        volume = np.full(nnodes, 0.16666667, dtype=np.float32)
         nlist = np.array([
             [1, -1, -1, -1],
             [0, 2, -1, -1],
             [1, -1, -1, -1]
             ], dtype=np.intc)
         force_bc_scale = 1.0
-        force_bc_types = np.zeros((nnodes, 3), dtype=np.float64)
-        force_bc_values = np.zeros((nnodes, 3), dtype=np.float64)
-        stiffness_corrections = np.ones((nnodes, max_neigh), dtype=np.float64)
-        body_force = np.zeros((nnodes, 3), dtype=np.float64)
+        force_bc_types = np.zeros((nnodes, 3), dtype=np.float32)
+        force_bc_values = np.zeros((nnodes, 3), dtype=np.float32)
+        stiffness_corrections = np.ones((nnodes, max_neigh), dtype=np.float32)
+        body_force = np.zeros((nnodes, 3), dtype=np.float32)
 
         # Displace particles
         u = np.array([
             [0.0, 0.0, 0.0],
             [0.05, 0.0, 0.0],
             [0.05, 0.05, 0.0]
-            ], dtype=np.float64)
+            ], dtype=np.float32)
 
         force_value = 0.00229417
         force_expected = np.array([
@@ -427,11 +427,11 @@ class TestBondForce2:
             context, mf.READ_WRITE | mf.COPY_HOST_PTR,
             hostbuf=nlist)
         local_mem_x = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * max_neigh)
+            np.dtype(np.float32).itemsize * max_neigh)
         local_mem_y = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * max_neigh)
+            np.dtype(np.float32).itemsize * max_neigh)
         local_mem_z = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * max_neigh)
+            np.dtype(np.float32).itemsize * max_neigh)
         # Read only
         u_d = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR,
                         hostbuf=u)
@@ -453,7 +453,7 @@ class TestBondForce2:
         # Write only
         force_d = cl.Buffer(context, mf.WRITE_ONLY, force_expected.nbytes)
         # Placeholder buffers
-        plus_cs = np.array([0], dtype=np.float64)
+        plus_cs = np.array([0], dtype=np.float32)
         regimes = np.array([0], dtype=np.intc)
         bond_types = np.array([0], dtype=np.intc)
         plus_cs_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR,
@@ -472,8 +472,8 @@ class TestBondForce2:
             (max_neigh,), u_d, force_d, body_force_d, r0_d, vols_d, nlist_d,
             force_bc_types_d, force_bc_values_d, stiffness_corrections_d,
             bond_types_d, regimes_d, plus_cs_d, local_mem_x,
-            local_mem_y, local_mem_z, np.float64(bond_stiffness),
-            np.float64(critical_stretch), np.float64(force_bc_scale),
+            local_mem_y, local_mem_z, np.float32(bond_stiffness),
+            np.float32(critical_stretch), np.float32(force_bc_scale),
             np.intc(nregimes))
 
         cl.enqueue_copy(queue, force_actual, force_d)
@@ -487,7 +487,7 @@ class TestBondForce2:
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [1.0, 1.0, 0.0],
-            ], dtype=np.float64)
+            ], dtype=np.float32)
         horizon = 1.01
         nnodes = 3
         elastic_modulus = 0.05
@@ -495,27 +495,27 @@ class TestBondForce2:
         critical_stretch = 1000.0
         nregimes = 1
         max_neigh = 4
-        volume = np.full(nnodes, 0.16666667, dtype=np.float64)
+        volume = np.full(nnodes, 0.16666667, dtype=np.float32)
         nlist = np.array([
             [1, -1, -1, -1],
             [0, 2, -1, -1],
             [1, -1, -1, -1]
             ], dtype=np.intc)
         force_bc_scale = 1.0
-        force_bc_types = np.zeros((nnodes, 3), dtype=np.float64)
-        force_bc_values = np.zeros((nnodes, 3), dtype=np.float64)
-        body_force = np.zeros((nnodes, 3), dtype=np.float64)
+        force_bc_types = np.zeros((nnodes, 3), dtype=np.float32)
+        force_bc_values = np.zeros((nnodes, 3), dtype=np.float32)
+        body_force = np.zeros((nnodes, 3), dtype=np.float32)
         stiffness_corrections = np.array(
             [[4.0, 1.0, 1.0, 1.0],
              [4.0, 2.0, 1.0, 1.0],
-             [2.0, 1.0, 1.0, 1.0]], dtype=np.float64)
+             [2.0, 1.0, 1.0, 1.0]], dtype=np.float32)
 
         # Displace particles
         u = np.array([
             [0.0, 0.0, 0.0],
             [0.05, 0.0, 0.0],
             [0.05, 0.05, 0.0]
-            ], dtype=np.float64)
+            ], dtype=np.float32)
 
         force_value = 0.00229417
         force_expected = np.array([
@@ -531,11 +531,11 @@ class TestBondForce2:
             context, mf.READ_WRITE | mf.COPY_HOST_PTR,
             hostbuf=nlist)
         local_mem_x = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * max_neigh)
+            np.dtype(np.float32).itemsize * max_neigh)
         local_mem_y = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * max_neigh)
+            np.dtype(np.float32).itemsize * max_neigh)
         local_mem_z = cl.LocalMemory(
-            np.dtype(np.float64).itemsize * max_neigh)
+            np.dtype(np.float32).itemsize * max_neigh)
         # Read only
         u_d = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR,
                         hostbuf=u)
@@ -557,7 +557,7 @@ class TestBondForce2:
         # Write only
         force_d = cl.Buffer(context, mf.WRITE_ONLY, force_expected.nbytes)
         # Placeholder buffers
-        plus_cs = np.array([0], dtype=np.float64)
+        plus_cs = np.array([0], dtype=np.float32)
         regimes = np.array([0], dtype=np.intc)
         bond_types = np.array([0], dtype=np.intc)
         plus_cs_d = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR,
@@ -576,8 +576,8 @@ class TestBondForce2:
             (max_neigh,), u_d, force_d, body_force_d, r0_d, vols_d, nlist_d,
             force_bc_types_d, force_bc_values_d, stiffness_corrections_d,
             bond_types_d, regimes_d, plus_cs_d, local_mem_x,
-            local_mem_y, local_mem_z, np.float64(bond_stiffness),
-            np.float64(critical_stretch), np.float64(force_bc_scale),
+            local_mem_y, local_mem_z, np.float32(bond_stiffness),
+            np.float32(critical_stretch), np.float32(force_bc_scale),
             np.intc(nregimes))
 
         cl.enqueue_copy(queue, force_actual, force_d)
