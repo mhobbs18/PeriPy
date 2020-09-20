@@ -261,13 +261,11 @@ class Integrator(ABC):
 
     def _damage(self, nlist_d, family_d, n_neigh_d, damage_d, local_mem):
         """Calculate bond damage."""
-        queue = self.queue
         # Call kernel
         self.damage_kernel(
-            queue, (self.nnodes * self.max_neighbours,),
+            self.queue, (self.nnodes * self.max_neighbours,),
             (self.max_neighbours,), nlist_d, family_d, n_neigh_d, damage_d,
             local_mem)
-        queue.finish()
 
     def _bond_force(
             self, u_d, force_d, body_force_d, r0_d, vols_d, nlist_d,
@@ -276,17 +274,15 @@ class Integrator(ABC):
             local_mem_z, bond_stiffness_d, critical_stretch_d,
             force_bc_magnitude, nregimes):
         """Calculate the force due to bonds acting on each node."""
-        queue = self.queue
         # Call kernel
         self.bond_force_kernel(
-                queue, (self.nnodes * self.max_neighbours,),
+                self.queue, (self.nnodes * self.max_neighbours,),
                 (self.max_neighbours,), u_d, force_d, body_force_d, r0_d,
                 vols_d, nlist_d, force_bc_types_d, force_bc_values_d,
                 stiffness_corrections_d, bond_types_d, regimes_d, plus_cs_d,
                 local_mem_x, local_mem_y, local_mem_z, bond_stiffness_d,
                 critical_stretch_d, np.float64(force_bc_magnitude),
                 np.intc(nregimes))
-        queue.finish()
 
     def write(self, u, ud, udd, force, body_force, damage, nlist, n_neigh):
         """Copy the state variables from device memory to host memory."""
@@ -537,13 +533,11 @@ class EulerCL(Integrator):
             self, force_d, u_d, bc_types_d, bc_values_d,
             displacement_bc_magnitude, dt):
         """Update displacements."""
-        queue = self.queue
         # Call kernel
         self.update_displacement_kernel(
                 self.queue, (self.degrees_freedom * self.nnodes,), None,
                 force_d, u_d, bc_types_d, bc_values_d,
                 np.float64(displacement_bc_magnitude), np.float64(dt))
-        queue.finish()
         return u_d
 
 
@@ -642,7 +636,6 @@ class EulerCromerCL(Integrator):
             self, force_d, u_d, ud_d, udd_d, bc_types_d, bc_values_d,
             densities_d, displacement_bc_magnitude, damping, dt):
         """Update displacements."""
-        queue = self.queue
         # Call kernel
         self.update_displacement_kernel(
                 self.queue, (self.degrees_freedom * self.nnodes,), None,
@@ -650,7 +643,6 @@ class EulerCromerCL(Integrator):
                 densities_d, np.float64(displacement_bc_magnitude),
                 np.float64(damping), np.float64(dt)
                 )
-        queue.finish()
         return u_d
 
 
@@ -758,7 +750,6 @@ class VelocityVerletCL(Integrator):
             self, force_d, u_d, ud_d, udd_d, bc_types_d, bc_values_d,
             densities_d, displacement_bc_magnitude, damping, dt):
         """Update displacements."""
-        queue = self.queue
         # Call kernel
         self.update_displacement_kernel(
                 self.queue, (self.degrees_freedom * self.nnodes,), None,
@@ -766,7 +757,6 @@ class VelocityVerletCL(Integrator):
                 densities_d, np.float64(displacement_bc_magnitude),
                 np.float64(damping), np.float64(dt)
                 )
-        queue.finish()
         return u_d
 
 
@@ -952,7 +942,6 @@ class VelocityVerletMossaiby(Integrator):
             self, force_d, u_d, ud_d, udd_d, bc_types_d, bc_values_d,
             densities_d, displacement_bc_magnitude, damping, dt):
         """Update displacements."""
-        queue = self.queue
         # Call kernel
         self.update_displacement_kernel(
                 self.queue, (self.degrees_freedom * self.nnodes,), None,
@@ -960,19 +949,16 @@ class VelocityVerletMossaiby(Integrator):
                 densities_d, np.float64(displacement_bc_magnitude),
                 np.float64(damping), np.float64(dt)
                 )
-        queue.finish()
         return u_d
 
     def _check_bonds(
             self, r0_d, u_d, nlist_d, critical_stretch_d):
         """Update displacements."""
-        queue = self.queue
         # Call kernel
         self.check_bonds_kernel(
                 self.queue, (self.nnodes, self.max_neighbours), None,
                 nlist_d, u_d, r0_d, critical_stretch_d
                 )
-        queue.finish()
 
     def _bond_force(
             self, u_d, force_d, body_force_d, r0_d, vols_d, nlist_d,
@@ -980,15 +966,13 @@ class VelocityVerletMossaiby(Integrator):
             bond_stiffness_d, critical_stretch_d,
             force_bc_magnitude):
         """Calculate the force due to bonds acting on each node."""
-        queue = self.queue
         # Call kernel
         self.bond_force_kernel(
-                queue, (self.nnodes,),
+                self.queue, (self.nnodes,),
                 None, u_d, force_d, body_force_d, r0_d,
                 vols_d, nlist_d, force_bc_types_d, force_bc_values_d,
                 bond_stiffness_d, critical_stretch_d,
                 np.float64(force_bc_magnitude))
-        queue.finish()
 
 
 class VelocityVerletSerial(Integrator):
@@ -1169,7 +1153,6 @@ class VelocityVerletSerial(Integrator):
             self, force_d, u_d, ud_d, udd_d, bc_types_d, bc_values_d,
             densities_d, displacement_bc_magnitude, damping, dt):
         """Update displacements."""
-        queue = self.queue
         # Call kernel
         self.update_displacement_kernel(
                 self.queue, (self.degrees_freedom * self.nnodes,), None,
@@ -1177,23 +1160,20 @@ class VelocityVerletSerial(Integrator):
                 densities_d, np.float64(displacement_bc_magnitude),
                 np.float64(damping), np.float64(dt)
                 )
-        queue.finish()
         return u_d
 
     def _bond_force(
             self, u_d, force_d, body_force_d, r0_d, vols_d, nlist_d,
-            force_bc_types_d, force_bc_values_d,bond_stiffness_d,
+            force_bc_types_d, force_bc_values_d, bond_stiffness_d,
             critical_stretch_d, force_bc_magnitude):
         """Calculate the force due to bonds acting on each node."""
-        queue = self.queue
         # Call kernel
         self.bond_force_kernel(
-                queue, (self.nnodes,),
+                self.queue, (self.nnodes,),
                 None, u_d, force_d, body_force_d, r0_d,
                 vols_d, nlist_d, force_bc_types_d, force_bc_values_d,
                 bond_stiffness_d,
                 critical_stretch_d, np.float64(force_bc_magnitude))
-        queue.finish()
 
 
 class ContextError(Exception):
