@@ -1349,6 +1349,11 @@ class Model(object):
                             data[tip_type]['body_force'][ii] += (
                                 body_force[i, j] * self.volume[i])
 
+                        nnodes_on_tip = len(node_list)
+                        data[tip_type]['displacement'][ii] /= nnodes_on_tip
+                        data[tip_type]['velocity'][ii] /= nnodes_on_tip
+                        data[tip_type]['acceleration'][ii] /= nnodes_on_tip
+
                     # Add to model data for the write index, ii
                     data['model']['step'][ii] = step
                     data['model']['displacement'].append(u.copy())
@@ -1367,15 +1372,6 @@ class Model(object):
                     elif damage_sum > 0.7*self.nnodes:
                         warnings.warn('Over 7% of bonds have broken!\
                                       peridynamics simulation continuing')
-
-        for tip_type, node_list in self.tip_types.items():
-            nnodes_on_tip = len(node_list)
-            data[tip_type]['displacement'][ii] = np.divide(
-                data[tip_type]['displacement'][ii], nnodes_on_tip)
-            data[tip_type]['velocity'][ii] = np.divide(
-                data[tip_type]['displacement'][ii], nnodes_on_tip)
-            data[tip_type]['acceleration'][ii] = np.divide(
-                data[tip_type]['displacement'][ii], nnodes_on_tip)
 
         (u,
          ud,
