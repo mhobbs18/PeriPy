@@ -264,6 +264,7 @@ class Model(object):
                         volume_correction,
                         (1. / 2) * np.power(np.sum(self.volume) / self.nnodes,
                                             1. / 3), float, type(node_radius)))
+        if volume_correction == 0:
             # Partial volumes a node radius outside the horizon distance will
             # contribute to the pairwise force function integral, and
             # therefore must be included in the neighbour distance search
@@ -864,7 +865,7 @@ class Model(object):
         """
         nlist, n_neigh = self.initial_connectivity
 
-        if volume_correction == 0:
+        if ((volume_correction == 0) or (volume_correction == 1)):
             # Calculate partial volume corrections
             set_volume_correction(
                 stiffness_corrections, self.coords, nlist, n_neigh,
@@ -872,7 +873,7 @@ class Model(object):
                 np.intc(volume_correction))
         else:
             raise ValueError("volume_correction value is wrong "
-                             "(expected 0 or None, got {})".format(
+                             "(expected 0, 1 or None, got {})".format(
                                  volume_correction))
 
         return stiffness_corrections
