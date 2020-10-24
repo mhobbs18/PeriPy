@@ -139,3 +139,6 @@ examples/example4/
 examples/example3/
 examples/example4/
 post_processing/
+
+# PyCharm stuff
+.idea/
