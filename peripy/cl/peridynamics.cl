@@ -344,14 +344,14 @@ __kernel void
         // Check for state of bonds
 		if (s < current_critical_stretch) {
             // Check if the bond has entered the previous regime
-            if (regime > 0) {
-                const double previous_critical_stretch = critical_stretch[bond_type * nregimes + regime - 1];
-                if (s < previous_critical_stretch) {
-                    // bond enters previous regime
-                    regime -= 1;
-                    regimes[global_id] = regime;
-                }
-            }
+            // if (regime > 0) {
+            //     const double previous_critical_stretch = critical_stretch[bond_type * nregimes + regime - 1];
+            //     if (s < previous_critical_stretch) {
+            //         // bond enters previous regime
+            //         regime -= 1;
+            //         regimes[global_id] = regime;
+            //     }
+            // }
 		}
         else {
             // Bond enters the next regime
@@ -494,15 +494,15 @@ __kernel void
 
         // Check for state of bonds
 		if (s < current_critical_stretch) {
-            // Check if the bond has entered the previous regime
-            if (regime > 0) {
-                const double previous_critical_stretch = critical_stretch[bond_type * nregimes + regime - 1];
-                if (s < previous_critical_stretch) {
-                    // bond enters previous regime
-                    regime -= 1;
-                    regimes[global_id] = regime;
-                }
-            }
+            // // Check if the bond has entered the previous regime
+            // if (regime > 0) {
+            //     const double previous_critical_stretch = critical_stretch[bond_type * nregimes + regime - 1];
+            //     if (s < previous_critical_stretch) {
+            //         // bond enters previous regime
+            //         regime -= 1;
+            //         regimes[global_id] = regime;
+            //     }
+            // }
 		}
         else {
             // Bond enters the next regime
