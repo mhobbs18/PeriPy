@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath('../peripy'))
 # Add type of source files
 source_suffix = ['.rst', '.md']
 
-master_doc = 'contents'
+master_doc = 'index'
 
 # -- Project information -----------------------------------------------------
 
@@ -61,13 +61,13 @@ exclude_patterns = []
 # a list of builtin themes.
 #
 html_theme = 'sphinx_rtd_theme'
-html_theme_options = {
-    'github_user': 'alan-turing-institute',
-    'github_repo': 'PeriPy',
-    'github_banner': True,
-    'fixed_sidebar': True,
-    'sidebar_width': '250px'
-    }
+# html_theme_options = {
+#     'github_user': 'alan-turing-institute',
+#     'github_repo': 'PeriPy',
+#     'github_banner': True,
+#     'fixed_sidebar': True,
+#     'sidebar_width': '250px'
+#     }
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
