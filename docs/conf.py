@@ -33,7 +33,8 @@ author = 'Jim Madge, Tim Dodwell, Ben Boys, Greg Mingas'
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
-    'sphinx.ext.intersphinx'
+    'sphinx.ext.intersphinx',
+    'sphinx_rtd_theme',
 ]
 
 # autodoc configuration
@@ -59,7 +60,7 @@ exclude_patterns = []
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+html_theme = 'sphinx_rtd_theme'
 html_theme_options = {
     'github_user': 'alan-turing-institute',
     'github_repo': 'PeriPy',
