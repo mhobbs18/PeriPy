@@ -12,7 +12,7 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../'))
+sys.path.insert(0, os.path.abspath('../peripy'))
 
 # Add type of source files
 source_suffix = ['.rst', '.md']
@@ -62,7 +62,7 @@ exclude_patterns = []
 html_theme = 'alabaster'
 html_theme_options = {
     'github_user': 'alan-turing-institute',
-    'github_repo': 'probabilistic-peridynamics',
+    'github_repo': 'PeriPy',
     'github_banner': True,
     'fixed_sidebar': True,
     'sidebar_width': '250px'
