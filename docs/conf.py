@@ -17,7 +17,8 @@ sys.path.insert(0, os.path.abspath('../peripy'))
 # Add type of source files
 source_suffix = ['.rst', '.md']
 
-root_doc = 'index'
+# This is a default setting and throws warning for some reason if explicit
+# root_doc = 'index'
 
 # -- Project information -----------------------------------------------------
 
