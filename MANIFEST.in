@@ -1,7 +1,7 @@
 include peripy/cl/*.cl
-recursive-include examples/example1 *.vtk *.py
-recursive-include examples/example2 *.msh *.py
-include examples/*.py
+recursive-include peripy/examples/example1 *.vtk *.py
+recursive-include peripy/examples/example2 *.msh *.py
+include peripy/examples/*.py
 include peripy/test/*.py
 recursive-include peripy/test/data *.msh *.vtk *.npy *.npz
 include peripy/README.md

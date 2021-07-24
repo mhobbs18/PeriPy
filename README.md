@@ -81,7 +81,7 @@ Get started from the GitHub repository (for developers)
 
 ### Running examples ###
 
-- You can find examples of how to use the package under:`examples/`. Run the first example by typing `python examples/example1/example.py`
+- You can find examples of how to use the package under:`peripy/examples/`. Run the first example by typing `python peripy/examples/example1/example.py`
 
 ### Running the tests ###
 
