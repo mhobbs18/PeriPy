@@ -4,3 +4,5 @@ recursive-include examples/example2 *.msh *.py
 include examples/*.py
 include peripy/test/*.py
 recursive-include peripy/test/data *.msh *.vtk *.npy *.npz
+include peripy/README.md
+include peripy/LICENSE.rst
