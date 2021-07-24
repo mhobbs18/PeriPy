@@ -119,6 +119,7 @@ def is_force_boundary(x):
 def main():
     """Conduct a peridynamics simulation."""
     parser = argparse.ArgumentParser()
+    # The --profile argument generates profiling information for the example
     parser.add_argument('--profile', action='store_const', const=True)
     args = parser.parse_args()
 
