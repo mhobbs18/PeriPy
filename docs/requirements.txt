@@ -1,7 +1,1 @@
-meshio
-numpy
-pyopencl
-scipy
-tqdm
-h5py
-sklearn
+-e .
