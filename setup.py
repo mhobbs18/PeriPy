@@ -12,6 +12,20 @@ README = (HERE / "README.md").read_text()
 extra_compile_args = ['-O3']
 extra_link_args = []
 
+
+install_requires = [
+        'meshio',
+        'numpy',
+        'pyopencl',
+        'scipy',
+        'tqdm',
+        'h5py',
+        'sklearn',
+        'tqdm',
+        'sphinx_rtd_theme'
+        ]
+
+
 ext_modules = [
     Extension(
         "peripy.create_crack",
@@ -42,7 +56,7 @@ ext_modules = [
 
 setup(
     name="peripy",
-    version="1.0.0",
+    version="1.0.1",
     description="A fast OpenCL Peridynamics package for python",
     long_description=README,
     long_description_content_type="text/markdown",
@@ -55,15 +69,5 @@ setup(
         'console_scripts': ['peripy=peripy.cli:main']
         },
     ext_modules=cythonize(ext_modules),
-    install_requires=[
-        'meshio',
-        'numpy',
-        'pyopencl',
-        'scipy',
-        'tqdm',
-        'h5py',
-        'sklearn',
-        'tqdm',
-        'sphinx_rtd_theme'
-        ]
+    install_requires=install_requires,
     )
