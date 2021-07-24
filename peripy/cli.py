@@ -37,7 +37,7 @@ import sys
 
 def run_examples(args):
     """Run examples from the command line."""
-    from examples.run import main
+    from peripy.examples.run import main
     main(args)
 
 

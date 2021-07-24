@@ -56,7 +56,7 @@ ext_modules = [
 
 setup(
     name="peripy",
-    version="1.0.1",
+    version="1.0.0",
     description="A fast OpenCL Peridynamics package for python",
     long_description=README,
     long_description_content_type="text/markdown",
