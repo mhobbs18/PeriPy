@@ -29,6 +29,8 @@ author = 'Jim Madge, Tim Dodwell, Ben Boys, Greg Mingas'
 
 # -- General configuration ---------------------------------------------------
 
+autodoc_mock_imports = ["cython"]
+
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.

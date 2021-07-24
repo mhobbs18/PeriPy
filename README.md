@@ -29,7 +29,7 @@ Get started (preferred)
 ### Building and Installation ###
 
 - The package requires Python 3.7+
-- Install pyopencl, a build dependency by following these instructions https://documen.tician.de/pyopencl/misc.html
+- Install pyopencl, a build dependency, by following these instructions https://documen.tician.de/pyopencl/misc.html
 - To install pyopencl, note that pyopencl may need to be installed from `(base)` environment
 - If using pyopencl on Windows with a CPU (rather than a GPU), first, ensure the C++ build tools for Visual Studio are installed (e.g., see https://youtu.be/KUTVnxCeC50)
 - Make sure the OpenCL device driver is installed for your device:
@@ -64,7 +64,7 @@ Get started from the GitHub repository (for developers)
 ### Building and Installation ###
 
 - The package requires Python 3.7+
-- Install pyopencl, a build dependency by following these instructions https://documen.tician.de/pyopencl/misc.html
+- Install pyopencl, a build dependency, by following these instructions https://documen.tician.de/pyopencl/misc.html
 - To install pyopencl, note that pyopencl may need to be installed from `(base)` environment
 - If using pyopencl on Windows with a CPU (rather than a GPU), first, ensure the C++ build tools for Visual Studio are installed (e.g., see https://youtu.be/KUTVnxCeC50)
 - Make sure the OpenCL device driver is installed for your device
