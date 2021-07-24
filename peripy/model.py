@@ -233,7 +233,7 @@ class Model(object):
         if volume is None:
             # Calculate the volume for each node
             this_may_take_a_while(self.nnodes, 'volume')
-            self.volume = self._volume(
+            self.volume = self._set_volumes(
                 transfinite, volume_total)
             if self.write_path is not None:
                 write_array(self.write_path, "volume", self.volume)
@@ -596,7 +596,7 @@ class Model(object):
 
         return (family, nlist, n_neigh, max_neighbours)
 
-    def _volume(self, transfinite, volume_total):
+    def _set_volumes(self, transfinite, volume_total):
         """
         Calculate the volume (or area) of each node.
 
