@@ -17,7 +17,6 @@ sys.path.insert(0, os.path.abspath('../peripy'))
 # Add type of source files
 source_suffix = ['.rst', '.md']
 
-# root_doc = 'index'
 master_doc = 'index'
 
 # -- Project information -----------------------------------------------------
@@ -28,8 +27,6 @@ author = 'Jim Madge, Tim Dodwell, Ben Boys, Greg Mingas'
 
 
 # -- General configuration ---------------------------------------------------
-
-autodoc_mock_imports = ["cython"]
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
