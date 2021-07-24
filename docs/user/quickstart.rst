@@ -6,23 +6,23 @@ Quickstart
 
 Examples
 --------
-You can find an examples of how to use the package under:peripy/examples/.
+You can find an examples of how to use the package under ``peripy/examples/``.
 
-There are two examples that will output mesh files that can be viewed in [Paraview](https://www.paraview.org/)
+There are two examples that will output mesh files that can be viewed in `Paraview <https://www.paraview.org/>`_.
 
-### Example 1
+**Example 1**
 
-Run the first example by typing `python peripy/examples/example1/example.py`
+Run the first example by typing ``python peripy/examples/example1/example.py``
 
 Example 1 is a simple, 2D peridynamics simulation example.
 This example is a 1.0m x 1.0m 2D plate with a central pre-crack subjected to
 uniform velocity displacements on the left-hand side and right-hand side of
-2.5x10^-6 metres per time-step. The `--opencl` argument toggles between OpenCL
-and cython implementations. The `--profile` argument generates profiling information for the example.
+2.5x10^-6 metres per time-step. The ``--opencl`` argument toggles between OpenCL
+and cython implementations. The ``--profile`` argument generates profiling information for the example.
 
-### Example 2
+**Example 2**
 
-Run the second example by typing `python peripy/examples/example2/example.py`
+Run the second example by typing ``python peripy/examples/example2/example.py``
 
 Example 2 is a simple, 3D peridynamics simulation example.
 This example is a 1.65m x 0.25m x 0.6m plain concrete canteliver beam with no
@@ -32,7 +32,7 @@ In this example, the first time the volume, family and connectivity of the
 model are calculated, they are also stored in file '1650beam13539_model.h5'.
 In subsequent simulations, the arrays are loaded from this h5 file instead of
 being calculated again, therefore reducing the overhead of initiating the
-model. The `--profile` argument generates profiling information for the example
+model. The ``--profile`` argument generates profiling information for the example
 
 The Model class
 ---------------
