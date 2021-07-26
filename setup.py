@@ -12,6 +12,20 @@ README = (HERE / "README.md").read_text()
 extra_compile_args = ['-O3']
 extra_link_args = []
 
+
+install_requires = [
+        'meshio',
+        'numpy',
+        'pyopencl',
+        'scipy',
+        'tqdm',
+        'h5py',
+        'sklearn',
+        'tqdm',
+        'sphinx_rtd_theme'
+        ]
+
+
 ext_modules = [
     Extension(
         "peripy.create_crack",
@@ -55,14 +69,5 @@ setup(
         'console_scripts': ['peripy=peripy.cli:main']
         },
     ext_modules=cythonize(ext_modules),
-    install_requires=[
-        'meshio',
-        'numpy',
-        'pyopencl==2020.1',
-        'scipy',
-        'tqdm',
-        'h5py',
-        'sklearn',
-        'tqdm',
-        ]
+    install_requires=install_requires,
     )

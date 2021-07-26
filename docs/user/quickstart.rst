@@ -6,8 +6,33 @@ Quickstart
 
 Examples
 --------
-You can find an examples of how to use the package under:examples/.
-Run the first example by typing python examples/example1/example.py
+You can find an examples of how to use the package under ``peripy/examples/``.
+
+There are two examples that will output mesh files that can be viewed in `Paraview <https://www.paraview.org/>`_.
+
+**Example 1**
+
+Run the first example by typing ``python peripy/examples/example1/example.py``
+
+Example 1 is a simple, 2D peridynamics simulation example.
+This example is a 1.0m x 1.0m 2D plate with a central pre-crack subjected to
+uniform velocity displacements on the left-hand side and right-hand side of
+2.5x10^-6 metres per time-step. The ``--opencl`` argument toggles between OpenCL
+and cython implementations. The ``--profile`` argument generates profiling information for the example.
+
+**Example 2**
+
+Run the second example by typing ``python peripy/examples/example2/example.py``
+
+Example 2 is a simple, 3D peridynamics simulation example.
+This example is a 1.65m x 0.25m x 0.6m plain concrete canteliver beam with no
+pre-crack subjected to force controlled loading on the  right-hand side of the
+beam which linearly increases up to 45kN.
+In this example, the first time the volume, family and connectivity of the
+model are calculated, they are also stored in file '1650beam13539_model.h5'.
+In subsequent simulations, the arrays are loaded from this h5 file instead of
+being calculated again, therefore reducing the overhead of initiating the
+model. The ``--profile`` argument generates profiling information for the example
 
 The Model class
 ---------------
@@ -22,12 +47,12 @@ functions implementing the boundarys.
 The Integrator class
 --------------------
 
-The :class:` peripy.integrators.Integrator` is the explicit time
-integration method, see :mod:` peripy.integrators` for options.
+The :class:`peripy.integrators.Integrator` is the explicit time
+integration method, see :mod:`peripy.integrators` for options.
 Any integrator with the suffix 'CL' uses OpenCL kernels to calculate the
 bond force and displacement update, resulting in orders of magnitude faster
 simulation time when compared to using the cython implementation,
-:class:` peripy.integrators.Euler`. OpenCL is 'heterogeneous' which
+:class:`peripy.integrators.Euler`. OpenCL is 'heterogeneous' which
 means the 'CL' integrator classes will work on a CPU device as well as a
 GPU device. The preferable (faster) CL device will be chosen automatically.
 
@@ -80,7 +105,7 @@ pairs of nodes between which the crack is.
 If it is more convenient to define the crack as a function you may also
 pass a function to the constructor which takes the array of coordinates as
 its only argument and returns a list of tuples as described above. The
-:func:` peripy.model.initial_crack_helper` decorator has been provided
+:func:`peripy.model.initial_crack_helper` decorator has been provided
 to easily create a function of the correct form from one which tests a
 single pair of node coordinates and returns `True` or `False`.
 
