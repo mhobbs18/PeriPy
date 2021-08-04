@@ -20,7 +20,7 @@ from bc_utilities import (
     calc_boundary_conditions_magnitudes, is_tip_5mm, is_tip_2mm, is_tip_1mm,
     is_bond_type_5mm, is_bond_type_2mm, is_bond_type_1mm,
     is_displacement_boundary_5mm, is_displacement_boundary_2mm,
-    is_displacement_boundary_1mm, smooth_step_data)
+    is_displacement_boundary_1mm, smooth_step_data) # Note: MH wrote smooth_step_data
 import os
 import scipy.interpolate as inter
 import h5py
@@ -32,62 +32,16 @@ os.environ['PYOPENCL_CTX'] = '0:0'
 
 # TODO: why are these variables not part of the input file?
 
-dxs = {'175beam5.0mmUN4T.msh': 5.0e-3,
-       '175beam2.0mmUN4T.msh': 2.0e-3,
-       '175beam1.0mmUN4T.msh': 1.0e-3,
-       }
-
-nnodes = {
-    '175beam5.0mmUN4T.msh': 3645,
-    '175beam2.0mmUN4T.msh': 55311,
-    '175beam1.0mmUN4T.msh': 438100,
-    }
-
-safety_factor = {
-    '175beam5.0mmUN4T.msh': 0.25,
-    '175beam2.0mmUN4T.msh': 0.10,
-    '175beam1.0mmUN4T.msh': 0.15,
-    }
-
-dampings = {
-    '175beam5.0mmUN4T.msh': 2.5e6,
-    '175beam2.0mmUN4T.msh': 3.0e6,
-    '175beam1.0mmUN4T.msh': 3.0e6,
-    }
+dxs = {'175beam5.0mmUN4T.msh': 5.0e-3}
+nnodes = {'175beam5.0mmUN4T.msh': 3645}
+safety_factor = {'175beam5.0mmUN4T.msh': 0.25}
+dampings = {'175beam5.0mmUN4T.msh': 2.5e6}
 
 # We found these values from example_s0.py
-s_0s = {
-    '175beam5.0mmUN4T.msh': np.float64(1.05e-4),  # Yang
-    #'175beam5.0mmUN4T.msh': np.float64(2.2e-4),
-    #'175beam5.0mmUN4T.msh': np.float64(2.3e-4),
-    '175beam2.0mmUN4T.msh': np.float64(1.80e-4),
-    '175beam1.0mmUN4T.msh': np.float64(1.87e-4),
-    }
-
-s_cs = {
-    '175beam5.0mmUN4T.msh': np.float64(5.56e-3),  # Yang
-    # '175beam5.0mmUN4T.msh': np.float64(1.75e-3),
-    # '175beam5.0mmUN4T.msh': np.float64(1.45e-3),
-    '175beam2.0mmUN4T.msh': np.float64(3.0e-3),
-    '175beam1.0mmUN4T.msh': np.float64(1.75e-3),
-    }
-
-s_1s = {
-    '175beam5.0mmUN4T.msh': np.float64(6.90e-4),  # Yang
-    # '175beam5.0mmUN4T.msh': np.float64(2.25e-4),
-    # '175beam5.0mmUN4T.msh': np.float64(2.42e-4),
-    '175beam2.0mmUN4T.msh': np.float64(2.0e-4),
-    '175beam1.0mmUN4T.msh': np.float64(4.5e-4),
-    }
-
-cs = {
-    '175beam5.0mmUN4T.msh': np.float64(2.32e+18),  # Yang
-    # '175beam5.0mmUN4T.msh': np.float64(1.7917711297325573e+18),
-    '175beam2.0mmUN4T.msh': np.float64(7.0795e19),
-    '175beam1.0mmUN4T.msh': np.float64(1.009890e21),
-    # '175beam1.0mmUN4T.msh': np.float64(1.00754e21),
-    }
-
+s_0s = {'175beam5.0mmUN4T.msh': np.float64(1.05e-4)}
+s_cs = {'175beam5.0mmUN4T.msh': np.float64(5.56e-3)}
+s_1s = {'175beam5.0mmUN4T.msh': np.float64(6.90e-4)}
+cs = {'175beam5.0mmUN4T.msh': np.float64(2.32e+18)}
 
 read_path = pathlib.Path() / "EpUN4.h5"
 read_path_restart = pathlib.Path() / "state.npz"
@@ -124,6 +78,7 @@ def read_array(read_path, dataset):
                 read_path))
         return None
 
+
 # TODO: understand what this does and move to utilities
 def read_npz_array(read_path, dataset):
     """
@@ -154,46 +109,6 @@ def read_npz_array(read_path, dataset):
                 read_path))
         return None
 
-# TODO: delete this
-def rbf_regression(x, y, rbfi):
-    """Return the mse of the rbf interpolation of x values and y."""
-    error = y - rbfi(x)
-    mse = np.linalg.norm(error)
-    return mse
-
-# TODO: delete this
-def linear_regression(x, y, split):
-    """Plot a straight line using linear regression."""
-    # Reshape the data
-    x = np.array(x).reshape(-1, 1)
-    y = np.array(y).reshape(-1, 1)
-    # Split the data into training/testing sets
-    x_train = x[split:]
-    x_test = x[:split]
-
-    # Split the targets into training/testing sets
-    y_train = y[split:]
-    y_test = y[:split]
-
-    # Create linear regression object
-    regr = linear_model.LinearRegression()
-
-    # Train the model using the training sets
-    regr.fit(x_train, y_train)
-
-    # Make predictions using the testing set
-    y_pred = regr.predict(x_test)
-
-    # The coefficients
-    print('Coefficients: \n', regr.coef_)
-    # The mean squared error
-    print('Mean squared error: %.2f'
-          % mean_squared_error(y_test, y_pred))
-    # The coefficient of determination: 1 is perfect prediction
-    print('Coefficient of determination: %.2f'
-          % r2_score(y_test, y_pred))
-
-    return regr.coef_[0][0], r2_score(y_test, y_pred)
 
 # TODO: why is this here?
 def is_density(x):
@@ -214,16 +129,7 @@ def main():
                             args.mesh_file_name.replace('.msh', ''))
     write_path_model = (pathlib.Path(__file__).parent.absolute() / str(
         args.mesh_file_name.replace('.msh', '') + "_model.h5"))
-    dx = dxs[args.mesh_file_name]   # TODO: what does this represent? Grid resolution?
-
-    # TODO: is this only needed for linear regression?
-    # Find the rbf interpolation of the data
-    cmod = read_array(read_path, "CMOD")
-    force = read_array(read_path, "force_mean")
-
-    length = 1200
-    # Get the interpolated function for the force-displacement
-    # rbfi = inter.Rbf(cmod[:length], force[:length])
+    dx = dxs[args.mesh_file_name]
 
     # TODO: move to an input module
     # Constants
@@ -231,7 +137,6 @@ def main():
     s_0 = s_0s[args.mesh_file_name]
     s_1 = s_1s[args.mesh_file_name]
     s_c = s_cs[args.mesh_file_name]
-    # Calibrated value
     beta = 1./4  # 0.4
     c = cs[args.mesh_file_name]
     c_1 = (beta * c * s_0 - c * s_0) / (s_1 - s_0)
@@ -250,25 +155,14 @@ def main():
         profile = cProfile.Profile()
         profile.enable()
 
-    # Example function for calculating the boundary conditions magnitudes
-    # displacement_bc_array, *_ = calc_boundary_conditions_magnitudes(
-    #     70000, 5e-9, 1.75e-4, 1.75e-4)
-    # displacement_bc_array, *_ = calc_boundary_conditions_magnitudes(
-    #     100000, 1.0e-9, 4.0e-5, 4.0e-5)
-    # displacement_bc_array, *_ = calc_boundary_conditions_magnitudes(
-    #     200000, 4.5e-10, 4.5e-5, 4.5e-5)
-    # displacement_bc_array, *_ = calc_boundary_conditions_magnitudes(
-    #     250000, 3.5e-10, 4.4e-5, 4.4e-5)  # (250000, 3.5e-10, 4.4e-5, 4.4e-5)
+    # Calculate the boundary condition magnitude
     displacement_bc_array = smooth_step_data(0, 100000, 0, 1.5e-4)
 
     saf_fac = safety_factor[args.mesh_file_name]
-    dt = (np.power(
-        2.0 * 2400.0 / (
-            (4 / 3) * np.pi * np.power(horizon, 3.0) * 8 * c),
-        0.5) * saf_fac)
+    dt = (np.power(2.0 * 2400.0 / ((4 / 3) * np.pi * np.power(horizon, 3.0) * 8 * c), 0.5) * saf_fac)
     damping = dampings[args.mesh_file_name]
     print('dt=', dt, ', safety_fac=', saf_fac, 'damping=', damping)
-    integrator = VelocityVerletCL(dt=dt, damping=damping)  # TODO: (dt=dt, damping=damping, context=1)
+    integrator = VelocityVerletCL(dt=dt, damping=damping)
     # integrator = Euler_jit(dt=dt)
 
     # TODO: simplify. This functionality should be moved into a separate input module
