@@ -11,16 +11,16 @@ import numpy as np
 import pathlib
 from peripy import Model
 from peripy.integrators import VelocityVerletCL  # Euler_jit
-from peripy.utilities import read_array as read_model
+from peripy.utilities import read_array as read_model  # TODO: why?
 from peripy.utilities import write_array
 from sklearn import linear_model
 from sklearn.metrics import mean_squared_error, r2_score
 from pstats import SortKey, Stats
-from bc_utilities import (
-    calc_boundary_conditions_magnitudes, is_tip_5mm, is_tip_2mm, is_tip_1mm,
-    is_bond_type_5mm, is_bond_type_2mm, is_bond_type_1mm,
-    is_displacement_boundary_5mm, is_displacement_boundary_2mm,
-    is_displacement_boundary_1mm, smooth_step_data) # Note: MH wrote smooth_step_data
+from bc_utilities import (calc_boundary_conditions_magnitudes,
+                          is_tip_5mm,
+                          is_bond_type_5mm,
+                          is_displacement_boundary_5mm,
+                          smooth_step_data)     # Note: MH wrote smooth_step_data
 import os
 import scipy.interpolate as inter
 import h5py
@@ -29,19 +29,6 @@ import warnings
 # import scipy.io                     # edit MH
 
 os.environ['PYOPENCL_CTX'] = '0:0'
-
-# TODO: why are these variables not part of the input file?
-
-dxs = {'175beam5.0mmUN4T.msh': 5.0e-3}
-nnodes = {'175beam5.0mmUN4T.msh': 3645}
-safety_factor = {'175beam5.0mmUN4T.msh': 0.25}
-dampings = {'175beam5.0mmUN4T.msh': 2.5e6}
-
-# We found these values from example_s0.py
-s_0s = {'175beam5.0mmUN4T.msh': np.float64(1.05e-4)}
-s_cs = {'175beam5.0mmUN4T.msh': np.float64(5.56e-3)}
-s_1s = {'175beam5.0mmUN4T.msh': np.float64(6.90e-4)}
-cs = {'175beam5.0mmUN4T.msh': np.float64(2.32e+18)}
 
 read_path = pathlib.Path() / "EpUN4.h5"
 read_path_restart = pathlib.Path() / "state.npz"
@@ -73,9 +60,7 @@ def read_array(read_path, dataset):
                     "that file path.".format(dataset, read_path, dataset))
                 return None
     except IOError:
-        warnings.warn(
-            "The {} file does not appear to exist yet.".format(
-                read_path))
+        warnings.warn("The {} file does not appear to exist yet.".format(read_path))
         return None
 
 
@@ -129,70 +114,59 @@ def main():
                             args.mesh_file_name.replace('.msh', ''))
     write_path_model = (pathlib.Path(__file__).parent.absolute() / str(
         args.mesh_file_name.replace('.msh', '') + "_model.h5"))
-    dx = dxs[args.mesh_file_name]
-
-    # TODO: move to an input module
-    # Constants
-    horizon = dx * np.pi
-    s_0 = s_0s[args.mesh_file_name]
-    s_1 = s_1s[args.mesh_file_name]
-    s_c = s_cs[args.mesh_file_name]
-    beta = 1./4  # 0.4
-    c = cs[args.mesh_file_name]
-    c_1 = (beta * c * s_0 - c * s_0) / (s_1 - s_0)
-    c_2 = (- beta * c * s_0) / (s_c - s_1)
-    critical_stretch_ = [np.float64(s_0), np.float64(s_1), np.float64(s_c)]
-    critical_stretch_nf = [1000. * np.float64(s_0), 1000. * np.float64(s_1), 1000. * np.float64(s_c)]  # TODO: what is the purpose of this line?
-    bond_stiffness_ = [np.float64(c), np.float64(c_1), np.float64(c_2)]
-    bond_stiffness_nf = [np.float64(c), np.float64(c), np.float64(c)]
-    bond_stiffness = [bond_stiffness_, bond_stiffness_nf]
-    critical_stretch = [critical_stretch_, critical_stretch_nf]
-
-    bond_stiffness = c
-    critical_stretch = s_0
 
     if args.profile:
         profile = cProfile.Profile()
         profile.enable()
 
-    # Calculate the boundary condition magnitude
-    displacement_bc_array = smooth_step_data(0, 100000, 0, 1.5e-4)
+    # --------------------------------
+    #           Constants
+    # --------------------------------
 
-    saf_fac = safety_factor[args.mesh_file_name]
+    nnodes = 3645
+    dx = 5.0e-3
+    horizon = dx * np.pi
+    s_0 = 1.05e-4
+    s_1 = 6.90e-4
+    s_c = 5.56e-3
+    beta = 1./4
+    c = 2.32e18
+    c_1 = (beta * c * s_0 - c * s_0) / (s_1 - s_0)
+    c_2 = (- beta * c * s_0) / (s_c - s_1)
+    critical_stretch_ = [np.float64(s_0), np.float64(s_1), np.float64(s_c)]
+    critical_stretch_nf = [1000. * np.float64(s_0), 1000. * np.float64(s_1), 1000. * np.float64(s_c)]
+    bond_stiffness_ = [np.float64(c), np.float64(c_1), np.float64(c_2)]
+    bond_stiffness_nf = [np.float64(c), np.float64(c), np.float64(c)]
+    bond_stiffness = [bond_stiffness_, bond_stiffness_nf]
+    critical_stretch = [critical_stretch_, critical_stretch_nf]
+    damping = 2.5e6
+    saf_fac = 0.25
     dt = (np.power(2.0 * 2400.0 / ((4 / 3) * np.pi * np.power(horizon, 3.0) * 8 * c), 0.5) * saf_fac)
-    damping = dampings[args.mesh_file_name]
-    print('dt=', dt, ', safety_fac=', saf_fac, 'damping=', damping)
-    integrator = VelocityVerletCL(dt=dt, damping=damping)
-    # integrator = Euler_jit(dt=dt)
+    steps = 100000  # Number of time steps
+    applied_displacement = 1.5e-4
 
-    # TODO: simplify. This functionality should be moved into a separate input module
-    # Try reading volume, density, family and connectivity arrays from
-    # the file ./..._model.h5
-    # volume is an (nnodes, ) :class:`np.ndarray` of particle volumes, where
-    # nnodes is the number of particles in the .msh file
-    volume = np.power(dx, 3) * np.ones(nnodes[args.mesh_file_name], dtype=np.float64)
-    # density is an (nnodes, ) :class:`np.ndarray` of particle densities
+    # Calculate the boundary condition magnitude
+    displacement_bc_array = smooth_step_data(0, steps, 0, applied_displacement)
+
+    print('dt =', "{:.3e}".format(dt), '; safety_fac =', saf_fac, '; damping =', "{:.2e}".format(damping))
+    integrator = VelocityVerletCL(dt=dt, damping=damping)
+
+    volume = np.power(dx, 3) * np.ones(nnodes, dtype=np.float64)
     density = read_model(write_path_model, "density")
-    # family is an (nnodes, ) :class:`np.ndarray` of initial number of
-    # neighbours for each particle
     family = read_model(write_path_model, "family")
-    # nlist is an (nnodes, max_neigh) :class:`np.ndarray` of the neighbours
-    # for each particle. Each neigbour is given an integer i.d. in the range
-    # [0, nnodes). max_neigh is atleast as large as np.max(family)
     nlist = read_model(write_path_model, "nlist")
-    # n_neigh is an (nnodes, ) :class:`np.ndarray` of current number of
-    # neighbours for each particle.
     n_neigh = read_model(write_path_model, "n_neigh")
-    # The connectivity of the model is the tuple (nlist, n_neigh)
+    bond_types = read_model(write_path_model, "bond_types")
+
     if (nlist is not None) and (n_neigh is not None):
         connectivity = (nlist, n_neigh)
     else:
         connectivity = None
-    # Bond types
-    bond_types = read_model(
-        write_path_model, "bond_types")
 
-    # TODO: simplify
+    # --------------------------------
+    #          Input file
+    # --------------------------------
+
     if ((volume is not None) and
             (density is not None) and
             (family is not None) and
@@ -247,8 +221,7 @@ def main():
     # TODO: why define this so late in the script?
     first = 0
     last = -1
-    steps = 100000   # 250,000
-    write = 1000     # TODO: Ben had this set at 1 - why?
+    write = 1000     # write output data every 1000 time steps
 
     # TODO: what is this code doing?
     # Try to read the restart simulation from the variables
@@ -259,6 +232,10 @@ def main():
     ud = read_npz_array(read_path_restart, "ud")
     connectivity = (nlist, n_neigh)
     print(nlist, n_neigh, u, ud)
+
+    # --------------------------------
+    #          Simulation
+    # --------------------------------
 
     # TODO: how is nregimes set?
     if ((nlist is not None) and
@@ -289,18 +266,19 @@ def main():
             write=write
             )
 
-    # TODO: outputting data needs to be massively simplified
+    # --------------------------------
+    #          Output data
+    # --------------------------------
+
     force = np.array(data['force']['body_force'][first:last]) / 1000.
     deflection = 1000. * np.array(data['deflection']['displacement'][first:last])
     left_displacement = 1000. * np.array(data['CMOD_left']['displacement'][first:last])
     right_displacement = 1000. * np.array(data['CMOD_right']['displacement'][first:last])
     CMOD = np.subtract(right_displacement, left_displacement)
-    # mse_l = rbf_regression(CMOD, force, rbfi)
-    mdic = {"CMOD": CMOD, "load": force}        # edit MH
-    scipy.io.savemat('load_CMOD.mat', mdic)     # edit MH
-    plt.plot(CMOD, force)                       # edit MH
-    plt.show()                                  # edit MH
-    print('mse = ', mse_l)
+    # mdic = {"CMOD": CMOD, "load": force}        # edit MH
+    # scipy.io.savemat('load_CMOD.mat', mdic)     # edit MH
+    # plt.plot(CMOD, force)                       # edit MH
+    # plt.show()                                  # edit MH
 
     np.savez(write_path_solutions / "state.npz",
              u=u,
@@ -318,7 +296,7 @@ def main():
              acceleration=np.array(data['model']['acceleration']),
              force=np.array(data['model']['force']),
              body_force=np.array(data['model']['body_force']),
-             damage=np.array(data['model']['damage'])
+             # damage=np.array(data['model']['damage'])
              )
     np.savez(write_path_solutions / "force.npz",
              displacement=np.array(data['force']['displacement']),
@@ -351,22 +329,13 @@ def main():
 
     try:
         # Write data to disk
-        write_array(
-            write_path_solutions /
-            "data.h5", "force", np.array(force))
-        write_array(
-            write_path_solutions
-            / "data.h5", "CMOD", np.array(CMOD))
-
+        write_array(write_path_solutions / "data.h5", "force", np.array(force))
+        write_array(write_path_solutions / "data.h5", "CMOD", np.array(CMOD))
     except:
         os.remove(write_path_solutions / "data.h5")
         # Write data to disk
-        write_array(
-            write_path_solutions /
-            "data.h5", "force", np.array(force))
-        write_array(
-            write_path_solutions
-            / "data.h5", "CMOD", np.array(CMOD))
+        write_array(write_path_solutions / "data.h5", "force", np.array(force))
+        write_array(write_path_solutions / "data.h5", "CMOD", np.array(CMOD))
 
     if args.profile:
         profile.disable()
@@ -374,6 +343,10 @@ def main():
         stats = Stats(profile, stream=s).sort_stats(SortKey.CUMULATIVE)
         stats.print_stats(.05)
         print(s.getvalue())
+
+    # --------------------------------
+    #         Post-processing
+    # --------------------------------
 
 
 if __name__ == "__main__":
