@@ -143,4 +143,6 @@ post_processing/
 *.vtk
 !test/data/example_mesh.vtk
 !test/data/example_mesh_3d.vtk
+!test/data/expected_mesh.vtk
+!test/data/example_mesh_cl.vtk
 !test/data/force_test.vtk
