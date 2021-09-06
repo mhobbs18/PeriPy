@@ -8,7 +8,7 @@ from io import StringIO
 import numpy as np
 import pathlib
 from peripy import Model
-from peripy.integrators import VelocityVerletCL  # Euler_jit
+from peripy.integrators import VelocityVerletCL, EulerJit
 from peripy.utilities import write_array
 from pstats import SortKey, Stats
 from bc_utilities import (is_tip_5mm,
@@ -31,6 +31,12 @@ def is_density(x):
     density_concrete = 2346.0
     return density_concrete
 
+# ----------------------------------------------
+#                 WARNING!
+# ----------------------------------------------
+# Stiffness corrections are missing from this
+# example
+
 
 def main():
     """Conduct a peridynamics simulation."""
@@ -52,13 +58,13 @@ def main():
     #           Constants
     # --------------------------------
 
-    nnodes = 3645
+    nnodes = 3620  # 3645
     dx = 5.0e-3
     horizon = dx * np.pi
     s_0 = 1.05e-4
     s_1 = 6.90e-4
     s_c = 5.56e-3
-    beta = 1. / 4
+    beta = 0.25
     c = 2.32e18
     c_1 = (beta * c * s_0 - c * s_0) / (s_1 - s_0)
     c_2 = (- beta * c * s_0) / (s_c - s_1)
@@ -68,11 +74,11 @@ def main():
     bond_stiffness_nf = [np.float64(c), np.float64(c), np.float64(c)]
     bond_stiffness = [bond_stiffness_, bond_stiffness_nf]
     critical_stretch = [critical_stretch_, critical_stretch_nf]
-    damping = 2.5e6
+    damping = 0  # 2.5e6
     saf_fac = 0.25
-    dt = (np.power(2.0 * 2400.0 / ((4 / 3) * np.pi * np.power(horizon, 3.0) * 8 * c), 0.5) * saf_fac)
+    dt = 1.3e-6  # (np.power(2.0 * 2400.0 / ((4 / 3) * np.pi * np.power(horizon, 3.0) * 8 * c), 0.5) * saf_fac)
     steps = 100000  # Number of time steps
-    applied_displacement = 1.5e-4
+    applied_displacement = 2e-4  # 1.5e-4
     volume = np.power(dx, 3) * np.ones(nnodes, dtype=np.float64)
     print('dt =', "{:.3e}".format(dt), '; safety_fac =', saf_fac, '; damping =', "{:.2e}".format(damping))
 
@@ -86,7 +92,8 @@ def main():
     #       Solver (integrator)
     # --------------------------------
 
-    integrator = VelocityVerletCL(dt=dt, damping=damping)
+    # integrator = VelocityVerletCL(dt=dt, damping=damping)
+    integrator = EulerJit(dt=dt)
 
     # --------------------------------
     #          Input file
@@ -107,7 +114,7 @@ def main():
     #          Simulation
     # --------------------------------
 
-    write = 1000  # write output data every 1000 time steps
+    write = 100  # write output data every 1000 time steps
 
     # TODO: (u, coords, damage, connectivity, f, ud, data) expected 7, got 6
     (u, damage, connectivity, f, ud, data) = model.simulate(
@@ -167,7 +174,7 @@ def main():
     plt.grid(True)
     axes = plt.gca()
     axes.set_xlim([0, .3])
-    axes.set_ylim([0, 6])
+    # axes.set_ylim([0, 6])
     axes.tick_params(direction='in')
 
     plt.legend()

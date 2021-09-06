@@ -223,24 +223,21 @@ def is_displacement_boundary_5mm(x):
     """
     # Particle does not live on a boundary
     bnd = [None, None, None]
+
     # Displacement controlled particles
-    if ((x[0] > 0.0824)
-            and (x[0] < 0.0926)
-            and (x[2] > 0.05)):
+    if (x[0] > 0.0824) and (x[0] < 0.0926) and (x[2] > 0.045):  # 0.05
         bnd[2] = -1
-        bnd[1] = 0
+        # bnd[1] = 0
+
     # Clamped particles
-    if ((x[0] > 0.025 - 5e-3)
-            and (x[0] < 0.025 + 5e-3)
-            and (x[2] < 0.0)):
+    if (x[0] > 0.025 - 5e-3) and (x[0] < 0.025 + 5e-3) and (x[2] < -0.005):  # 0.0
         bnd[2] = 0
         bnd[1] = 0
-        bnd[0] = 0
-    if ((x[0] > 0.150 - 5e-3)
-            and (x[0] < 0.150 + 5e-3)
-            and (x[2] < 0.0)):
+        # bnd[0] = 0
+    if (x[0] > 0.155 - 5e-3) and (x[0] < 0.155 + 5e-3) and (x[2] < -0.005):  # 0.150
         bnd[2] = 0
         bnd[1] = 0
+
     return bnd
 
 
@@ -398,23 +395,24 @@ def is_tip_5mm(x):
     # Particle does not live on tip
     tip = [None, None, None]
     # Particle does live on tip
-    if ((x[0] > 0.0875 - 5.0e-3)
-            and (x[0] < 0.0875 + 5.0e-3)):
-        if ((x[2] > 0.025 - 5.0e-3)
-                and (x[2] < 0.025 + 5.0e-3)):
+    if (x[0] > 0.0875 - 5.0e-3) and (x[0] < 0.0875 + 5.0e-3):
+        if (x[2] > 0.025 - 5.0e-3) and (x[2] < 0.025 + 5.0e-3):
             tip[2] = 'deflection'
-    if ((x[0] > 0.0824)
-            and (x[0] < 0.0926)
-            and (x[2] > 0.05)):
+    if (x[0] > 0.0824) and (x[0] < 0.0926) and (x[2] > 0.045):  # 0.05
         tip[2] = 'force'
-    # Ben's
-    if ((x[0] > 0.0875 + 0.025 - 5.0e-3 / 2)
-            and (x[0] < 0.0875 + 0.025 + 5.0e-3 / 2)
-            and x[2] < 5.0e-3):
+
+    # if ((x[0] > 0.0875 + 0.025 - 5.0e-3 / 2)
+    #         and (x[0] < 0.0875 + 0.025 + 5.0e-3 / 2)
+    #         and x[2] == 0.005):  # x[2] < 5.0e-3
+    #     tip[0] = 'CMOD_right'
+    # if ((x[0] > 0.0875 - 0.025 - 5.0e-3 / 2)
+    #         and (x[0] < 0.0875 - 0.025 + 5.0e-3 / 2)
+    #         and x[2] == 0.005):
+    #     tip[0] = 'CMOD_left'
+
+    if x[0] == 0.125 and x[1] == 0.005 and x[2] == 0.005:
         tip[0] = 'CMOD_right'
-    if ((x[0] > 0.0875 - 0.025 - 5.0e-3 / 2)
-            and (x[0] < 0.0875 - 0.025 + 5.0e-3 / 2)
-            and x[2] < 5.0e-3):
+    if x[0] == 0.05 and x[1] == 0.005 and x[2] == 0.005:
         tip[0] = 'CMOD_left'
 
     return tip
@@ -425,20 +423,19 @@ def is_bond_type_5mm(x, y):
     # If at the supports, then it does not break
     # Particle does not live on a boundary
     bnd = 0
+
     # Displacement controlled particles
-    if ((x[0] > 0.0824)
-            and (x[0] < 0.0926)
-            and (x[2] > 0.05)):
-        bnd = 1
+    if (x[0] > 0.0824) and (x[0] < 0.0926) and (x[2] > 0.05):
+        # bnd = 1
+        a = 1
     # Clamped particles
-    if ((x[0] > 0.025 - 5e-3)
-            and (x[0] < 0.025 + 5e-3)
-            and (x[2] < 0.0)):
-        bnd = 1
-    if ((x[0] > 0.150 - 5e-3)
-            and (x[0] < 0.150 + 5e-3)
-            and (x[2] < 0.0)):
-        bnd = 1
+    if (x[0] > 0.025 - 5e-3) and (x[0] < 0.025 + 5e-3) and (x[2] < 0.0):
+        # bnd = 1
+        a = 1
+    if (x[0] > 0.150 - 5e-3) and (x[0] < 0.150 + 5e-3) and (x[2] < 0.0):
+        # bnd = 1
+        a = 1
+
     return bnd
 
 
