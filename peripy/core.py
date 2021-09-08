@@ -48,8 +48,8 @@ def calculate_bsf_trilinear(stretch, s0, s1, sc, bond_softening_factor, flag_bsf
 
         if (stretch[kBond] > s0) and (stretch[kBond] <= s1):
 
-            bsf[kBond] = 1 - ((eta - beta) / (eta - 1) * (s0 / stretch[kBond])) + ((1 - beta) / (eta - 1))
             flag_bsf[kBond] = 1
+            bsf[kBond] = 1 - ((eta - beta) / (eta - 1) * (s0 / stretch[kBond])) + ((1 - beta) / (eta - 1))
 
         elif (stretch[kBond] > s1) and (stretch[kBond] <= sc):
 

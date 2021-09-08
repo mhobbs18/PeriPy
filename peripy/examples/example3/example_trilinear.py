@@ -168,7 +168,7 @@ def main():
     plt.fill_between(exp_CMOD, exp_load_min, exp_load_max, color=(0.8, 0.8, 0.8))
 
     # Numerical data
-    plt.plot(CMOD, force, label='Numerical')
+    plt.plot(CMOD, -force, label='Numerical')
     plt.xlabel('CMOD [mm]')
     plt.ylabel('Force [kN]')
     plt.grid(True)
